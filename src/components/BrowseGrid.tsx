@@ -61,15 +61,26 @@ export function BrowseGrid({
     }
 
     // Bookable movies lead the whole list: you can act on them today,
-    // which matters more than a future release date. Within each of the
-    // two groups (bookable / not-yet-released), the server's ascending
-    // release-date order is preserved via a stable sort, so this only
-    // splits the existing order into two blocks rather than re-deriving
-    // it. A bookable movie with no known release date (Phase 5's
-    // unresolved Arabic-title matching gap) still sorts within the
-    // bookable block, just after any bookable movie that does have a date.
+    // which matters more than a future release date. Within the bookable
+    // group, more bookable days (summed across branches) sorts first --
+    // a proxy for how widely a movie is actually showing right now, using
+    // the day-level data already cached in showtimes_cache.raw_showtimes
+    // rather than fetching live per-day showtime counts, which would mean
+    // a Scene request per movie per browse page view. Within the
+    // not-yet-bookable group, the server's ascending release-date order
+    // is preserved via a stable sort. A bookable movie with no known
+    // release date (Phase 5's unresolved Arabic-title matching gap)
+    // still sorts within the bookable block, ordered by its day count
+    // like any other bookable movie.
     const isBookable = (m: MovieCardData) => m.branches?.some((b) => b.bookable) ?? false;
-    result = [...result].sort((a, b) => Number(isBookable(b)) - Number(isBookable(a)));
+    const bookableDayCount = (m: MovieCardData) =>
+      (m.branches ?? []).reduce((sum, b) => sum + (b.bookable ? b.bookableDayCount : 0), 0);
+    result = [...result].sort((a, b) => {
+      const bookableDiff = Number(isBookable(b)) - Number(isBookable(a));
+      if (bookableDiff !== 0) return bookableDiff;
+      if (isBookable(a) && isBookable(b)) return bookableDayCount(b) - bookableDayCount(a);
+      return 0;
+    });
 
     return result;
   }, [movies, statusFilter, query]);

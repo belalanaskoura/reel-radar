@@ -17,7 +17,7 @@ export default async function BrowsePage() {
   // pulls through end of 2029 instead of 6 months out.
   const { data: movies } = await supabase
     .from('movies')
-    .select('id, title, release_date, poster_path, showtimes_cache(bookable, branches(name))')
+    .select('id, title, release_date, poster_path, showtimes_cache(bookable, raw_showtimes, branches(name))')
     .in('match_status', ['matched', 'unmatched'])
     .order('release_date', { ascending: true, nullsFirst: false })
     .limit(2000);
@@ -47,6 +47,7 @@ export default async function BrowsePage() {
     branches: (m.showtimes_cache ?? []).map((s) => ({
       branch_name: (s.branches as unknown as { name: string } | null)?.name ?? '',
       bookable: s.bookable,
+      bookableDayCount: Array.isArray(s.raw_showtimes) ? s.raw_showtimes.length : 0,
     })),
   }));
 

@@ -8,7 +8,7 @@ export interface MovieCardData {
   title: string;
   release_date: string | null;
   poster_path: string | null;
-  branches?: { branch_name: string; bookable: boolean }[];
+  branches?: { branch_name: string; bookable: boolean; bookableDayCount: number }[];
 }
 
 export function MovieCard({
