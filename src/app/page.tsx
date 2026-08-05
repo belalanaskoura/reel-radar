@@ -9,16 +9,17 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Fetches every browsable movie once -- search and the status filter
-  // both run client-side against this full set (~100 movies at this
-  // project's scale), so typing filters instantly with no network
-  // round-trip per keystroke.
+  // Fetches every browsable movie once -- search, the status filter, and
+  // pagination all run client-side against this full set, so typing
+  // filters instantly with no network round-trip per keystroke. Limit
+  // raised well past the catalog's current size now that sync-movies
+  // pulls through end of 2029 instead of 6 months out.
   const { data: movies } = await supabase
     .from('movies')
     .select('id, title, release_date, poster_path, showtimes_cache(bookable, branches(name))')
     .in('match_status', ['matched', 'unmatched'])
     .order('release_date', { ascending: true, nullsFirst: false })
-    .limit(500);
+    .limit(2000);
 
   let watchedIds: string[] = [];
   if (user) {

@@ -17,6 +17,8 @@ function matchesSearch(title: string, query: string): boolean {
   return queryWords.every((qWord) => titleWords.some((tWord) => tWord.startsWith(qWord)));
 }
 
+const PAGE_SIZE = 60;
+
 export function BrowseGrid({
   movies,
   watchedIds,
@@ -28,6 +30,7 @@ export function BrowseGrid({
 }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [page, setPage] = useState(1);
   const watchedIdSet = useMemo(() => new Set(watchedIds), [watchedIds]);
 
   const filtered = useMemo(() => {
@@ -50,8 +53,25 @@ export function BrowseGrid({
       result = result.filter((m) => matchesSearch(m.title, query));
     }
 
-    return result.slice(0, 60);
+    return result;
   }, [movies, statusFilter, query]);
+
+  // Changing search/filter can leave `page` pointing past the new result
+  // set's end -- reset to page 1 whenever the filtered set changes rather
+  // than showing an empty page.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  function updateQuery(value: string) {
+    setQuery(value);
+    setPage(1);
+  }
+
+  function updateStatusFilter(value: StatusFilter) {
+    setStatusFilter(value);
+    setPage(1);
+  }
 
   return (
     <>
@@ -59,7 +79,7 @@ export function BrowseGrid({
         <input
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => updateQuery(e.target.value)}
           placeholder="Search movies..."
           className="w-full min-w-0 flex-1 rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 sm:max-w-sm sm:flex-none"
           style={{
@@ -68,7 +88,7 @@ export function BrowseGrid({
             color: 'var(--ink)',
           }}
         />
-        <FilterDropdown value={statusFilter} onChange={setStatusFilter} />
+        <FilterDropdown value={statusFilter} onChange={updateStatusFilter} />
       </div>
 
       {filtered.length === 0 ? (
@@ -76,16 +96,44 @@ export function BrowseGrid({
           No movies found.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5">
-          {filtered.map((movie) => (
-            <MovieCard
-              key={movie.id}
-              movie={movie}
-              isWatchlisted={watchedIdSet.has(movie.id)}
-              isSignedIn={isSignedIn}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5">
+            {pageItems.map((movie) => (
+              <MovieCard
+                key={movie.id}
+                movie={movie}
+                isWatchlisted={watchedIdSet.has(movie.id)}
+                isSignedIn={isSignedIn}
+              />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="mt-8 flex items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="rounded-sm border px-3 py-2 text-sm transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
+              >
+                Previous
+              </button>
+              <span className="text-sm tabular-nums" style={{ color: 'var(--ink-dim)' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="rounded-sm border px-3 py-2 text-sm transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
       )}
     </>
   );

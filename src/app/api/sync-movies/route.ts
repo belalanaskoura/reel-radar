@@ -14,11 +14,14 @@ export async function POST(request: Request) {
   }
 
   const today = new Date();
-  const sixMonthsOut = new Date(today);
-  sixMonthsOut.setMonth(sixMonthsOut.getMonth() + 6);
+  // End-of-2029 cutoff, per the browse page's "browse through everything
+  // coming out till 2029" goal -- TMDB has very little confirmed data
+  // that far out today, so this window will fill in gradually as TMDB's
+  // own catalog does, not all at once.
+  const endOf2029 = new Date(Date.UTC(2029, 11, 31));
 
   const fromDate = today.toISOString().slice(0, 10);
-  const toDate = sixMonthsOut.toISOString().slice(0, 10);
+  const toDate = endOf2029.toISOString().slice(0, 10);
 
   const candidates = await fetchUpcomingMovies(fromDate, toDate);
 
