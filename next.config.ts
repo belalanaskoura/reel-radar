@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    // Next 16 defaults local image paths to allowing only an empty query
+    // string, which blocks our own same-origin poster proxy
+    // (/api/scene-poster?src=...) below -- explicit opt-in needed per path.
+    localPatterns: [
+      { pathname: '/api/scene-poster' },
+    ],
     remotePatterns: [
       {
         protocol: 'https',
