@@ -53,17 +53,16 @@ export function BrowseGrid({
       result = result.filter((m) => matchesSearch(m.title, query));
     }
 
-    // Movies bookable right now but with no known release date (Phase 5's
-    // unresolved Arabic-title matching gap -- these still get real Scene
-    // data, just no TMDB/elCinema date) would otherwise sort to the very
-    // end alongside everything else with no date, even though they're
-    // more actionable than anything with a future date. Server order
-    // (ascending by release date, nulls last) is otherwise left alone.
-    const bookableNoDate = (m: MovieCardData) =>
-      !m.release_date && (m.branches?.some((b) => b.bookable) ?? false);
-    if (result.some(bookableNoDate)) {
-      result = [...result].sort((a, b) => Number(bookableNoDate(b)) - Number(bookableNoDate(a)));
-    }
+    // Bookable movies lead the whole list -- you can act on them today,
+    // which matters more than a future release date. Within each of the
+    // two groups (bookable / not-yet-released), the server's ascending
+    // release-date order is preserved via a stable sort, so this only
+    // splits the existing order into two blocks rather than re-deriving
+    // it. A bookable movie with no known release date (Phase 5's
+    // unresolved Arabic-title matching gap) still sorts within the
+    // bookable block, just after any bookable movie that does have a date.
+    const isBookable = (m: MovieCardData) => m.branches?.some((b) => b.bookable) ?? false;
+    result = [...result].sort((a, b) => Number(isBookable(b)) - Number(isBookable(a)));
 
     return result;
   }, [movies, statusFilter, query]);
