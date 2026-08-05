@@ -31,9 +31,17 @@ export async function getEgyptReleaseDate(
     const query = normalizeTitle(title);
     const results = await searchElCinema(query);
     await sleep(REQUEST_DELAY_MS);
-    if (results.length === 0) return null;
 
-    const details = await fetchWorkDetails(results[0].elcinemaId);
+    // elCinema's search ranking is not reliably exact-match-first --
+    // confirmed for real: searching "runner" ranked "Runner Runner" above
+    // the exact title "Runner", and a title with zero real elCinema
+    // listing ("First Witch") still returned 25 unrelated "Witch" results.
+    // Only trust a hit whose own title normalizes to the same query;
+    // otherwise this is a movie elCinema has no record of, not a match.
+    const exactMatch = results.find((r) => normalizeTitle(r.title) === query);
+    if (!exactMatch) return null;
+
+    const details = await fetchWorkDetails(exactMatch.elcinemaId);
     await sleep(REQUEST_DELAY_MS);
 
     await supabase.from('egypt_releases').upsert(
