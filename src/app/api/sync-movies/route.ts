@@ -3,6 +3,7 @@ import { fetchUpcomingMovies } from '@/lib/tmdb';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { isLikelyEgyptRelease } from '@/lib/matching/egypt-distributor-filter';
 import { getEgyptReleaseInfo } from '@/lib/matching/egypt-release-date';
+import { normalizeTitle } from '@/lib/matching/normalize';
 
 // Pulls upcoming movies from TMDB and upserts them into the `movies` table.
 // Matched on tmdb_id so re-running is idempotent. Does not touch Scene
@@ -55,7 +56,44 @@ export async function POST(request: Request) {
     });
   }
 
-  const { error } = await supabase.from('movies').upsert(rows, {
+  // TMDB itself occasionally has two distinct tmdb_ids for the same real
+  // movie (confirmed for real: "aks seir" existed as both 1728650 and
+  // 1728604 -- same director/writer/cast/release date, one just a
+  // sparser duplicate entry). `onConflict: 'tmdb_id'` only catches
+  // re-syncing the *same* tmdb_id, so a same-title-and-date candidate
+  // with a *different* tmdb_id is checked against already-stored movies
+  // and skipped here -- scoped narrowly to an exact normalized-title +
+  // exact release_date match (not fuzzy), since two genuinely different
+  // movies sharing both is effectively never real, while a broader/fuzzy
+  // match risks merging unrelated films.
+  const dedupedRows = [];
+  let skippedDuplicates = 0;
+  for (const row of rows) {
+    if (!row.release_date) {
+      dedupedRows.push(row);
+      continue;
+    }
+
+    const { data: sameDateMovies } = await supabase
+      .from('movies')
+      .select('tmdb_id, title')
+      .eq('release_date', row.release_date)
+      .neq('tmdb_id', row.tmdb_id)
+      .not('tmdb_id', 'is', null);
+
+    const normalizedTitle = normalizeTitle(row.title);
+    const isDuplicate = (sameDateMovies ?? []).some(
+      (existing) => normalizeTitle(existing.title) === normalizedTitle,
+    );
+
+    if (isDuplicate) {
+      skippedDuplicates += 1;
+    } else {
+      dedupedRows.push(row);
+    }
+  }
+
+  const { error } = await supabase.from('movies').upsert(dedupedRows, {
     onConflict: 'tmdb_id',
     ignoreDuplicates: false,
   });
@@ -64,5 +102,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ synced: movies.length, candidates: candidates.length });
+  return NextResponse.json({
+    synced: dedupedRows.length,
+    candidates: candidates.length,
+    skippedDuplicates,
+  });
 }
