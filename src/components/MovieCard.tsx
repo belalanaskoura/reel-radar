@@ -46,7 +46,7 @@ export function MovieCard({
           )}
         </div>
       </Link>
-      <div className="flex flex-1 flex-col gap-2 p-3">
+      <div className="flex flex-col gap-2 p-3">
         <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
           <h3
             className="font-display line-clamp-2 text-lg leading-tight"
@@ -55,9 +55,11 @@ export function MovieCard({
             {movie.title}
           </h3>
         </Link>
-        <p className="text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
-          {movie.release_date ?? 'Release date TBA'}
-        </p>
+        {(movie.release_date || !isBookable) && (
+          <p className="text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
+            {movie.release_date ?? 'Release date TBA'}
+          </p>
+        )}
 
         {movie.branches && movie.branches.length > 0 ? (
           <ul className="flex flex-wrap gap-1">
