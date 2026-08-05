@@ -26,34 +26,66 @@ export default async function AccountPage({
     .single();
 
   return (
-    <main>
-      <h1>Account</h1>
-      <p>Signed in as {user.email}</p>
+    <main className="mx-auto max-w-sm px-6 py-16">
+      <h1 className="font-display mb-1 text-4xl leading-none" style={{ color: 'var(--ink)' }}>
+        Account
+      </h1>
+      <p className="mb-6 text-sm" style={{ color: 'var(--ink-dim)' }}>
+        Signed in as {user.email}
+      </p>
 
-      {error && <p role="alert">{error}</p>}
-      {saved && <p>Saved.</p>}
+      {error && (
+        <p
+          role="alert"
+          className="mb-4 rounded-sm px-3 py-2 text-sm"
+          style={{ background: '#3a1810', color: '#f3a58a' }}
+        >
+          {error}
+        </p>
+      )}
+      {saved && (
+        <p
+          className="mb-4 rounded-sm px-3 py-2 text-sm"
+          style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}
+        >
+          Saved.
+        </p>
+      )}
 
-      <form action={updateNtfyTopic}>
-        <label htmlFor="ntfy_topic">
+      <form action={updateNtfyTopic} className="flex flex-col gap-2">
+        <label htmlFor="ntfy_topic" className="text-sm font-medium" style={{ color: 'var(--ink)' }}>
           ntfy.sh topic
-          <div>
-            Pick a private, hard-to-guess topic name and subscribe to it in
-            the ntfy app -- anyone who knows this name can read your
-            notifications.
-          </div>
         </label>
+        <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
+          Pick a private, hard-to-guess topic name and subscribe to it in the
+          ntfy app -- anyone who knows this name can read your notifications.
+        </p>
         <input
           id="ntfy_topic"
           name="ntfy_topic"
           type="text"
           defaultValue={profile?.ntfy_topic ?? ''}
-          placeholder="e.g. reel-alert-a1b2c3"
+          placeholder="e.g. reelalert-a1b2c3"
+          className="rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
+          style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
         />
-        <button type="submit">Save</button>
+        <button
+          type="submit"
+          className="mt-1 rounded-sm px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+          style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+        >
+          Save
+        </button>
       </form>
 
-      <form action={signout}>
-        <button type="submit">Sign out</button>
+      <form action={signout} className="mt-6">
+        <button
+          type="submit"
+          className="rounded-sm border px-3 py-2 text-sm transition-opacity hover:opacity-70"
+          style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
+        >
+          Sign out
+        </button>
       </form>
     </main>
   );
