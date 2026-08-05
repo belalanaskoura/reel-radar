@@ -17,7 +17,7 @@ export function NtfyOnboarding({ initialTopic }: { initialTopic: string | null }
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const [topic, setTopic] = useState(initialTopic ?? '');
-  const [suggested] = useState(randomTopic);
+  const [suggested, setSuggested] = useState(randomTopic);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -28,6 +28,7 @@ export function NtfyOnboarding({ initialTopic }: { initialTopic: string | null }
 
   function handleSaveTopic() {
     if (isPending) return;
+    const usedSuggested = !topic.trim();
     const value = topic.trim() || suggested;
     setError(null);
     startTransition(async () => {
@@ -35,6 +36,11 @@ export function NtfyOnboarding({ initialTopic }: { initialTopic: string | null }
         const result = await saveNtfyTopic(value);
         if (result.error) {
           setError(result.error);
+          // The suggested topic that just collided is a dead end on
+          // retry (it'll just collide again), so mint a fresh one. Only
+          // when the user was actually relying on it, not when they
+          // typed something themselves.
+          if (usedSuggested) setSuggested(randomTopic());
           return;
         }
         setTopic(value);
