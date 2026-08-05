@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MovieCard, type MovieCardData } from '@/components/MovieCard';
 import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
 
@@ -28,9 +29,15 @@ export function BrowseGrid({
   watchedIds: string[];
   isSignedIn: boolean;
 }) {
-  const [query, setQuery] = useState('');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Search lives in the URL (?q=), written by the nav bar's search input
+  // (NavSearch) -- rendered separately, above this component in the
+  // tree, with no direct prop connection to it. Reading it here keeps
+  // both in sync without lifting state through a shared parent.
+  const query = searchParams.get('q') ?? '';
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [page, setPage] = useState(1);
   const watchedIdSet = useMemo(() => new Set(watchedIds), [watchedIds]);
 
   const filtered = useMemo(() => {
@@ -67,38 +74,43 @@ export function BrowseGrid({
     return result;
   }, [movies, statusFilter, query]);
 
-  // Changing search/filter can leave `page` pointing past the new result
-  // set's end -- reset to page 1 whenever the filtered set changes rather
-  // than showing an empty page.
+  // Page number lives in the URL too (?page=), not local state -- a new
+  // search (written by NavSearch, a sibling with no direct prop
+  // connection to this component) always omits ?page, which naturally
+  // reads back as page 1 here without needing a separate reset effect.
+  const pageParam = Number(searchParams.get('page'));
+  const requestedPage = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
+  const currentPage = Math.min(requestedPage, totalPages);
   const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  function updateQuery(value: string) {
-    setQuery(value);
-    setPage(1);
+  function goToPage(nextPage: number) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextPage > 1) {
+      params.set('page', String(nextPage));
+    } else {
+      params.delete('page');
+    }
+    router.replace(params.size > 0 ? `/?${params}` : '/', { scroll: false });
   }
 
   function updateStatusFilter(value: StatusFilter) {
     setStatusFilter(value);
-    setPage(1);
+    goToPage(1);
   }
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center gap-3 sm:mb-8">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => updateQuery(e.target.value)}
-          placeholder="Search movies..."
-          className="w-full min-w-0 flex-1 rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 sm:max-w-sm sm:flex-none"
-          style={{
-            borderColor: 'var(--rule)',
-            background: 'var(--bg-elevated)',
-            color: 'var(--ink)',
-          }}
-        />
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
+        <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+          {query.trim() ? (
+            <>
+              {filtered.length} result{filtered.length === 1 ? '' : 's'} for &ldquo;{query}&rdquo;
+            </>
+          ) : (
+            <>{filtered.length} movies</>
+          )}
+        </p>
         <FilterDropdown value={statusFilter} onChange={updateStatusFilter} />
       </div>
 
@@ -108,7 +120,7 @@ export function BrowseGrid({
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {pageItems.map((movie) => (
               <MovieCard
                 key={movie.id}
@@ -123,7 +135,7 @@ export function BrowseGrid({
             <div className="mt-8 flex items-center justify-center gap-4">
               <button
                 type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => goToPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
                 className="rounded-sm border px-3 py-2 text-sm transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                 style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
@@ -135,7 +147,7 @@ export function BrowseGrid({
               </span>
               <button
                 type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
                 className="rounded-sm border px-3 py-2 text-sm transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                 style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}

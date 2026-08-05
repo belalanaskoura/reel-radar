@@ -16,7 +16,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "ReelAlert",
-  description: "Watchlist upcoming movies at Scene Cinemas and get notified the moment tickets go live.",
+  description: "Browse what's bookable and coming soon at Scene Cinemas, and get notified the moment tickets go live.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

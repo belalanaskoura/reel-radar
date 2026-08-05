@@ -42,16 +42,36 @@ export default async function Home() {
   }));
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-      <h1 className="font-display mb-2 text-4xl leading-none sm:text-5xl" style={{ color: 'var(--ink)' }}>
-        Upcoming at the movies
-      </h1>
-      <p className="mb-6 max-w-xl text-sm sm:mb-8" style={{ color: 'var(--ink-dim)' }}>
-        Watchlist a title before it&apos;s even on Scene&apos;s site, and get notified the
-        moment tickets go live at Cairo Festival City or District 5.
-      </p>
+    <main>
+      <div
+        className="relative overflow-hidden border-b"
+        style={{ borderColor: 'var(--rule)' }}
+      >
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(ellipse 80% 60% at 50% -20%, color-mix(in srgb, var(--accent) 16%, transparent), transparent)',
+          }}
+        />
+        <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
+          <h1
+            className="font-display mb-2 text-4xl leading-none sm:text-6xl"
+            style={{ color: 'var(--ink)' }}
+          >
+            Now booking <span style={{ color: 'var(--accent)' }}>&amp; on the way</span>
+          </h1>
+          <p className="max-w-xl text-sm sm:text-base" style={{ color: 'var(--ink-dim)' }}>
+            Everything bookable right now at Cairo Festival City and District 5, plus movies
+            headed there that haven&apos;t opened yet. Watchlist one before it&apos;s even
+            listed and get notified the moment tickets go live.
+          </p>
+        </div>
+      </div>
 
-      <BrowseGrid movies={movieCards} watchedIds={watchedIds} isSignedIn={!!user} />
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+        <BrowseGrid movies={movieCards} watchedIds={watchedIds} isSignedIn={!!user} />
+      </div>
     </main>
   );
 }
