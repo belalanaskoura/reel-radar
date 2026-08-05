@@ -51,7 +51,8 @@ export default async function WatchlistPage() {
               className="flex gap-4 rounded-sm border p-4"
               style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
             >
-              <div
+              <Link
+                href={`/movies/${movie.id}`}
                 className="relative h-36 w-24 flex-shrink-0 overflow-hidden rounded-sm"
                 style={{ background: 'var(--listed-bg)' }}
               >
@@ -64,14 +65,16 @@ export default async function WatchlistPage() {
                     className="object-cover"
                   />
                 ) : null}
-              </div>
+              </Link>
 
               <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h2 className="font-display text-2xl leading-tight" style={{ color: 'var(--ink)' }}>
-                      {movie.title}
-                    </h2>
+                    <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
+                      <h2 className="font-display text-2xl leading-tight" style={{ color: 'var(--ink)' }}>
+                        {movie.title}
+                      </h2>
+                    </Link>
                     <p className="text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
                       {movie.release_date ?? 'Release date TBA'}
                     </p>

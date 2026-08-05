@@ -28,6 +28,38 @@ interface TmdbReleaseDatesResponse {
   }>;
 }
 
+export interface TmdbMovieDetails {
+  id: number;
+  title: string;
+  overview: string;
+  tagline: string;
+  backdrop_path: string | null;
+  poster_path: string | null;
+  release_date: string;
+  runtime: number | null;
+  genres: { id: number; name: string }[];
+}
+
+export interface TmdbCastMember {
+  id: number;
+  name: string;
+  character: string;
+  profile_path: string | null;
+  order: number;
+}
+
+export interface TmdbCrewMember {
+  id: number;
+  name: string;
+  job: string;
+  department: string;
+}
+
+export interface TmdbCredits {
+  cast: TmdbCastMember[];
+  crew: TmdbCrewMember[];
+}
+
 function requireApiKey(): string {
   const key = process.env.TMDB_API_KEY;
   if (!key) {
@@ -123,4 +155,33 @@ export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string
   // TV (6), and premiere (1) entries don't indicate a cinema release.
   const theatrical = eg.release_dates.find((d) => d.type === 2 || d.type === 3);
   return theatrical?.release_date ?? null;
+}
+
+// Fetches full movie details (overview, tagline, backdrop, runtime,
+// genres) for the detail page. Not stored in the DB -- fetched live on
+// page view since detail pages are viewed far less often than the browse
+// grid, so there's no benefit to bloating every `movies` row with data
+// most of them will never need rendered.
+export async function fetchMovieDetails(tmdbId: number): Promise<TmdbMovieDetails> {
+  const apiKey = requireApiKey();
+  const res = await fetch(
+    `${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${apiKey}&language=en-US`,
+  );
+  if (!res.ok) {
+    throw new Error(`TMDB movie details request failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+// Fetches cast and crew for the detail page. Same "fetch live, don't
+// store" reasoning as fetchMovieDetails.
+export async function fetchCredits(tmdbId: number): Promise<TmdbCredits> {
+  const apiKey = requireApiKey();
+  const res = await fetch(
+    `${TMDB_BASE_URL}/movie/${tmdbId}/credits?api_key=${apiKey}&language=en-US`,
+  );
+  if (!res.ok) {
+    throw new Error(`TMDB credits request failed: ${res.status}`);
+  }
+  return res.json();
 }

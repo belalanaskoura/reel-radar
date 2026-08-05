@@ -1,66 +1,81 @@
 @import 'tailwindcss';
 
 /*
-  ReelAlert palette: a screening-room ground with one marquee-red accent.
+  ReelAlert palette: matches Scene Cinemas' own brand colors (pulled
+  directly from cfc.scenecinemas.com's theme stylesheet) -- deep teal
+  primary (#00534C) with a mint highlight (#3DDACC) for active/selected
+  states, the same role it plays on Scene's own showtime selector.
   Tokens are defined once and consumed everywhere via CSS variables --
   components should never hardcode a color, only reference a token.
 */
 :root {
-  --bg: #faf8f4;
+  --bg: #f6f7f6;
   --bg-elevated: #ffffff;
-  --ink: #1a1816;
-  --ink-dim: #6b6560;
-  --rule: #e4dfd6;
-  --accent: #d1450f;
+  --ink: #14201d;
+  --ink-dim: #5c6b67;
+  --rule: #dce3e0;
+  --accent: #00534c;
   --accent-ink: #ffffff;
-  --ok-bg: #e6f4ea;
-  --ok-ink: #1e6b3a;
-  --listed-bg: #efe9e0;
-  --listed-ink: #6b6560;
+  --highlight: #0e8a7d;
+  --ok-bg: #e1f3ec;
+  --ok-ink: #0b6e4f;
+  --listed-bg: #e9ece9;
+  --listed-ink: #5c6b67;
+  --error-bg: #fbe9e7;
+  --error-ink: #9a3324;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0e0d0f;
-    --bg-elevated: #18171a;
-    --ink: #f3f1ec;
-    --ink-dim: #9a958f;
-    --rule: #2a282b;
-    --accent: #e8622f;
-    --accent-ink: #0e0d0f;
-    --ok-bg: #12301f;
-    --ok-ink: #6fce93;
-    --listed-bg: #221f22;
-    --listed-ink: #9a958f;
+    --bg: #0c1210;
+    --bg-elevated: #15201c;
+    --ink: #eef3f1;
+    --ink-dim: #8ea19b;
+    --rule: #26332e;
+    --accent: #3ddacc;
+    --accent-ink: #0c1210;
+    --highlight: #3ddacc;
+    --ok-bg: #113026;
+    --ok-ink: #5fdcae;
+    --listed-bg: #1a2521;
+    --listed-ink: #8ea19b;
+    --error-bg: #3a1810;
+    --error-ink: #f3a58a;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #0e0d0f;
-  --bg-elevated: #18171a;
-  --ink: #f3f1ec;
-  --ink-dim: #9a958f;
-  --rule: #2a282b;
-  --accent: #e8622f;
-  --accent-ink: #0e0d0f;
-  --ok-bg: #12301f;
-  --ok-ink: #6fce93;
-  --listed-bg: #221f22;
-  --listed-ink: #9a958f;
+  --bg: #0c1210;
+  --bg-elevated: #15201c;
+  --ink: #eef3f1;
+  --ink-dim: #8ea19b;
+  --rule: #26332e;
+  --accent: #3ddacc;
+  --accent-ink: #0c1210;
+  --highlight: #3ddacc;
+  --ok-bg: #113026;
+  --ok-ink: #5fdcae;
+  --listed-bg: #1a2521;
+  --listed-ink: #8ea19b;
+  --error-bg: #3a1810;
+  --error-ink: #f3a58a;
 }
 
 :root[data-theme='light'] {
-  --bg: #faf8f4;
+  --bg: #f6f7f6;
   --bg-elevated: #ffffff;
-  --ink: #1a1816;
-  --ink-dim: #6b6560;
-  --rule: #e4dfd6;
-  --accent: #d1450f;
+  --ink: #14201d;
+  --ink-dim: #5c6b67;
+  --rule: #dce3e0;
+  --accent: #00534c;
   --accent-ink: #ffffff;
-  --ok-bg: #e6f4ea;
-  --ok-ink: #1e6b3a;
-  --listed-bg: #efe9e0;
-  --listed-ink: #6b6560;
+  --highlight: #0e8a7d;
+  --ok-bg: #e1f3ec;
+  --ok-ink: #0b6e4f;
+  --listed-bg: #e9ece9;
+  --listed-ink: #5c6b67;
+  --error-bg: #fbe9e7;
+  --error-ink: #9a3324;
 }
 
 html {

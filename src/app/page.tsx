@@ -4,9 +4,10 @@ import { MovieCard, type MovieCardData } from '@/components/MovieCard';
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; bookable?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, bookable } = await searchParams;
+  const bookableOnly = bookable === '1';
   const supabase = await createClient();
 
   const {
@@ -25,7 +26,7 @@ export default async function Home({
     query = query.ilike('title', `%${q}%`);
   }
 
-  const { data: movies } = await query.limit(60);
+  const { data: movies } = await query.limit(200);
 
   let watchedIds = new Set<string>();
   if (user) {
@@ -36,7 +37,7 @@ export default async function Home({
     watchedIds = new Set((watchlistRows ?? []).map((r) => r.movie_id));
   }
 
-  const movieCards: MovieCardData[] = (movies ?? []).map((m) => ({
+  let movieCards: MovieCardData[] = (movies ?? []).map((m) => ({
     id: m.id,
     title: m.title,
     release_date: m.release_date,
@@ -46,6 +47,14 @@ export default async function Home({
       bookable: s.bookable,
     })),
   }));
+
+  if (bookableOnly) {
+    movieCards = movieCards
+      .filter((m) => m.branches?.some((b) => b.bookable))
+      .map((m) => ({ ...m, branches: m.branches?.filter((b) => b.bookable) }));
+  }
+
+  movieCards = movieCards.slice(0, 60);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
@@ -57,7 +66,7 @@ export default async function Home({
         moment tickets go live at Cairo Festival City or District 5.
       </p>
 
-      <form className="mb-8" action="/">
+      <form className="mb-8 flex flex-wrap items-center gap-4" action="/">
         <input
           type="search"
           name="q"
@@ -70,6 +79,23 @@ export default async function Home({
             color: 'var(--ink)',
           }}
         />
+        <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: 'var(--ink)' }}>
+          <input
+            type="checkbox"
+            name="bookable"
+            value="1"
+            defaultChecked={bookableOnly}
+            className="h-4 w-4 accent-[var(--accent)]"
+          />
+          Bookable now
+        </label>
+        <button
+          type="submit"
+          className="rounded-sm border px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+          style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
+        >
+          Apply
+        </button>
       </form>
 
       {movieCards.length === 0 ? (

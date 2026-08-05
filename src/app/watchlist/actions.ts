@@ -22,6 +22,7 @@ export async function addToWatchlist(movieId: string) {
   }
   revalidatePath('/watchlist');
   revalidatePath('/');
+  revalidatePath(`/movies/${movieId}`);
 }
 
 export async function removeFromWatchlist(movieId: string) {
@@ -34,4 +35,5 @@ export async function removeFromWatchlist(movieId: string) {
   if (error) throw new Error(error.message);
   revalidatePath('/watchlist');
   revalidatePath('/');
+  revalidatePath(`/movies/${movieId}`);
 }

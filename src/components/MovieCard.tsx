@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { posterUrl } from '@/lib/tmdb-image';
 import { addToWatchlist, removeFromWatchlist } from '@/app/watchlist/actions';
 
@@ -26,25 +27,29 @@ export function MovieCard({
       className="poster-card flex flex-col overflow-hidden rounded-sm shadow-sm"
       style={{ background: 'var(--bg-elevated)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}
     >
-      <div className="relative aspect-[2/3] w-full" style={{ background: 'var(--listed-bg)' }}>
-        {poster ? (
-          <Image src={poster} alt={movie.title} fill sizes="200px" className="object-cover" />
-        ) : (
-          <div
-            className="flex h-full items-center justify-center px-3 text-center text-xs"
-            style={{ color: 'var(--ink-dim)' }}
-          >
-            No poster yet
-          </div>
-        )}
-      </div>
+      <Link href={`/movies/${movie.id}`} className="contents">
+        <div className="relative aspect-[2/3] w-full" style={{ background: 'var(--listed-bg)' }}>
+          {poster ? (
+            <Image src={poster} alt={movie.title} fill sizes="200px" className="object-cover" />
+          ) : (
+            <div
+              className="flex h-full items-center justify-center px-3 text-center text-xs"
+              style={{ color: 'var(--ink-dim)' }}
+            >
+              No poster yet
+            </div>
+          )}
+        </div>
+      </Link>
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <h3
-          className="font-display line-clamp-2 text-lg leading-tight"
-          style={{ color: 'var(--ink)' }}
-        >
-          {movie.title}
-        </h3>
+        <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
+          <h3
+            className="font-display line-clamp-2 text-lg leading-tight"
+            style={{ color: 'var(--ink)' }}
+          >
+            {movie.title}
+          </h3>
+        </Link>
         <p className="text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
           {movie.release_date ?? 'Release date TBA'}
         </p>

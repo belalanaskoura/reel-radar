@@ -38,7 +38,7 @@ export default async function AccountPage({
         <p
           role="alert"
           className="mb-4 rounded-sm px-3 py-2 text-sm"
-          style={{ background: '#3a1810', color: '#f3a58a' }}
+          style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}
         >
           {error}
         </p>
