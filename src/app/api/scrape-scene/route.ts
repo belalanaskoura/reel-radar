@@ -36,8 +36,16 @@ export async function POST(request: Request) {
 
       let movieId: string;
 
+      let currentPosterPath: string | null = null;
+
       if (existingLink) {
         movieId = existingLink.movie_id;
+        const { data: movieRow } = await supabase
+          .from('movies')
+          .select('poster_path')
+          .eq('id', movieId)
+          .maybeSingle();
+        currentPosterPath = movieRow?.poster_path ?? null;
       } else {
         const { data: newMovie, error: insertError } = await supabase
           .from('movies')
@@ -58,6 +66,15 @@ export async function POST(request: Request) {
       await sleep(REQUEST_DELAY_MS);
       const bookability = await checkBookability(listing.url);
       if (bookability.bookable) bookableCount += 1;
+
+      // Scene is the last-resort poster fallback (TMDB, then elCinema,
+      // then this) -- only fill it in, never overwrite an existing one.
+      if (!currentPosterPath && bookability.posterUrl) {
+        await supabase
+          .from('movies')
+          .update({ poster_path: bookability.posterUrl })
+          .eq('id', movieId);
+      }
 
       await supabase.from('showtimes_cache').upsert(
         {

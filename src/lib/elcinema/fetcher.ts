@@ -71,6 +71,7 @@ export interface ElCinemaWorkDetails {
   releaseYear: number | null;
   releaseDate: string | null;
   imdbId: string | null;
+  posterUrl: string | null;
 }
 
 const MONTHS: Record<string, string> = {
@@ -113,7 +114,14 @@ export async function fetchWorkDetails(elcinemaId: number): Promise<ElCinemaWork
 
   const releaseDate = extractEgyptReleaseDate($);
 
-  return { elcinemaId, title, releaseYear, releaseDate, imdbId };
+  // The work page's poster sits in the first list item of the button
+  // group beside the poster/trailer/tickets buttons -- a direct, already-
+  // absolute image URL (elCinema's media CDN, not a relative path like
+  // TMDB's), confirmed against a real page. Falls back to null rather
+  // than guessing if that markup isn't found.
+  const posterUrl = $('.button-group-vertical li').first().find('img').attr('src') || null;
+
+  return { elcinemaId, title, releaseYear, releaseDate, imdbId, posterUrl };
 }
 
 // The primary "Release Date: <a>5 August</a> <a>2026</a> (Egypt)" line

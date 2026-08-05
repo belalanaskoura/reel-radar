@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { fetchUpcomingMovies } from '@/lib/tmdb';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { isLikelyEgyptRelease } from '@/lib/matching/egypt-distributor-filter';
-import { getEgyptReleaseDate } from '@/lib/matching/egypt-release-date';
+import { getEgyptReleaseInfo } from '@/lib/matching/egypt-release-date';
 
 // Pulls upcoming movies from TMDB and upserts them into the `movies` table.
 // Matched on tmdb_id so re-running is idempotent. Does not touch Scene
@@ -38,18 +38,19 @@ export async function POST(request: Request) {
     }
   }
 
-  // elCinema is the source of truth for a movie's Egypt release date when
-  // it has one -- see src/lib/matching/egypt-release-date.ts. TMDB's
-  // release_date remains the fallback for movies elCinema has no record of.
+  // elCinema is the source of truth for a movie's Egypt release date and
+  // (as a fallback when TMDB has none) its poster -- see
+  // src/lib/matching/egypt-release-date.ts. TMDB remains the fallback
+  // for movies elCinema has no record of, for both fields.
   const rows = [];
   for (const m of movies) {
-    const egyptDate = await getEgyptReleaseDate(supabase, m.id, m.title);
+    const egyptInfo = await getEgyptReleaseInfo(supabase, m.id, m.title);
     rows.push({
       tmdb_id: m.id,
       title: m.title,
       original_title: m.original_title,
-      poster_path: m.poster_path,
-      release_date: egyptDate || m.release_date || null,
+      poster_path: m.poster_path || egyptInfo.posterUrl || null,
+      release_date: egyptInfo.releaseDate || m.release_date || null,
       popularity: m.popularity,
     });
   }

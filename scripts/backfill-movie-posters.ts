@@ -1,10 +1,10 @@
 /**
- * One-off correction: re-checks every already-matched `movies` row's
- * release_date against elCinema (via getEgyptReleaseDate, same lookup
- * sync-movies/match-to-tmdb now use going forward) and updates it where
- * elCinema has a real, different answer. Needed because existing rows
- * were populated before this pipeline existed and won't self-correct.
- * Run once with `npx tsx scripts/backfill-movie-release-dates.ts`.
+ * One-off correction: fills in poster_path for existing `movies` rows
+ * that have none, using elCinema as a fallback (via getEgyptReleaseInfo,
+ * same lookup sync-movies/match-to-tmdb now use going forward). Needed
+ * because existing rows were populated before this fallback existed and
+ * won't self-correct. Run once with
+ * `npx tsx scripts/backfill-movie-posters.ts`.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
@@ -28,16 +28,16 @@ async function main() {
 
   const { data: movies, error } = await supabase
     .from('movies')
-    .select('id, tmdb_id, title, release_date')
-    .not('tmdb_id', 'is', null);
+    .select('id, tmdb_id, title')
+    .not('tmdb_id', 'is', null)
+    .is('poster_path', null);
 
   if (error) throw new Error(`Failed to load movies: ${error.message}`);
   if (!movies) return;
 
-  console.log(`Checking ${movies.length} movies against elCinema...`);
+  console.log(`Checking ${movies.length} posterless movies against elCinema...`);
 
-  let updated = 0;
-  let unchanged = 0;
+  let filled = 0;
   let noElCinemaData = 0;
   let failed = 0;
 
@@ -45,16 +45,13 @@ async function main() {
     const movie = movies[i];
     try {
       const egyptInfo = await getEgyptReleaseInfo(supabase, movie.tmdb_id!, movie.title);
-      const egyptDate = egyptInfo.releaseDate;
 
-      if (!egyptDate) {
+      if (!egyptInfo.posterUrl) {
         noElCinemaData += 1;
-      } else if (egyptDate !== movie.release_date) {
-        await supabase.from('movies').update({ release_date: egyptDate }).eq('id', movie.id);
-        console.log(`  updated: "${movie.title}" ${movie.release_date} -> ${egyptDate}`);
-        updated += 1;
       } else {
-        unchanged += 1;
+        await supabase.from('movies').update({ poster_path: egyptInfo.posterUrl }).eq('id', movie.id);
+        console.log(`  filled: "${movie.title}" -> ${egyptInfo.posterUrl}`);
+        filled += 1;
       }
     } catch (err) {
       console.warn(`  failed: "${movie.title}" (${(err as Error).message})`);
@@ -67,9 +64,8 @@ async function main() {
   }
 
   console.log('\nDone.');
-  console.log(`Updated: ${updated}`);
-  console.log(`Unchanged (already correct): ${unchanged}`);
-  console.log(`No elCinema data (kept TMDB date): ${noElCinemaData}`);
+  console.log(`Filled: ${filled}`);
+  console.log(`No elCinema poster available: ${noElCinemaData}`);
   console.log(`Failed: ${failed}`);
 }
 

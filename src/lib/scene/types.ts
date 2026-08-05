@@ -30,4 +30,9 @@ export interface BookabilityResult {
   // page. Per-day showtime detail is a separate, heavier fetch (one request
   // per day) so callers decide whether they need it.
   availableDates: string[];
+  // The movie-details page's own hero image, extracted from the same
+  // fetch (no extra request) -- a poster fallback source for movies TMDB
+  // and elCinema have no image for. Null if the page's markup didn't
+  // have the expected element.
+  posterUrl: string | null;
 }

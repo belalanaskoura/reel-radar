@@ -2,30 +2,62 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchWorkDetails, searchElCinema, sleep, REQUEST_DELAY_MS } from '../elcinema/fetcher';
 import { normalizeTitle } from './normalize';
 
+export interface EgyptReleaseInfo {
+  releaseDate: string | null;
+  posterUrl: string | null;
+}
+
 // elCinema is the source of truth for a matched movie's Egypt release
 // date -- TMDB's `release_date` is a single global value that can land on
 // an unrelated country's date when TMDB has no EG release_dates entry at
 // all (confirmed for real: "El Gawahergy" showed TMDB's Germany date,
-// months off from elCinema's actual Egypt date). TMDB stays the fallback
-// for movies elCinema has no record of.
+// months off from elCinema's actual Egypt date). It's also used as a
+// poster fallback for movies TMDB has no poster for. TMDB stays the
+// fallback for movies elCinema has no record of, for both fields.
 //
 // Checks the `egypt_releases` table (populated by the historical
 // backfill) first; if the movie isn't there yet -- e.g. a brand-new
 // release the 4-years-back backfill predates -- falls back to a live
 // elCinema title search + work-page fetch, and caches the result into
-// `egypt_releases` so the next lookup for this movie is free.
-export async function getEgyptReleaseDate(
+// `egypt_releases` so the next lookup for this movie is free. Date and
+// poster are fetched together (one work-page request) rather than as two
+// separate lookups, since every current caller wants both.
+export async function getEgyptReleaseInfo(
   supabase: SupabaseClient,
   tmdbId: number,
   title: string,
-): Promise<string | null> {
+): Promise<EgyptReleaseInfo> {
   const { data: existing } = await supabase
     .from('egypt_releases')
-    .select('release_date')
+    .select('elcinema_id, release_date, poster_url')
     .eq('tmdb_id', tmdbId)
     .maybeSingle();
 
-  if (existing) return existing.release_date ?? null;
+  if (existing) {
+    // `poster_url` was added after the original historical backfill
+    // populated this table, so a cached row with no poster_url means
+    // "never checked for a poster," not "confirmed no poster." Do one
+    // cheap targeted re-fetch of the already-known work page (no search
+    // needed) to backfill it in that case, rather than trusting a stale
+    // null forever.
+    if (existing.poster_url === null && existing.elcinema_id) {
+      try {
+        const details = await fetchWorkDetails(existing.elcinema_id);
+        await sleep(REQUEST_DELAY_MS);
+        if (details.posterUrl) {
+          await supabase
+            .from('egypt_releases')
+            .update({ poster_url: details.posterUrl })
+            .eq('elcinema_id', existing.elcinema_id);
+        }
+        return { releaseDate: existing.release_date ?? null, posterUrl: details.posterUrl };
+      } catch {
+        return { releaseDate: existing.release_date ?? null, posterUrl: null };
+      }
+    }
+
+    return { releaseDate: existing.release_date ?? null, posterUrl: existing.poster_url ?? null };
+  }
 
   try {
     const query = normalizeTitle(title);
@@ -39,7 +71,7 @@ export async function getEgyptReleaseDate(
     // Only trust a hit whose own title normalizes to the same query;
     // otherwise this is a movie elCinema has no record of, not a match.
     const exactMatch = results.find((r) => normalizeTitle(r.title) === query);
-    if (!exactMatch) return null;
+    if (!exactMatch) return { releaseDate: null, posterUrl: null };
 
     const details = await fetchWorkDetails(exactMatch.elcinemaId);
     await sleep(REQUEST_DELAY_MS);
@@ -52,15 +84,16 @@ export async function getEgyptReleaseDate(
         title: details.title,
         release_year: details.releaseYear,
         release_date: details.releaseDate,
+        poster_url: details.posterUrl,
         match_status: 'matched',
       },
       { onConflict: 'elcinema_id' },
     );
 
-    return details.releaseDate;
+    return { releaseDate: details.releaseDate, posterUrl: details.posterUrl };
   } catch {
-    // elCinema unreachable/unexpected markup -- fall back to TMDB's date
+    // elCinema unreachable/unexpected markup -- fall back to TMDB's data
     // rather than failing the whole sync/match run over a display detail.
-    return null;
+    return { releaseDate: null, posterUrl: null };
   }
 }

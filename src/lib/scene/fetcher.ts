@@ -101,9 +101,15 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
   const html = await get(movieDetailsUrl);
   const $ = cheerio.load(html);
 
+  // The page's hero poster -- `.film-details__image img`, confirmed on
+  // real cfc and district5 pages -- is unrelated to bookability, but
+  // extracted here too since it's the same fetch already in hand and
+  // extracting it separately would mean a second request per movie.
+  const posterUrl = $('.film-details__image img').attr('src') || null;
+
   const dayItems = $('.glxDaysList li.calanderdays');
   if (dayItems.length === 0) {
-    return { bookable: false, availableDates: [] };
+    return { bookable: false, availableDates: [], posterUrl };
   }
 
   // The markup wraps each <li class="calanderdays"> in a parent <a
@@ -116,7 +122,7 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
     if (match) availableDates.push(match[1]);
   });
 
-  return { bookable: availableDates.length > 0, availableDates };
+  return { bookable: availableDates.length > 0, availableDates, posterUrl };
 }
 
 // Fetches the showtime list for one specific day via the AJAX fragment
