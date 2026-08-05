@@ -37,7 +37,7 @@ export default async function LandingPage() {
             style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }}
           >
             <MapPinIcon size={14} style={{ color: 'var(--accent)' }} />
-            Cairo Festival City &amp; District 5
+            Cairo&apos;s cinemas, all in one place
           </div>
 
           <h1
@@ -50,9 +50,9 @@ export default async function LandingPage() {
           </h1>
 
           <p className="mb-10 max-w-xl text-base sm:text-lg" style={{ color: 'var(--ink-dim)' }}>
-            Scene Cinemas doesn&apos;t tell you when booking opens. ReelAlert
-            watches for you, and pushes a notification to your phone the
-            moment a movie you care about is bookable.
+            Cinemas don&apos;t tell you when booking opens. ReelAlert watches
+            for you, and pushes a notification the moment a movie you care
+            about is bookable.
           </p>
 
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -79,17 +79,17 @@ export default async function LandingPage() {
           <FeatureCard
             icon={<SearchIcon />}
             title="See what's coming"
-            description="Every movie headed to Cairo Festival City or District 5 -- bookable now or still months out -- in one searchable list."
+            description="Every movie headed to your cinemas -- bookable now or still months out -- in one searchable list."
           />
           <FeatureCard
             icon={<TicketIcon />}
             title="Watchlist it"
-            description="Add a title before Scene has even listed it. No manually checking back every few days."
+            description="Add a title before it's even listed. No manually checking back every few days."
           />
           <FeatureCard
             icon={<BellIcon />}
             title="Get pinged"
-            description="The instant it's bookable at either branch, a push notification lands on your phone with a direct booking link."
+            description="The instant it's bookable, you get an email (and a push notification, if you set one up) with a direct booking link."
           />
         </div>
       </div>
@@ -97,7 +97,7 @@ export default async function LandingPage() {
       <div className="border-t" style={{ borderColor: 'var(--rule)' }}>
         <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 sm:py-20">
           <h2 className="font-display mb-3 text-3xl leading-tight sm:text-4xl" style={{ color: 'var(--ink)' }}>
-            Stop refreshing Scene&apos;s site
+            Stop refreshing cinema websites
           </h2>
           <p className="mb-8 text-sm sm:text-base" style={{ color: 'var(--ink-dim)' }}>
             It&apos;s free, takes a minute, and no email confirmation to wait on.

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { BrowseGrid } from '@/components/BrowseGrid';
+import { NtfyBanner } from '@/components/NtfyBanner';
 import type { MovieCardData } from '@/components/MovieCard';
 
 export default async function BrowsePage() {
@@ -22,12 +23,20 @@ export default async function BrowsePage() {
     .limit(2000);
 
   let watchedIds: string[] = [];
+  let showNtfyBanner = false;
   if (user) {
     const { data: watchlistRows } = await supabase
       .from('watchlist')
       .select('movie_id')
       .eq('user_id', user.id);
     watchedIds = (watchlistRows ?? []).map((r) => r.movie_id);
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('ntfy_topic')
+      .eq('id', user.id)
+      .single();
+    showNtfyBanner = !profile?.ntfy_topic;
   }
 
   const movieCards: MovieCardData[] = (movies ?? []).map((m) => ({
@@ -68,6 +77,12 @@ export default async function BrowsePage() {
           </p>
         </div>
       </div>
+
+      {showNtfyBanner && (
+        <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8">
+          <NtfyBanner />
+        </div>
+      )}
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
         <BrowseGrid movies={movieCards} watchedIds={watchedIds} isSignedIn={!!user} />

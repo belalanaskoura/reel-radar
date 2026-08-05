@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { checkBookability } from '@/lib/scene/fetcher';
 import { notifyBookable } from '@/lib/ntfy';
+import { notifyBookableByEmail } from '@/lib/email';
 import type { BranchId } from '@/lib/scene/types';
 import { BRANCH_BASE_URLS } from '@/lib/scene/types';
 
@@ -113,23 +114,44 @@ async function notifyWatchers(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('ntfy_topic')
+      .select('ntfy_topic, email')
       .eq('id', watcher.user_id)
       .single();
 
-    if (!profile?.ntfy_topic) continue; // no topic set, nothing to notify
+    if (!profile?.email) continue; // nothing to notify with, skip entirely
 
-    await notifyBookable(profile.ntfy_topic, {
-      movieTitle: movie.title,
-      branchName: branchRow.name,
-      bookingUrl,
-    });
+    const payload = { movieTitle: movie.title, branchName: branchRow.name, bookingUrl };
 
-    await supabase
-      .from('notification_log')
-      .insert({ user_id: watcher.user_id, movie_id: movieId, branch_id: branch });
+    // Email and ntfy are independent, best-effort channels -- one failing
+    // must never block the other or abort the rest of this watcher loop
+    // (a real bug in the pre-email version, where an uncaught ntfy error
+    // killed every notification after it in the same poll run).
+    try {
+      await notifyBookableByEmail(profile.email, payload);
+    } catch {
+      // best-effort, swallow and continue
+    }
 
-    sentCount += 1;
+    if (profile.ntfy_topic) {
+      try {
+        await notifyBookable(profile.ntfy_topic, payload);
+      } catch {
+        // best-effort, swallow and continue
+      }
+    }
+
+    // Logged once an email attempt was made, regardless of outcome -- this
+    // job has no retry mechanism for either channel, so a transient send
+    // failure here permanently skips this watcher for this bookable
+    // episode rather than resending on every subsequent poll.
+    try {
+      await supabase
+        .from('notification_log')
+        .insert({ user_id: watcher.user_id, movie_id: movieId, branch_id: branch });
+      sentCount += 1;
+    } catch {
+      // best-effort, swallow and continue
+    }
   }
 
   return sentCount;

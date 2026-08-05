@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { signin } from './actions';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 
 export default async function SigninPage({
   searchParams,
@@ -59,6 +60,17 @@ export default async function SigninPage({
           Sign in
         </button>
       </form>
+
+      <div className="my-4 flex items-center gap-3">
+        <div className="h-px flex-1" style={{ background: 'var(--rule)' }} />
+        <span className="text-xs" style={{ color: 'var(--ink-dim)' }}>
+          or
+        </span>
+        <div className="h-px flex-1" style={{ background: 'var(--rule)' }} />
+      </div>
+
+      <GoogleSignInButton />
+
       <p className="mt-4 text-sm" style={{ color: 'var(--ink-dim)' }}>
         Don&apos;t have an account?{' '}
         <Link href="/signup" className="underline" style={{ color: 'var(--accent)' }}>

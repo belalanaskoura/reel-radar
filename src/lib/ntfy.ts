@@ -7,6 +7,10 @@ export interface BookableNotification {
   bookingUrl: string;
 }
 
+export function formatCheckedTimestamp(): string {
+  return new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+}
+
 // Sends a push notification to one user's private ntfy topic when a
 // watched movie becomes bookable at a branch. Message format matches
 // spider-bot's notifier.py: title, booking link, and a timestamp so the
@@ -23,7 +27,7 @@ export async function notifyBookable(
   ntfyTopic: string,
   notification: BookableNotification,
 ): Promise<void> {
-  const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+  const timestamp = formatCheckedTimestamp();
   const message = `${notification.movieTitle} is bookable at ${notification.branchName}!\n${notification.bookingUrl}\nChecked: ${timestamp}`;
 
   const controller = new AbortController();

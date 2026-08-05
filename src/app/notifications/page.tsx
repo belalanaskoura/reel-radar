@@ -33,7 +33,9 @@ export default async function NotificationsPage({
           Get notified
         </h1>
         <p className="mx-auto max-w-md text-sm" style={{ color: 'var(--ink-dim)' }}>
-          ReelAlert pushes straight to your phone through a free service
+          You&apos;ll already get an email the moment a watchlisted movie is
+          bookable -- no setup needed. Want it to also land on your phone the
+          instant it happens? ReelAlert can push through a free service
           called{' '}
           <a
             href="https://ntfy.sh"
@@ -43,8 +45,8 @@ export default async function NotificationsPage({
             style={{ color: 'var(--accent)' }}
           >
             ntfy.sh
-          </a>{' '}
-          -- no email, no account linking. Four steps, once, ever.
+          </a>
+          . Four steps, once, ever.
         </p>
       </div>
 
