@@ -30,6 +30,17 @@ const nextConfig: NextConfig = {
         hostname: 'district5.scenecinemas.com',
         pathname: '/cdn-nextjs/**',
       },
+      {
+        // Every `<branch>.scenecinemas.com/cdn-nextjs/**` poster URL is
+        // actually a 302 redirect that lands here -- confirmed live on
+        // both branches. Next's image optimizer refuses to follow a
+        // redirect to a host outside remotePatterns, which is why this
+        // fallback silently 502'd in production (dev mode doesn't hit
+        // the same strict check) until this host was added.
+        protocol: 'https',
+        hostname: 'statics.scenecinemas.com',
+        pathname: '/covers/**',
+      },
     ],
   },
 };
