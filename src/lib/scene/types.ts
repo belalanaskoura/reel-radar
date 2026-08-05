@@ -36,3 +36,10 @@ export interface BookabilityResult {
   // have the expected element.
   posterUrl: string | null;
 }
+
+export interface SceneCastAndCrew {
+  director: string | null;
+  // Flat name list -- Scene's own page doesn't distinguish cast from
+  // crew beyond director, and gives no character names or photos.
+  cast: string[];
+}

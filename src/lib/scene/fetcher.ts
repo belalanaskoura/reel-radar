@@ -5,6 +5,7 @@ import type {
   SceneDayShowtimes,
   SceneShowtime,
   BookabilityResult,
+  SceneCastAndCrew,
 } from './types';
 import { BRANCH_BASE_URLS } from './types';
 
@@ -123,6 +124,36 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
   });
 
   return { bookable: availableDates.length > 0, availableDates, posterUrl };
+}
+
+// Last-resort cast/crew fallback (TMDB, then elCinema, then this) for
+// movies neither of the other two has data for. Scene's own page shows
+// "Cast & Crew: Name, Name, Name" as one flat comma-separated line (a
+// `<p>` with a leading `<span>Cast & Crew: </span>` label, confirmed
+// against real markup) and a separate, visually hidden ("display:none")
+// but still-present "Director: Name" line -- no character names or
+// photos, weaker than either other source, hence last in priority.
+export async function fetchCastAndCrew(movieDetailsUrl: string): Promise<SceneCastAndCrew> {
+  const html = await get(movieDetailsUrl);
+  const $ = cheerio.load(html);
+
+  let director: string | null = null;
+  const cast: string[] = [];
+
+  $('p').each((_, el) => {
+    const p = $(el);
+    const label = p.find('span').first().text().trim();
+
+    if (label.startsWith('Cast & Crew')) {
+      const text = p.clone().find('span').remove().end().text().trim();
+      cast.push(...text.split(',').map((name) => name.trim()).filter(Boolean));
+    } else if (label.startsWith('Director')) {
+      const text = p.clone().find('span').remove().end().text().trim();
+      director = text || null;
+    }
+  });
+
+  return { director, cast };
 }
 
 // Fetches the showtime list for one specific day via the AJAX fragment

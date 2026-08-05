@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { fetchMovieDetails, fetchCredits } from '@/lib/tmdb';
 import { posterUrl, backdropUrl, profileUrl } from '@/lib/tmdb-image';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
+import { getFallbackCredits, type CreditsCastMember } from '@/lib/matching/credits';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { ShowtimePicker } from '@/components/ShowtimePicker';
 
@@ -43,17 +44,36 @@ export default async function MovieDetailPage({
     isWatchlisted = !!watchlistRow;
   }
 
-  const [details, credits] = movie.tmdb_id
+  const [details, tmdbCredits] = movie.tmdb_id
     ? await Promise.all([
         fetchMovieDetails(movie.tmdb_id).catch(() => null),
         fetchCredits(movie.tmdb_id).catch(() => null),
       ])
     : [null, null];
 
+  const tmdbDirector = tmdbCredits?.crew.find((c) => c.job === 'Director');
+  const hasTmdbCredits = !!tmdbDirector || (tmdbCredits?.cast.length ?? 0) > 0;
+
+  // TMDB is the primary credits source (names, characters, and photos --
+  // the richest of the three). When it has nothing, elCinema is tried
+  // next, then Scene Cinemas -- see src/lib/matching/credits.ts for why
+  // that order and what each source is missing relative to TMDB.
+  const fallbackCredits = !hasTmdbCredits
+    ? await getFallbackCredits(movie.title, movie.movie_branch_slugs).catch(() => null)
+    : null;
+
+  const director = tmdbDirector?.name ?? fallbackCredits?.director ?? null;
+  const cast: CreditsCastMember[] = hasTmdbCredits
+    ? (tmdbCredits?.cast ?? []).slice(0, 12).map((c) => ({
+        name: c.name,
+        character: c.character || null,
+        photoUrl: profileUrl(c.profile_path),
+      }))
+    : (fallbackCredits?.cast ?? []);
+  const creditsSource = hasTmdbCredits ? null : fallbackCredits?.source;
+
   const backdrop = backdropUrl(details?.backdrop_path ?? null);
   const poster = posterUrl(details?.poster_path ?? movie.poster_path);
-  const director = credits?.crew.find((c) => c.job === 'Director');
-  const topCast = (credits?.cast ?? []).slice(0, 8);
   const isBookable = movie.showtimes_cache.some((c) => c.bookable);
   const showWatchlistControl = !!user && (isWatchlisted || !isBookable);
 
@@ -124,41 +144,56 @@ export default async function MovieDetailPage({
               </div>
             )}
 
-            {(director || topCast.length > 0) && (
+            {(director || cast.length > 0) && (
               <div className="mt-10">
-                <h2 className="mb-4 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
-                  Cast &amp; crew
-                </h2>
+                <div className="mb-4 flex items-baseline justify-between gap-3">
+                  <h2 className="text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
+                    Cast &amp; crew
+                  </h2>
+                  {creditsSource && (
+                    <span className="text-[11px]" style={{ color: 'var(--ink-dim)' }}>
+                      via {creditsSource === 'elcinema' ? 'elCinema' : 'Scene Cinemas'}
+                    </span>
+                  )}
+                </div>
                 {director && (
                   <p className="mb-4 text-sm" style={{ color: 'var(--ink)' }}>
                     <span style={{ color: 'var(--ink-dim)' }}>Director</span>{' '}
-                    <span className="font-medium">{director.name}</span>
+                    <span className="font-medium">{director}</span>
                   </p>
                 )}
-                {topCast.length > 0 && (
-                  <div className="grid grid-cols-4 gap-4 sm:grid-cols-6 md:grid-cols-8">
-                    {topCast.map((actor) => {
-                      const photo = profileUrl(actor.profile_path);
+                {cast.length > 0 && (
+                  <ul className="flex flex-col">
+                    {cast.map((member, i) => {
+                      const photo = member.photoUrl;
                       return (
-                        <div key={actor.id} className="flex flex-col gap-1">
+                        <li
+                          key={`${member.name}-${i}`}
+                          className="flex items-center gap-3 border-t py-2.5 first:border-t-0"
+                          style={{ borderColor: 'var(--rule)' }}
+                        >
                           <div
-                            className="relative aspect-square w-full overflow-hidden rounded-full"
+                            className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full"
                             style={{ background: 'var(--listed-bg)' }}
                           >
                             {photo && (
-                              <Image src={photo} alt={actor.name} fill sizes="80px" className="object-cover" />
+                              <Image src={photo} alt={member.name} fill sizes="40px" className="object-cover" />
                             )}
                           </div>
-                          <p className="line-clamp-1 text-xs font-medium" style={{ color: 'var(--ink)' }}>
-                            {actor.name}
-                          </p>
-                          <p className="line-clamp-1 text-[11px]" style={{ color: 'var(--ink-dim)' }}>
-                            {actor.character}
-                          </p>
-                        </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium" style={{ color: 'var(--ink)' }}>
+                              {member.name}
+                            </p>
+                            {member.character && (
+                              <p className="truncate text-xs" style={{ color: 'var(--ink-dim)' }}>
+                                {member.character}
+                              </p>
+                            )}
+                          </div>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ul>
                 )}
               </div>
             )}

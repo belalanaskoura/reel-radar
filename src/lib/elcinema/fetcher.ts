@@ -65,6 +65,11 @@ export async function fetchBoxOfficeWeek(year: number, week: number): Promise<Bo
   return entries;
 }
 
+export interface ElCinemaCredits {
+  director: string | null;
+  cast: string[];
+}
+
 export interface ElCinemaWorkDetails {
   elcinemaId: number;
   title: string;
@@ -72,6 +77,7 @@ export interface ElCinemaWorkDetails {
   releaseDate: string | null;
   imdbId: string | null;
   posterUrl: string | null;
+  credits: ElCinemaCredits;
 }
 
 const MONTHS: Record<string, string> = {
@@ -121,7 +127,37 @@ export async function fetchWorkDetails(elcinemaId: number): Promise<ElCinemaWork
   // than guessing if that markup isn't found.
   const posterUrl = $('.button-group-vertical li').first().find('img').attr('src') || null;
 
-  return { elcinemaId, title, releaseYear, releaseDate, imdbId, posterUrl };
+  const credits = extractCredits($);
+
+  return { elcinemaId, title, releaseYear, releaseDate, imdbId, posterUrl, credits };
+}
+
+// Director/Writer/Cast each sit in their own `ul.list-separator.list-title`
+// block, first `<li>` being the plain-text label ("Director:", "Cast:")
+// and the rest being `<a href="/en/person/...">Name</a>` entries -- no
+// character names or photos in this summary list (elCinema's own "(more)"
+// cast page has those, not fetched here to keep this to one request).
+function extractCredits($: cheerio.CheerioAPI): ElCinemaCredits {
+  let director: string | null = null;
+  const cast: string[] = [];
+
+  $('ul.list-title').each((_, el) => {
+    const items = $(el).find('li');
+    const label = items.first().text().trim();
+    const names = items
+      .slice(1)
+      .map((_, li) => $(li).find('a').first().text().trim())
+      .get()
+      .filter((name) => name && name !== '(more)');
+
+    if (label === 'Director:') {
+      director = names[0] ?? null;
+    } else if (label === 'Cast:') {
+      cast.push(...names);
+    }
+  });
+
+  return { director, cast };
 }
 
 // The primary "Release Date: <a>5 August</a> <a>2026</a> (Egypt)" line
