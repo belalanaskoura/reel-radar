@@ -1,12 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchMovieDetails, type TmdbMovie } from '../tmdb';
 
-// A movie is shown only if a production company on it has actually
-// released something in Egypt before (per the egypt_distributors table,
-// built from ~4 years of real elCinema box office data; see
-// scripts/backfill-egypt-releases.ts), or its popularity clears a
-// safety-net threshold that catches new/first-time distributors and
-// elCinema<->TMDB matching misses. No match on either -> excluded.
+// A movie is shown only if a production company on it has released at
+// least MIN_DISTRIBUTOR_RELEASES movies in Egypt before (per the
+// egypt_distributors table, built from ~4 years of real elCinema box
+// office data; see scripts/backfill-egypt-releases.ts), or its
+// popularity clears a safety-net threshold that catches new/first-time
+// distributors and elCinema<->TMDB matching misses. No match on either
+// -> excluded.
 //
 // Deliberately strict, not fallback-permissive: per explicit sign-off,
 // a movie with no distributor match and popularity below the threshold
@@ -15,6 +16,7 @@ import { fetchMovieDetails, type TmdbMovie } from '../tmdb';
 // brand-new distributor, or one this pipeline never matched), accepted as a
 // tradeoff for a cleaner catalog.
 const POPULARITY_SAFETY_NET = 50;
+const MIN_DISTRIBUTOR_RELEASES = 5;
 
 export async function isLikelyEgyptRelease(
   supabase: SupabaseClient,
@@ -30,6 +32,7 @@ export async function isLikelyEgyptRelease(
     .from('egypt_distributors')
     .select('tmdb_company_id')
     .in('tmdb_company_id', companyIds)
+    .gte('release_count', MIN_DISTRIBUTOR_RELEASES)
     .limit(1);
 
   return (data?.length ?? 0) > 0;
