@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 export type StatusFilter = 'all' | 'bookable' | 'coming_soon';
@@ -11,9 +10,13 @@ const OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'coming_soon', label: 'Listed, coming soon' },
 ];
 
-export function FilterDropdown({ current }: { current: StatusFilter }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+export function FilterDropdown({
+  value,
+  onChange,
+}: {
+  value: StatusFilter;
+  onChange: (value: StatusFilter) => void;
+}) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -27,18 +30,12 @@ export function FilterDropdown({ current }: { current: StatusFilter }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  function select(value: StatusFilter) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value === 'all') {
-      params.delete('status');
-    } else {
-      params.set('status', value);
-    }
+  function select(next: StatusFilter) {
     setOpen(false);
-    router.push(`/?${params.toString()}`);
+    onChange(next);
   }
 
-  const currentLabel = OPTIONS.find((o) => o.value === current)?.label ?? 'All movies';
+  const currentLabel = OPTIONS.find((o) => o.value === value)?.label ?? 'All movies';
 
   return (
     <div ref={containerRef} className="relative">
@@ -64,12 +61,12 @@ export function FilterDropdown({ current }: { current: StatusFilter }) {
               <button
                 type="button"
                 role="option"
-                aria-selected={current === option.value}
+                aria-selected={value === option.value}
                 onClick={() => select(option.value)}
                 className="block w-full px-3 py-2 text-left text-sm hover:opacity-80"
                 style={{
                   color: 'var(--ink)',
-                  background: current === option.value ? 'var(--listed-bg)' : 'transparent',
+                  background: value === option.value ? 'var(--listed-bg)' : 'transparent',
                 }}
               >
                 {option.label}
