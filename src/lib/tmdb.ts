@@ -16,6 +16,18 @@ interface TmdbDiscoverResponse {
   total_results: number;
 }
 
+interface TmdbSearchResponse {
+  results: TmdbMovie[];
+  total_results: number;
+}
+
+interface TmdbReleaseDatesResponse {
+  results: Array<{
+    iso_3166_1: string;
+    release_dates: Array<{ release_date: string; type: number }>;
+  }>;
+}
+
 function requireApiKey(): string {
   const key = process.env.TMDB_API_KEY;
   if (!key) {
@@ -65,4 +77,50 @@ export async function fetchUpcomingMovies(
   } while (page <= totalPages && page <= 5); // cap at 5 pages (100 movies)
 
   return results;
+}
+
+// Searches TMDB for a title in a given language. Used with 'en-US' first,
+// then 'ar' as a fallback -- Phase 0 found some Arabic-titled Egyptian
+// films return zero results in English search entirely.
+export async function searchMovies(query: string, language: 'en-US' | 'ar'): Promise<TmdbMovie[]> {
+  const apiKey = requireApiKey();
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    query,
+    language,
+    include_adult: 'false',
+  });
+
+  const res = await fetch(`${TMDB_BASE_URL}/search/movie?${params}`);
+  if (!res.ok) {
+    throw new Error(`TMDB search request failed: ${res.status}`);
+  }
+  const data: TmdbSearchResponse = await res.json();
+  return data.results;
+}
+
+// Returns the EG THEATRICAL release_date entry for a movie, or null if
+// TMDB has no theatrical entry for EG (a digital/TV-only EG entry does not
+// count -- confirmed necessary after Moana 2 (a 2024 Disney+ release) had
+// an EG entry of type 4/digital and was nearly auto-matched over the real
+// 2026 theatrical Moana, which had no EG entry at all). Used to
+// disambiguate multi-result searches: Phase 0 found genuine title
+// collisions (two different 2026 movies both titled "The Odyssey"), and a
+// real EG theatrical date is a stronger signal than popularity alone for
+// "this is the one actually playing in Egypt's cinemas."
+export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string | null> {
+  const apiKey = requireApiKey();
+  const res = await fetch(
+    `${TMDB_BASE_URL}/movie/${tmdbId}/release_dates?api_key=${apiKey}`,
+  );
+  if (!res.ok) {
+    throw new Error(`TMDB release_dates request failed: ${res.status}`);
+  }
+  const data: TmdbReleaseDatesResponse = await res.json();
+  const eg = data.results.find((r) => r.iso_3166_1 === 'EG');
+  if (!eg) return null;
+  // type 2 = limited theatrical, 3 = theatrical. Digital (4), physical (5),
+  // TV (6), and premiere (1) entries don't indicate a cinema release.
+  const theatrical = eg.release_dates.find((d) => d.type === 2 || d.type === 3);
+  return theatrical?.release_date ?? null;
 }
