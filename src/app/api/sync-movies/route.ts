@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { fetchUpcomingMovies } from '@/lib/tmdb';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { isLikelyEgyptRelease } from '@/lib/matching/egypt-distributor-filter';
 
 // Pulls upcoming movies from TMDB and upserts them into the `movies` table.
 // Matched on tmdb_id so re-running is idempotent. Does not touch Scene
@@ -18,9 +19,21 @@ export async function POST(request: Request) {
   const fromDate = today.toISOString().slice(0, 10);
   const toDate = sixMonthsOut.toISOString().slice(0, 10);
 
-  const movies = await fetchUpcomingMovies(fromDate, toDate);
+  const candidates = await fetchUpcomingMovies(fromDate, toDate);
 
   const supabase = createServiceRoleClient();
+
+  // Every candidate is checked against the real Egypt-distributor history
+  // (or the popularity safety net) before being stored -- see
+  // src/lib/matching/egypt-distributor-filter.ts for why this replaced
+  // the earlier genre/language guesswork.
+  const movies = [];
+  for (const movie of candidates) {
+    if (await isLikelyEgyptRelease(supabase, movie)) {
+      movies.push(movie);
+    }
+  }
+
   const { error } = await supabase.from('movies').upsert(
     movies.map((m) => ({
       tmdb_id: m.id,
@@ -37,5 +50,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ synced: movies.length });
+  return NextResponse.json({ synced: movies.length, candidates: candidates.length });
 }

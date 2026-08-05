@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function updateNtfyTopic(formData: FormData) {
   const ntfyTopic = (formData.get('ntfy_topic') as string).trim();
+  const returnTo = (formData.get('return_to') as string) || '/account';
 
   const supabase = await createClient();
   const {
@@ -26,9 +27,39 @@ export async function updateNtfyTopic(formData: FormData) {
       error.code === '23505'
         ? 'That ntfy topic is already taken by another account -- pick a different one.'
         : error.message;
-    redirect(`/account?error=${encodeURIComponent(message)}`);
+    redirect(`${returnTo}?error=${encodeURIComponent(message)}`);
   }
 
   revalidatePath('/account');
-  redirect('/account?saved=1');
+  revalidatePath('/notifications');
+  redirect(`${returnTo}?saved=1`);
+}
+
+export async function updatePassword(formData: FormData) {
+  const newPassword = formData.get('new_password') as string;
+  const confirmPassword = formData.get('confirm_password') as string;
+
+  if (newPassword !== confirmPassword) {
+    redirect(`/account?error=${encodeURIComponent('Passwords do not match.')}`);
+  }
+  if (newPassword.length < 6) {
+    redirect(`/account?error=${encodeURIComponent('Password must be at least 6 characters.')}`);
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/signin');
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+  if (error) {
+    redirect(`/account?error=${encodeURIComponent(error.message)}`);
+  }
+
+  redirect('/account?password_saved=1');
 }

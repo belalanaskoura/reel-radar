@@ -1,13 +1,15 @@
 import { createClient } from '@/lib/supabase/server';
 import { MovieCard, type MovieCardData } from '@/components/MovieCard';
+import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
 
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; bookable?: string }>;
+  searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const { q, bookable } = await searchParams;
-  const bookableOnly = bookable === '1';
+  const { q, status } = await searchParams;
+  const statusFilter: StatusFilter =
+    status === 'bookable' || status === 'coming_soon' ? status : 'all';
   const supabase = await createClient();
 
   const {
@@ -48,54 +50,45 @@ export default async function Home({
     })),
   }));
 
-  if (bookableOnly) {
+  if (statusFilter === 'bookable') {
     movieCards = movieCards
       .filter((m) => m.branches?.some((b) => b.bookable))
       .map((m) => ({ ...m, branches: m.branches?.filter((b) => b.bookable) }));
+  } else if (statusFilter === 'coming_soon') {
+    // Listed at Scene (has branch entries) but not bookable at any of them --
+    // distinct from movies not listed at Scene at all, which stay visible
+    // under "All movies" but wouldn't make sense under this filter either.
+    movieCards = movieCards.filter(
+      (m) => m.branches && m.branches.length > 0 && !m.branches.some((b) => b.bookable),
+    );
   }
 
   movieCards = movieCards.slice(0, 60);
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="font-display mb-2 text-5xl leading-none" style={{ color: 'var(--ink)' }}>
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <h1 className="font-display mb-2 text-4xl leading-none sm:text-5xl" style={{ color: 'var(--ink)' }}>
         Upcoming at the movies
       </h1>
-      <p className="mb-8 max-w-xl text-sm" style={{ color: 'var(--ink-dim)' }}>
+      <p className="mb-6 max-w-xl text-sm sm:mb-8" style={{ color: 'var(--ink-dim)' }}>
         Watchlist a title before it&apos;s even on Scene&apos;s site, and get notified the
         moment tickets go live at Cairo Festival City or District 5.
       </p>
 
-      <form className="mb-8 flex flex-wrap items-center gap-4" action="/">
+      <form className="mb-6 flex flex-wrap items-center gap-3 sm:mb-8" action="/">
         <input
           type="search"
           name="q"
           defaultValue={q}
           placeholder="Search movies..."
-          className="w-full max-w-sm rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
+          className="w-full min-w-0 flex-1 rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 sm:max-w-sm sm:flex-none"
           style={{
             borderColor: 'var(--rule)',
             background: 'var(--bg-elevated)',
             color: 'var(--ink)',
           }}
         />
-        <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: 'var(--ink)' }}>
-          <input
-            type="checkbox"
-            name="bookable"
-            value="1"
-            defaultChecked={bookableOnly}
-            className="h-4 w-4 accent-[var(--accent)]"
-          />
-          Bookable now
-        </label>
-        <button
-          type="submit"
-          className="rounded-sm border px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
-          style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
-        >
-          Apply
-        </button>
+        <FilterDropdown current={statusFilter} />
       </form>
 
       {movieCards.length === 0 ? (
@@ -103,7 +96,7 @@ export default async function Home({
           No movies found.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5">
           {movieCards.map((movie) => (
             <MovieCard
               key={movie.id}

@@ -10,7 +10,7 @@ interface MatchResult {
   tmdbId?: number;
 }
 
-interface TmdbMatch {
+export interface TmdbMatch {
   outcome: MatchOutcome;
   movie?: TmdbMovie;
 }
@@ -24,7 +24,7 @@ interface TmdbMatch {
 // Odyssey" -- popularity alone would guess wrong roughly as often as
 // right). Anything still ambiguous is surfaced for manual review, never
 // auto-picked.
-async function findTmdbMatch(title: string): Promise<TmdbMatch> {
+export async function findTmdbMatch(title: string): Promise<TmdbMatch> {
   const query = normalizeTitle(title);
 
   let candidates = await searchMovies(query, 'en-US');

@@ -5,6 +5,7 @@ import { fetchMovieDetails, fetchCredits } from '@/lib/tmdb';
 import { posterUrl, backdropUrl, profileUrl } from '@/lib/tmdb-image';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { WatchlistButton } from '@/components/WatchlistButton';
+import { ShowtimePicker } from '@/components/ShowtimePicker';
 
 export default async function MovieDetailPage({
   params,
@@ -53,33 +54,45 @@ export default async function MovieDetailPage({
   const poster = posterUrl(details?.poster_path ?? movie.poster_path);
   const director = credits?.crew.find((c) => c.job === 'Director');
   const topCast = (credits?.cast ?? []).slice(0, 8);
+  const isBookable = movie.showtimes_cache.some((c) => c.bookable);
+  const showWatchlistControl = !!user && (isWatchlisted || !isBookable);
 
   return (
     <main>
-      <div className="relative h-[36vh] min-h-72 w-full overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
+      <div
+        className="relative aspect-video max-h-[70vh] min-h-56 w-full overflow-hidden sm:min-h-80"
+        style={{ background: 'var(--bg-elevated)' }}
+      >
         {backdrop && (
-          <Image src={backdrop} alt="" fill priority className="object-cover opacity-40" />
+          <Image
+            src={backdrop}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-top opacity-50"
+          />
         )}
         <div
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(180deg, transparent 0%, var(--bg) 100%)',
+              'linear-gradient(180deg, transparent 40%, var(--bg) 100%)',
           }}
         />
       </div>
 
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="-mt-32 flex gap-6 sm:-mt-40">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6">
+        <div className="-mt-16 flex flex-col gap-4 sm:-mt-32 sm:flex-row sm:gap-6">
           <div
-            className="relative aspect-[2/3] w-32 flex-shrink-0 overflow-hidden rounded-sm shadow-lg sm:w-48"
+            className="relative aspect-[2/3] w-28 flex-shrink-0 overflow-hidden rounded-sm shadow-lg sm:w-48"
             style={{ background: 'var(--listed-bg)' }}
           >
             {poster && <Image src={poster} alt={movie.title} fill sizes="200px" className="object-cover" />}
           </div>
 
           <div className="flex flex-1 flex-col justify-end gap-2 pb-2">
-            <h1 className="font-display text-4xl leading-none sm:text-5xl" style={{ color: 'var(--ink)' }}>
+            <h1 className="font-display text-3xl leading-none sm:text-5xl" style={{ color: 'var(--ink)' }}>
               {movie.title}
             </h1>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm tabular-nums" style={{ color: 'var(--ink-dim)' }}>
@@ -105,7 +118,7 @@ export default async function MovieDetailPage({
               </p>
             )}
 
-            {user && (
+            {showWatchlistControl && (
               <div className="mt-6">
                 <WatchlistButton movieId={movie.id} isWatchlisted={isWatchlisted} />
               </div>
@@ -176,28 +189,28 @@ export default async function MovieDetailPage({
                         {branchName}
                       </p>
                       {cache.bookable ? (
-                        <>
-                          <p className="mb-2 text-xs" style={{ color: 'var(--ok-ink)' }}>
-                            Bookable
-                            {Array.isArray(cache.raw_showtimes) && cache.raw_showtimes.length > 0 && (
-                              <span className="tabular-nums" style={{ color: 'var(--ink-dim)' }}>
-                                {' '}
-                                ({cache.raw_showtimes.join(', ')})
-                              </span>
-                            )}
-                          </p>
-                          {slugRow && (
-                            <a
-                              href={sceneMovieUrl(cache.branch_id, slugRow.slug)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-block rounded-sm px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
-                              style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
-                            >
-                              Select showtime on Scene &rarr;
-                            </a>
-                          )}
-                        </>
+                        slugRow && Array.isArray(cache.raw_showtimes) && cache.raw_showtimes.length > 0 ? (
+                          <>
+                            <p className="mb-2 text-xs" style={{ color: 'var(--ok-ink)' }}>
+                              Bookable -- pick a day
+                            </p>
+                            <ShowtimePicker
+                              branchId={cache.branch_id}
+                              slug={slugRow.slug}
+                              dates={cache.raw_showtimes as string[]}
+                            />
+                          </>
+                        ) : slugRow ? (
+                          <a
+                            href={sceneMovieUrl(cache.branch_id, slugRow.slug)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block rounded-sm px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
+                            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                          >
+                            Select showtime on Scene &rarr;
+                          </a>
+                        ) : null
                       ) : (
                         <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
                           Listed, not bookable yet

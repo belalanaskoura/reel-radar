@@ -21,6 +21,11 @@ export function MovieCard({
   isSignedIn: boolean;
 }) {
   const poster = posterUrl(movie.poster_path);
+  const isBookable = movie.branches?.some((b) => b.bookable) ?? false;
+  // Once bookable, adding to a watchlist no longer serves its purpose --
+  // the whole point was to get notified of this transition, which has
+  // already happened. Still let existing watchers remove it, though.
+  const showWatchlistControl = isSignedIn && (isWatchlisted || !isBookable);
 
   return (
     <div
@@ -76,7 +81,7 @@ export function MovieCard({
           </p>
         )}
 
-        {isSignedIn && (
+        {showWatchlistControl && (
           <form
             action={
               isWatchlisted

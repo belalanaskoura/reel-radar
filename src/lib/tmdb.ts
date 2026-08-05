@@ -7,7 +7,14 @@ export interface TmdbMovie {
   poster_path: string | null;
   release_date: string;
   popularity: number;
+  original_language: string;
+  genre_ids: number[];
 }
+
+// Genre ID for "Documentary" in TMDB's fixed genre list -- Egyptian
+// cinemas don't screen documentaries, so these are excluded at the
+// source rather than filtered client-side.
+export const DOCUMENTARY_GENRE_ID = 99;
 
 interface TmdbDiscoverResponse {
   page: number;
@@ -28,6 +35,12 @@ interface TmdbReleaseDatesResponse {
   }>;
 }
 
+export interface TmdbProductionCompany {
+  id: number;
+  name: string;
+  origin_country: string;
+}
+
 export interface TmdbMovieDetails {
   id: number;
   title: string;
@@ -38,6 +51,11 @@ export interface TmdbMovieDetails {
   release_date: string;
   runtime: number | null;
   genres: { id: number; name: string }[];
+  production_companies: TmdbProductionCompany[];
+}
+
+interface TmdbFindResponse {
+  movie_results: TmdbMovie[];
 }
 
 export interface TmdbCastMember {
@@ -90,6 +108,11 @@ export async function fetchUpcomingMovies(
     with_release_type: '2|3',
     language: 'en-US',
     include_adult: 'false',
+    without_genres: String(DOCUMENTARY_GENRE_ID),
+    // `without_original_language` only accepts a single value (confirmed by
+    // testing -- unlike with_release_type it does NOT support a pipe-
+    // separated OR list), so the multi-language exclusion below happens
+    // client-side after fetching instead.
   });
 
   const results: TmdbMovie[] = [];
@@ -106,7 +129,7 @@ export async function fetchUpcomingMovies(
     results.push(...data.results);
     totalPages = data.total_pages;
     page += 1;
-  } while (page <= totalPages && page <= 5); // cap at 5 pages (100 movies)
+  } while (page <= totalPages && page <= 5); // cap at 5 pages of raw results (~100 movies pre-filter)
 
   return results;
 }
@@ -155,6 +178,22 @@ export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string
   // TV (6), and premiere (1) entries don't indicate a cinema release.
   const theatrical = eg.release_dates.find((d) => d.type === 2 || d.type === 3);
   return theatrical?.release_date ?? null;
+}
+
+// Looks up a movie by IMDb ID -- a much more reliable cross-reference
+// than title search when the source (elCinema) exposes one, since it's
+// an exact match rather than a fuzzy one. Returns null if TMDB has no
+// movie for that IMDb ID.
+export async function findByImdbId(imdbId: string): Promise<TmdbMovie | null> {
+  const apiKey = requireApiKey();
+  const res = await fetch(
+    `${TMDB_BASE_URL}/find/${imdbId}?api_key=${apiKey}&external_source=imdb_id`,
+  );
+  if (!res.ok) {
+    throw new Error(`TMDB find request failed: ${res.status}`);
+  }
+  const data: TmdbFindResponse = await res.json();
+  return data.movie_results[0] ?? null;
 }
 
 // Fetches full movie details (overview, tagline, backdrop, runtime,
