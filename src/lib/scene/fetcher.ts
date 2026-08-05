@@ -168,20 +168,35 @@ export async function fetchDayShowtimes(
   const html = await get(url);
   const $ = cheerio.load(html);
 
+  // Each format (Standard, Premiere/VIP, IMAX, ...) gets its own
+  // `ex_<key>_content` block wrapping an `ex_<key>` label span --
+  // originally only `.ex_vip_content`/`.ex_stand_content` were matched,
+  // which silently dropped IMAX (`.ex_imax_content`) and any other
+  // format entirely (confirmed for real: District 5's Odyssey page has
+  // an ex_imax_content block the old selector never saw). Matching the
+  // class pattern generically picks up every format Scene shows, not
+  // just the two seen when this was first written.
   const showtimes: SceneShowtime[] = [];
-  $('.ex_vip_content, .ex_stand_content').each((_, section) => {
-    const format = $(section).find('.ex_vip, .ex_stand').first().text().trim();
-    $(section)
-      .find('li a')
-      .each((_, a) => {
-        const bookingUrl = $(a).attr('href') ?? '';
-        const time = $(a).text().trim();
-        const soldOut = $(a).hasClass('showtime_soldout');
-        if (bookingUrl && bookingUrl.startsWith('http')) {
-          showtimes.push({ format, time, bookingUrl, soldOut });
-        }
-      });
-  });
+  $('div[class*="_content"]')
+    .filter((_, el) => /(^|\s)ex_\w+_content(\s|$)/.test($(el).attr('class') ?? ''))
+    .each((_, section) => {
+      const labelClass = ($(section).attr('class') ?? '')
+        .split(/\s+/)
+        .find((c) => /^ex_\w+_content$/.test(c));
+      const labelSelector = labelClass ? `.${labelClass.replace(/_content$/, '')}` : null;
+      const format = (labelSelector ? $(section).find(labelSelector).first().text().trim() : '') || 'Standard';
+
+      $(section)
+        .find('li a')
+        .each((_, a) => {
+          const bookingUrl = $(a).attr('href') ?? '';
+          const time = $(a).text().trim();
+          const soldOut = $(a).hasClass('showtime_soldout');
+          if (bookingUrl && bookingUrl.startsWith('http')) {
+            showtimes.push({ format, time, bookingUrl, soldOut });
+          }
+        });
+    });
 
   return { date, showtimes };
 }
