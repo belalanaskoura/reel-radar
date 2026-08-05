@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Scene Cinemas posters (cfc/district5's cdn-nextjs URLs, which redirect to
 // statics.scenecinemas.com) are unreachable by Vercel's Image Optimization
-// service specifically -- Cloudflare in front of Scene's static host serves
+// service specifically: Cloudflare in front of Scene's static host serves
 // the image fine to direct requests (confirmed from this dev machine and via
 // a local `next start` production build) but Vercel's optimizer consistently
 // gets OPTIMIZED_EXTERNAL_IMAGE_REQUEST_UNAUTHORIZED, most likely Cloudflare

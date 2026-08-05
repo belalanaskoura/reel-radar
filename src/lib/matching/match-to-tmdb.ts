@@ -22,7 +22,7 @@ export interface TmdbMatch {
 // English search), then disambiguate multi-result collisions via an EG
 // release_dates entry rather than popularity alone (Phase 0 found real
 // title collisions, e.g. two different 2026 movies both titled "The
-// Odyssey" -- popularity alone would guess wrong roughly as often as
+// Odyssey"; popularity alone would guess wrong roughly as often as
 // right). Anything still ambiguous is surfaced for manual review, never
 // auto-picked.
 export async function findTmdbMatch(title: string): Promise<TmdbMatch> {
@@ -54,8 +54,8 @@ async function disambiguate(candidates: TmdbMovie[]): Promise<TmdbMatch> {
     return { outcome: 'matched', movie: withEgDates[0].movie };
   }
 
-  // Zero or 2+ candidates with an EG release date is genuinely ambiguous
-  // -- per Phase 5 sign-off, popularity alone isn't a strong enough
+  // Zero or 2+ candidates with an EG release date is genuinely ambiguous:
+  // per Phase 5 sign-off, popularity alone isn't a strong enough
   // signal to auto-pick here.
   return { outcome: 'ambiguous' };
 }
@@ -64,7 +64,7 @@ async function disambiguate(candidates: TmdbMovie[]): Promise<TmdbMatch> {
 // Must run after mergeSceneDuplicates() so each real movie is looked up
 // once. When a match lands on a tmdb_id that's already a real Phase 2
 // movies row, the Scene row's slugs/cache get moved onto that existing row
-// and the Scene placeholder is deleted -- otherwise the same movie would
+// and the Scene placeholder is deleted; otherwise the same movie would
 // exist as two rows (one TMDB-sourced, one Scene-sourced) indefinitely.
 export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<MatchResult[]> {
   const { data: sceneMovies, error } = await supabase
@@ -99,12 +99,12 @@ export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<Match
     if (existingTmdbRow && existingTmdbRow.id !== movie.id) {
       await mergeIntoExistingRow(supabase, movie.id, existingTmdbRow.id);
     } else {
-      // No existing TMDB-sourced row for this tmdb_id -- this Scene row
-      // is becoming the canonical one, so backfill the same fields
+      // No existing TMDB-sourced row for this tmdb_id, so this Scene row
+      // is becoming the canonical one: backfill the same fields
       // Phase 2's sync would have set, replacing Scene's format-suffixed
       // title (e.g. "Spider-Man: Brand New Day (2D)") with TMDB's clean one.
       // elCinema is preferred over TMDB's release_date, and used as a
-      // poster fallback when TMDB has none -- see egypt-release-date.ts.
+      // poster fallback when TMDB has none (see egypt-release-date.ts).
       const egyptInfo = await getEgyptReleaseInfo(supabase, tmdbMovie.id, tmdbMovie.title);
       await supabase
         .from('movies')

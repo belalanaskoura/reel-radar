@@ -105,4 +105,33 @@ body {
   .poster-card:hover {
     transform: translateY(-3px);
   }
+
+  .step-in-forward {
+    animation: step-in-forward 0.28s ease both;
+  }
+  .step-in-back {
+    animation: step-in-back 0.28s ease both;
+  }
+
+  @keyframes step-in-forward {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes step-in-back {
+    from {
+      opacity: 0;
+      transform: translateX(-16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
 }

@@ -15,12 +15,12 @@ export interface CreditsInfo {
   cast: CreditsCastMember[];
 }
 
-// Cast/crew fallback for movies TMDB has no credits for -- tried in the
+// Cast/crew fallback for movies TMDB has no credits for; tried in the
 // same priority order as the release-date/poster fallback (elCinema
 // before Scene), since elCinema at least distinguishes cast from crew
 // and links each name to a person page, while Scene gives only a flat
 // comma-separated name list with no character names or photos at all.
-// Fetched live on detail-page view, not cached in the DB -- same
+// Fetched live on detail-page view, not cached in the DB, same
 // "fetch live, don't store" reasoning as fetchMovieDetails/fetchCredits
 // in movies/[id]/page.tsx (detail pages are viewed far less often than
 // the browse grid, not worth bloating every movies row for).
@@ -43,7 +43,7 @@ async function getElCinemaCredits(title: string): Promise<CreditsInfo | null> {
     const results = await searchElCinema(query);
     await elcinemaSleep(ELCINEMA_DELAY_MS);
 
-    // Same exact-title-match guard as egypt-release-date.ts -- elCinema's
+    // Same exact-title-match guard as egypt-release-date.ts: elCinema's
     // search ranking isn't reliably exact-match-first, so an unrelated
     // top result would otherwise silently attach the wrong movie's cast.
     const exactMatch = results.find((r) => normalizeTitle(r.title) === query);

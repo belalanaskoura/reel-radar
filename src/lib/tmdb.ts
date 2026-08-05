@@ -11,7 +11,7 @@ export interface TmdbMovie {
   genre_ids: number[];
 }
 
-// Genre ID for "Documentary" in TMDB's fixed genre list -- Egyptian
+// Genre ID for "Documentary" in TMDB's fixed genre list: Egyptian
 // cinemas don't screen documentaries, so these are excluded at the
 // source rather than filtered client-side.
 export const DOCUMENTARY_GENRE_ID = 99;
@@ -88,7 +88,7 @@ function requireApiKey(): string {
 
 // Fetches upcoming movies likely to matter to an Egypt-based audience.
 //
-// `region=EG` alone is not a real filter -- it only prefers EG release
+// `region=EG` alone is not a real filter: it only prefers EG release
 // dates when TMDB happens to have one, so most results come back obscure
 // and near-zero popularity. Sorting by popularity.desc surfaces the
 // mainstream titles that actually get released everywhere (including
@@ -110,7 +110,7 @@ export async function fetchUpcomingMovies(
     include_adult: 'false',
     without_genres: String(DOCUMENTARY_GENRE_ID),
     // `without_original_language` only accepts a single value (confirmed by
-    // testing -- unlike with_release_type it does NOT support a pipe-
+    // testing: unlike with_release_type it does NOT support a pipe-
     // separated OR list), so the multi-language exclusion below happens
     // client-side after fetching instead.
   });
@@ -135,7 +135,7 @@ export async function fetchUpcomingMovies(
 }
 
 // Searches TMDB for a title in a given language. Used with 'en-US' first,
-// then 'ar' as a fallback -- Phase 0 found some Arabic-titled Egyptian
+// then 'ar' as a fallback: Phase 0 found some Arabic-titled Egyptian
 // films return zero results in English search entirely.
 export async function searchMovies(query: string, language: 'en-US' | 'ar'): Promise<TmdbMovie[]> {
   const apiKey = requireApiKey();
@@ -156,7 +156,7 @@ export async function searchMovies(query: string, language: 'en-US' | 'ar'): Pro
 
 // Returns the EG THEATRICAL release_date entry for a movie, or null if
 // TMDB has no theatrical entry for EG (a digital/TV-only EG entry does not
-// count -- confirmed necessary after Moana 2 (a 2024 Disney+ release) had
+// count; confirmed necessary after Moana 2 (a 2024 Disney+ release) had
 // an EG entry of type 4/digital and was nearly auto-matched over the real
 // 2026 theatrical Moana, which had no EG entry at all). Used to
 // disambiguate multi-result searches: Phase 0 found genuine title
@@ -180,7 +180,7 @@ export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string
   return theatrical?.release_date ?? null;
 }
 
-// Looks up a movie by IMDb ID -- a much more reliable cross-reference
+// Looks up a movie by IMDb ID: a much more reliable cross-reference
 // than title search when the source (elCinema) exposes one, since it's
 // an exact match rather than a fuzzy one. Returns null if TMDB has no
 // movie for that IMDb ID.
@@ -197,7 +197,7 @@ export async function findByImdbId(imdbId: string): Promise<TmdbMovie | null> {
 }
 
 // Fetches full movie details (overview, tagline, backdrop, runtime,
-// genres) for the detail page. Not stored in the DB -- fetched live on
+// genres) for the detail page. Not stored in the DB: fetched live on
 // page view since detail pages are viewed far less often than the browse
 // grid, so there's no benefit to bloating every `movies` row with data
 // most of them will never need rendered.

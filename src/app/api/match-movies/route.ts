@@ -7,7 +7,7 @@ import { matchScenesToTmdb } from '@/lib/matching/match-to-tmdb';
 // scraper, tmdb_id null) against TMDB. Two steps: first merge duplicate
 // placeholders that represent the same movie listed on both branches,
 // then match each remaining Scene movie to a real TMDB entry (or flag it
-// ambiguous/unmatched for manual review -- never guess).
+// ambiguous/unmatched for manual review; never guess).
 export async function POST(request: Request) {
   const secret = request.headers.get('x-sync-secret');
   if (secret !== process.env.SYNC_SECRET) {

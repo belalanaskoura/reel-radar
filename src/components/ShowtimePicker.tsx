@@ -122,8 +122,8 @@ export function ShowtimePicker({
 }
 
 // Groups a day's showtimes by their format (Standard, Premiere, IMAX,
-// ...) so a movie showing in multiple formats at once -- e.g. a normal
-// screen and an IMAX screen on the same day -- displays each as its own
+// ...) so a movie showing in multiple formats at once (e.g. a normal
+// screen and an IMAX screen on the same day) displays each as its own
 // clearly labeled section instead of one flat, undifferentiated list of
 // times. Preserves first-seen format order rather than sorting
 // alphabetically, matching the order Scene's own page lists them in.

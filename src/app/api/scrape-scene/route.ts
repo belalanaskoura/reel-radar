@@ -9,7 +9,7 @@ const BRANCHES: BranchId[] = ['cfc', 'district5'];
 // `movies` row (tmdb_id null, match_status 'unmatched') for any slug not
 // already linked via `movie_branch_slugs`, and writes bookability into
 // `showtimes_cache`. Phase 5 later matches these placeholder rows to real
-// TMDB entries instead of creating new ones -- title/slug is enough for
+// TMDB entries instead of creating new ones; title/slug is enough for
 // this phase to prove the scraper and cache work end to end.
 export async function POST(request: Request) {
   const secret = request.headers.get('x-sync-secret');
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       if (bookability.bookable) bookableCount += 1;
 
       // Scene is the last-resort poster fallback (TMDB, then elCinema,
-      // then this) -- only fill it in, never overwrite an existing one.
+      // then this): only fill it in, never overwrite an existing one.
       if (!currentPosterPath && bookability.posterUrl) {
         await supabase
           .from('movies')

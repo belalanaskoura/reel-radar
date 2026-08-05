@@ -7,8 +7,8 @@ import type { BranchId } from '@/lib/scene/types';
 import { BRANCH_BASE_URLS } from '@/lib/scene/types';
 
 // The centralized poll job: checks bookability for every (movie, branch)
-// pair that at least one user is watching -- never per-user, per the
-// Phase 1 scaling constraint -- and notifies each watcher exactly once
+// pair that at least one user is watching, never per-user (per the
+// Phase 1 scaling constraint), and notifies each watcher exactly once
 // per bookable "episode" via notification_log. Triggered by an external
 // scheduler hitting this route on an interval (see Phase 1: Vercel Hobby
 // can't run cron faster than once/day, so there's no Vercel Cron entry
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   const supabase = createServiceRoleClient();
 
   // Only (movie, branch) pairs with a watcher AND a known Scene slug are
-  // worth polling -- this is the scaling constraint: cost is bounded by
+  // worth polling: this is the scaling constraint, cost is bounded by
   // distinct watched movies, not by user count.
   const { data: watchedMovieIds } = await supabase.from('watchlist').select('movie_id');
   const distinctMovieIds = [...new Set((watchedMovieIds ?? []).map((r) => r.movie_id))];
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
     if (!bookability.bookable) {
       if (wasBookable) {
-        // Transitioned back to not-bookable -- clear the log so a future
+        // Transitioned back to not-bookable: clear the log so a future
         // re-opening (added showtimes, re-release) notifies again.
         await supabase
           .from('notification_log')
@@ -122,7 +122,7 @@ async function notifyWatchers(
 
     const payload = { movieTitle: movie.title, branchName: branchRow.name, bookingUrl };
 
-    // Email and ntfy are independent, best-effort channels -- one failing
+    // Email and ntfy are independent, best-effort channels: one failing
     // must never block the other or abort the rest of this watcher loop
     // (a real bug in the pre-email version, where an uncaught ntfy error
     // killed every notification after it in the same poll run).
@@ -140,7 +140,7 @@ async function notifyWatchers(
       }
     }
 
-    // Logged once an email attempt was made, regardless of outcome -- this
+    // Logged once an email attempt was made, regardless of outcome: this
     // job has no retry mechanism for either channel, so a transient send
     // failure here permanently skips this watcher for this bookable
     // episode rather than resending on every subsequent poll.

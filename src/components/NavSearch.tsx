@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { SearchIcon } from '@/components/icons';
 
-// Renders only on the browse page -- search only does something there
+// Renders only on the browse page: search only does something there
 // (BrowseGrid reads the same ?q= param), so showing it elsewhere would
 // be a dead control. Syncs to the URL rather than local state so it and
 // BrowseGrid, which aren't in a direct parent/child relationship, share
@@ -24,7 +24,7 @@ export function NavSearch() {
     } else {
       params.delete('q');
     }
-    // A new search always starts back at page 1 -- otherwise a query
+    // A new search always starts back at page 1; otherwise a query
     // typed while on page 3 of the old result set would land on page 3
     // of the new one instead.
     params.delete('page');

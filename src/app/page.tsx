@@ -9,7 +9,7 @@ export default async function LandingPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Signed-in visitors don't need a pitch -- they land straight on what
+  // Signed-in visitors don't need a pitch; they land straight on what
   // they came for, same as before this page existed.
   if (user) redirect('/browse');
 
@@ -79,7 +79,7 @@ export default async function LandingPage() {
           <FeatureCard
             icon={<SearchIcon />}
             title="See what's coming"
-            description="Every movie headed to your cinemas -- bookable now or still months out -- in one searchable list."
+            description="Every movie headed to your cinemas, bookable now or still months out, in one searchable list."
           />
           <FeatureCard
             icon={<TicketIcon />}
@@ -89,7 +89,7 @@ export default async function LandingPage() {
           <FeatureCard
             icon={<BellIcon />}
             title="Get pinged"
-            description="The instant it's bookable, you get an email (and a push notification, if you set one up) with a direct booking link."
+            description="The instant it's bookable, you get a push notification with a direct booking link."
           />
         </div>
       </div>

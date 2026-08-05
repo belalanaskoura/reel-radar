@@ -2,9 +2,9 @@
 
 A watchlist app for [Scene Cinemas](https://cfc.scenecinemas.com) (Cairo
 Festival City and District 5): browse everything bookable now or coming
-soon, watchlist a title before it's even listed, and get a push
-notification the moment tickets go on sale — with a link straight to
-booking.
+soon, watchlist a title before it's even listed, and get notified by email
+(and optionally push) the moment tickets go on sale — with a link straight
+to booking.
 
 Live at: _add production URL once deployed_
 
@@ -37,18 +37,22 @@ stop manually refreshing their site.
 - **Polling scales with watchlist size, not user count** — the poll job
   only re-checks (movie, branch) pairs that at least one user is watching,
   so cost stays flat as the user base grows.
-- **Notifications** go out via [ntfy.sh](https://ntfy.sh), one private topic
-  per user, no account linking required on their end.
+- **Notifications** go out over two independent channels: email (via
+  [Resend](https://resend.com), automatic for every account, no setup) and
+  push (via [ntfy.sh](https://ntfy.sh), opt-in, one private topic per user).
+  Either channel failing doesn't block the other.
 
 ## Stack
 
 - **Next.js 16** (App Router, TypeScript, Turbopack) + Tailwind CSS v4
-- **Supabase** — Postgres, Auth (email/password), Row Level Security
+- **Supabase** — Postgres, Auth (email/password and Google OAuth), Row
+  Level Security
 - **TMDB API** — movie catalog, cast/crew, release dates
 - **elCinema** and **Scene Cinemas** — scraped directly (see
   [`src/lib/elcinema/`](src/lib/elcinema/) and [`src/lib/scene/`](src/lib/scene/))
-- **ntfy.sh** — push notifications, no proprietary push service or app
-  install required beyond the free ntfy client
+- **Resend** — transactional email for the always-on notification channel
+- **ntfy.sh** — optional push notifications, no proprietary push service or
+  app install required beyond the free ntfy client
 - **cheerio** for HTML parsing, **Playwright** for browser-driven
   verification during development
 
@@ -75,6 +79,10 @@ tables described there before the app will run against it.
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only, bypasses RLS — used by the scheduled jobs and sync scripts. Never expose to the client. |
 | `TMDB_API_KEY` | [TMDB API](https://www.themoviedb.org/settings/api) key |
 | `SYNC_SECRET` | Shared secret required (via `x-sync-secret` header) to call the scheduled job routes below |
+| `RESEND_API_KEY` | [Resend API](https://resend.com/api-keys) key, used to send the always-on email notification |
+| `RESEND_FROM_EMAIL` | Verified sending address for Resend (needs a domain-verified sender in production) |
+
+Google sign-in is configured entirely in the Supabase dashboard (Authentication → Providers → Google) and the corresponding Google Cloud OAuth client — no additional env vars in this repo.
 
 ## Scheduled jobs
 
@@ -130,6 +138,11 @@ backfills / corrections, not part of the regular scheduled-job loop:
 - **Scraping is best-effort**: both elCinema and Scene Cinemas are scraped
   directly from their public HTML, not an official API. Markup changes on
   either site can break parsing until the relevant selector is updated.
+- **Email requires a verified sending domain**: Resend's test sender only
+  delivers to the Resend account's own signup address, so real email
+  notifications need `RESEND_FROM_EMAIL` on a domain that's passed Resend's
+  DNS verification (SPF/DKIM/MX). Until that's set up, email notifications
+  won't reach real users' inboxes.
 
 ## Development notes
 

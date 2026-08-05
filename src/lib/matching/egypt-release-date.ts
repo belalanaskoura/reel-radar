@@ -8,7 +8,7 @@ export interface EgyptReleaseInfo {
 }
 
 // elCinema is the source of truth for a matched movie's Egypt release
-// date -- TMDB's `release_date` is a single global value that can land on
+// date: TMDB's `release_date` is a single global value that can land on
 // an unrelated country's date when TMDB has no EG release_dates entry at
 // all (confirmed for real: "El Gawahergy" showed TMDB's Germany date,
 // months off from elCinema's actual Egypt date). It's also used as a
@@ -16,8 +16,8 @@ export interface EgyptReleaseInfo {
 // fallback for movies elCinema has no record of, for both fields.
 //
 // Checks the `egypt_releases` table (populated by the historical
-// backfill) first; if the movie isn't there yet -- e.g. a brand-new
-// release the 4-years-back backfill predates -- falls back to a live
+// backfill) first; if the movie isn't there yet (e.g. a brand-new
+// release the 4-years-back backfill predates), falls back to a live
 // elCinema title search + work-page fetch, and caches the result into
 // `egypt_releases` so the next lookup for this movie is free. Date and
 // poster are fetched together (one work-page request) rather than as two
@@ -92,7 +92,7 @@ export async function getEgyptReleaseInfo(
 
     return { releaseDate: details.releaseDate, posterUrl: details.posterUrl };
   } catch {
-    // elCinema unreachable/unexpected markup -- fall back to TMDB's data
+    // elCinema unreachable/unexpected markup, fall back to TMDB's data
     // rather than failing the whole sync/match run over a display detail.
     return { releaseDate: null, posterUrl: null };
   }

@@ -42,7 +42,7 @@ export function NtfyBanner() {
         <BellIcon size={18} />
       </div>
       <p className="pr-6 text-sm" style={{ color: 'var(--ink)' }}>
-        Get notified the instant tickets go live --{' '}
+        Get notified the instant tickets go live:{' '}
         <Link href="/notifications" className="underline" style={{ color: 'var(--accent)' }}>
           set up push notifications
         </Link>

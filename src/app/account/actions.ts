@@ -25,7 +25,7 @@ export async function updateNtfyTopic(formData: FormData) {
   if (error) {
     const message =
       error.code === '23505'
-        ? 'That ntfy topic is already taken by another account -- pick a different one.'
+        ? 'That ntfy topic is already taken by another account, pick a different one.'
         : error.message;
     redirect(`${returnTo}?error=${encodeURIComponent(message)}`);
   }
@@ -33,6 +33,39 @@ export async function updateNtfyTopic(formData: FormData) {
   revalidatePath('/account');
   revalidatePath('/notifications');
   redirect(`${returnTo}?saved=1`);
+}
+
+// Same write as updateNtfyTopic but returns a result instead of
+// redirecting, for the client-driven /notifications stepper (NtfyOnboarding)
+// which needs to advance to the next step in place rather than reload.
+export async function saveNtfyTopic(topic: string): Promise<{ error: string | null }> {
+  const ntfyTopic = topic.trim();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/signin');
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ ntfy_topic: ntfyTopic || null })
+    .eq('id', user.id);
+
+  if (error) {
+    const message =
+      error.code === '23505'
+        ? 'That ntfy topic is already taken by another account, pick a different one.'
+        : error.message;
+    return { error: message };
+  }
+
+  revalidatePath('/account');
+  revalidatePath('/notifications');
+  return { error: null };
 }
 
 export async function updatePassword(formData: FormData) {

@@ -2,7 +2,7 @@
 
 export type SortDirection = 'asc' | 'desc';
 
-// Simple two-state toggle -- a full dropdown (like FilterDropdown) would
+// Simple two-state toggle: a full dropdown (like FilterDropdown) would
 // be overkill for a binary choice; this just swaps the arrow icon and
 // label on click.
 export function SortToggle({

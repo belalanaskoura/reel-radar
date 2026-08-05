@@ -54,9 +54,9 @@ export default async function MovieDetailPage({
   const tmdbDirector = tmdbCredits?.crew.find((c) => c.job === 'Director');
   const hasTmdbCredits = !!tmdbDirector || (tmdbCredits?.cast.length ?? 0) > 0;
 
-  // TMDB is the primary credits source (names, characters, and photos --
+  // TMDB is the primary credits source (names, characters, and photos:
   // the richest of the three). When it has nothing, elCinema is tried
-  // next, then Scene Cinemas -- see src/lib/matching/credits.ts for why
+  // next, then Scene Cinemas; see src/lib/matching/credits.ts for why
   // that order and what each source is missing relative to TMDB.
   const fallbackCredits = !hasTmdbCredits
     ? await getFallbackCredits(movie.title, movie.movie_branch_slugs).catch(() => null)
@@ -227,7 +227,7 @@ export default async function MovieDetailPage({
                         slugRow && Array.isArray(cache.raw_showtimes) && cache.raw_showtimes.length > 0 ? (
                           <>
                             <p className="mb-2 text-xs" style={{ color: 'var(--ok-ink)' }}>
-                              Bookable -- pick a day
+                              Bookable, pick a day
                             </p>
                             <ShowtimePicker
                               branchId={cache.branch_id}

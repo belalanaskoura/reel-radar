@@ -2,7 +2,7 @@ const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 
 // Scene Cinemas poster URLs are unreachable by Vercel's Image Optimization
 // service specifically (Cloudflare in front of Scene's static host appears to
-// block Vercel's IP range -- confirmed working via direct fetch and via a
+// block Vercel's IP range; confirmed working via direct fetch and via a
 // local `next start` production build, but consistently rejected in
 // production with OPTIMIZED_EXTERNAL_IMAGE_REQUEST_UNAUTHORIZED). Routed
 // through our own same-origin proxy (src/app/api/scene-poster/route.ts)
@@ -11,7 +11,7 @@ const SCENE_POSTER_HOSTS = ['cfc.scenecinemas.com', 'district5.scenecinemas.com'
 
 // `movies.poster_path` is usually a TMDB-relative path, but can also hold
 // a full elCinema or Scene Cinemas poster URL (fallbacks for movies TMDB
-// has no poster for -- see src/lib/matching/egypt-release-date.ts and
+// has no poster for; see src/lib/matching/egypt-release-date.ts and
 // src/app/api/scrape-scene/route.ts). An absolute URL is passed through
 // as-is (rewritten to our proxy for Scene hosts) rather than prefixed with
 // TMDB's base.

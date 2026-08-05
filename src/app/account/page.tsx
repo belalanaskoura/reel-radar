@@ -95,7 +95,7 @@ export default async function ProfilePage({
               ntfy.sh topic
             </p>
             <p className="mb-3 text-sm" style={{ color: profile?.ntfy_topic ? 'var(--ink-dim)' : 'var(--error-ink)' }}>
-              {profile?.ntfy_topic ?? 'Not set -- you will not receive notifications.'}
+              {profile?.ntfy_topic ?? 'Not set. You will not receive push notifications.'}
             </p>
             <form action={updateNtfyTopic} className="flex flex-col gap-2">
               <input type="hidden" name="return_to" value="/account" />

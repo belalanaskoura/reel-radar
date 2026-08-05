@@ -7,7 +7,7 @@ const USER_AGENT =
 const REQUEST_TIMEOUT_MS = 15_000;
 
 // elCinema's robots.txt allows all crawlers (`User-agent: * / Allow: /`),
-// a real difference from Scene Cinemas' disallow-all policy -- still
+// a real difference from Scene Cinemas' disallow-all policy; still
 // polite about frequency since that's the right default regardless of
 // what's technically allowed.
 export const REQUEST_DELAY_MS = 1_000;
@@ -99,10 +99,10 @@ function parseElCinemaDate(dayMonthText: string, yearText: string): string | nul
 }
 
 // Fetches one movie's elCinema page for its IMDb ID (the reliable TMDB
-// cross-reference -- confirmed most work pages have one; title-search
+// cross-reference, confirmed most work pages have one; title-search
 // fallback handles the ones that don't) and its Egypt release date, per
 // the "Release Date: <day month> <year> (Egypt)" line elCinema shows on
-// every work page -- a real day-level date, not just the release year.
+// every work page: a real day-level date, not just the release year.
 export async function fetchWorkDetails(elcinemaId: number): Promise<ElCinemaWorkDetails> {
   const url = `${BASE_URL}/en/work/${elcinemaId}/`;
   const html = await get(url);
@@ -121,7 +121,7 @@ export async function fetchWorkDetails(elcinemaId: number): Promise<ElCinemaWork
   const releaseDate = extractEgyptReleaseDate($);
 
   // The work page's poster sits in the first list item of the button
-  // group beside the poster/trailer/tickets buttons -- a direct, already-
+  // group beside the poster/trailer/tickets buttons: a direct, already-
   // absolute image URL (elCinema's media CDN, not a relative path like
   // TMDB's), confirmed against a real page. Falls back to null rather
   // than guessing if that markup isn't found.
@@ -134,7 +134,7 @@ export async function fetchWorkDetails(elcinemaId: number): Promise<ElCinemaWork
 
 // Director/Writer/Cast each sit in their own `ul.list-separator.list-title`
 // block, first `<li>` being the plain-text label ("Director:", "Cast:")
-// and the rest being `<a href="/en/person/...">Name</a>` entries -- no
+// and the rest being `<a href="/en/person/...">Name</a>` entries; no
 // character names or photos in this summary list (elCinema's own "(more)"
 // cast page has those, not fetched here to keep this to one request).
 function extractCredits($: cheerio.CheerioAPI): ElCinemaCredits {
@@ -165,7 +165,7 @@ function extractCredits($: cheerio.CheerioAPI): ElCinemaCredits {
 // is only present at all when the movie's primary release is Egypt's;
 // for movies with a non-Egypt primary release, the same date/country
 // pair shows up further down in a per-country breakdown list instead
-// (`"Egypt [<a>5 August</a> <a>2026</a>]"`) -- both are checked.
+// (`"Egypt [<a>5 August</a> <a>2026</a>]"`); both are checked.
 function extractEgyptReleaseDate($: cheerio.CheerioAPI): string | null {
   let found: string | null = null;
 

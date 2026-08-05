@@ -4,7 +4,7 @@ import { fetchDayShowtimes } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import type { SceneDayShowtimes } from '@/lib/scene/types';
 
-// Fetches one specific day's showtimes for one branch, on demand -- called
+// Fetches one specific day's showtimes for one branch, on demand: called
 // only when a user expands a day in the UI, not eagerly for every bookable
 // day on page load (a movie can be bookable across 8+ days per branch;
 // fetching all of them upfront would mean 16+ live Scene requests per

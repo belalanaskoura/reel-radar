@@ -76,7 +76,7 @@ export async function fetchComingSoon(branch: BranchId): Promise<SceneMovieListi
 
 // Fetches now-showing + coming-soon listings for one branch, deduped by
 // slug (now_showing wins on conflict, same as spider-bot). This is the
-// only place allowed to discover slugs -- callers must never guess a slug,
+// only place allowed to discover slugs: callers must never guess a slug,
 // per the site's robots.txt and the "invalid slug still returns HTTP 200"
 // behavior found in Phase 0.
 export async function fetchAllListings(branch: BranchId): Promise<SceneMovieListing[]> {
@@ -102,8 +102,8 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
   const html = await get(movieDetailsUrl);
   const $ = cheerio.load(html);
 
-  // The page's hero poster -- `.film-details__image img`, confirmed on
-  // real cfc and district5 pages -- is unrelated to bookability, but
+  // The page's hero poster (`.film-details__image img`, confirmed on
+  // real cfc and district5 pages) is unrelated to bookability, but
   // extracted here too since it's the same fetch already in hand and
   // extracting it separately would mean a second request per movie.
   const posterUrl = $('.film-details__image img').attr('src') || null;
@@ -115,7 +115,7 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
 
   // The markup wraps each <li class="calanderdays"> in a parent <a
   // href="javascript:LoadShowtimes('DD-MM-YYYY')">, rather than the more
-  // usual <li><a>...</a></li> nesting -- confirmed against real HTML.
+  // usual <li><a>...</a></li> nesting (confirmed against real HTML).
   const availableDates: string[] = [];
   dayItems.each((_, el) => {
     const href = $(el).parent('a').attr('href') ?? '';
@@ -131,7 +131,7 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
 // "Cast & Crew: Name, Name, Name" as one flat comma-separated line (a
 // `<p>` with a leading `<span>Cast & Crew: </span>` label, confirmed
 // against real markup) and a separate, visually hidden ("display:none")
-// but still-present "Director: Name" line -- no character names or
+// but still-present "Director: Name" line; no character names or
 // photos, weaker than either other source, hence last in priority.
 export async function fetchCastAndCrew(movieDetailsUrl: string): Promise<SceneCastAndCrew> {
   const html = await get(movieDetailsUrl);
@@ -158,7 +158,7 @@ export async function fetchCastAndCrew(movieDetailsUrl: string): Promise<SceneCa
 
 // Fetches the showtime list for one specific day via the AJAX fragment
 // endpoint discovered in Phase 0 (movie-details.html?business_day=DD-MM-YYYY&ajax=1).
-// One request per day -- callers should only call this for movies already
+// One request per day: callers should only call this for movies already
 // confirmed bookable, and should stay mindful of total request volume.
 export async function fetchDayShowtimes(
   movieDetailsUrl: string,

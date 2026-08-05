@@ -6,7 +6,7 @@ import { MovieCard, type MovieCardData } from '@/components/MovieCard';
 import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
 
 // Matches each word of the query independently against the start of any
-// word in the title -- not a substring search. This does two things at
+// word in the title, not a substring search. This does two things at
 // once: (1) "I" matches "Iron Maiden" but not "Obsession" (which merely
 // contains an "i"), and (2) splitting the title on non-letter characters
 // means "Avengers Doomsday" (space) still matches "Avengers: Doomsday"
@@ -33,7 +33,7 @@ export function BrowseGrid({
   const searchParams = useSearchParams();
 
   // Search lives in the URL (?q=), written by the nav bar's search input
-  // (NavSearch) -- rendered separately, above this component in the
+  // (NavSearch), rendered separately, above this component in the
   // tree, with no direct prop connection to it. Reading it here keeps
   // both in sync without lifting state through a shared parent.
   const query = searchParams.get('q') ?? '';
@@ -49,7 +49,7 @@ export function BrowseGrid({
         .map((m) => ({ ...m, branches: m.branches?.filter((b) => b.bookable) }));
     } else if (statusFilter === 'coming_soon') {
       // Listed at Scene (has branch entries) but not bookable at any of
-      // them -- distinct from movies not listed at Scene at all, which
+      // them; distinct from movies not listed at Scene at all, which
       // stay visible under "All movies" but wouldn't fit this filter either.
       result = result.filter(
         (m) => m.branches && m.branches.length > 0 && !m.branches.some((b) => b.bookable),
@@ -60,7 +60,7 @@ export function BrowseGrid({
       result = result.filter((m) => matchesSearch(m.title, query));
     }
 
-    // Bookable movies lead the whole list -- you can act on them today,
+    // Bookable movies lead the whole list: you can act on them today,
     // which matters more than a future release date. Within each of the
     // two groups (bookable / not-yet-released), the server's ascending
     // release-date order is preserved via a stable sort, so this only
@@ -74,7 +74,7 @@ export function BrowseGrid({
     return result;
   }, [movies, statusFilter, query]);
 
-  // Page number lives in the URL too (?page=), not local state -- a new
+  // Page number lives in the URL too (?page=), not local state; a new
   // search (written by NavSearch, a sibling with no direct prop
   // connection to this component) always omits ?page, which naturally
   // reads back as page 1 here without needing a separate reset effect.

@@ -26,12 +26,12 @@ export interface SceneDayShowtimes {
 
 export interface BookabilityResult {
   bookable: boolean;
-  // Populated only when bookable -- the day list found on the movie-details
+  // Populated only when bookable: the day list found on the movie-details
   // page. Per-day showtime detail is a separate, heavier fetch (one request
   // per day) so callers decide whether they need it.
   availableDates: string[];
   // The movie-details page's own hero image, extracted from the same
-  // fetch (no extra request) -- a poster fallback source for movies TMDB
+  // fetch (no extra request): a poster fallback source for movies TMDB
   // and elCinema have no image for. Null if the page's markup didn't
   // have the expected element.
   posterUrl: string | null;
@@ -39,7 +39,7 @@ export interface BookabilityResult {
 
 export interface SceneCastAndCrew {
   director: string | null;
-  // Flat name list -- Scene's own page doesn't distinguish cast from
+  // Flat name list: Scene's own page doesn't distinguish cast from
   // crew beyond director, and gives no character names or photos.
   cast: string[];
 }

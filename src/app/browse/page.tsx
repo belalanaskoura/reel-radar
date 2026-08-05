@@ -10,7 +10,7 @@ export default async function BrowsePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Fetches every browsable movie once -- search, the status filter, and
+  // Fetches every browsable movie once: search, the status filter, and
   // pagination all run client-side against this full set, so typing
   // filters instantly with no network round-trip per keystroke. Limit
   // raised well past the catalog's current size now that sync-movies
