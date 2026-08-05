@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchUpcomingMovies } from '@/lib/tmdb';
-import { createServiceRoleClient } from '@/lib/supabase';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 // Pulls upcoming movies from TMDB and upserts them into the `movies` table.
 // Matched on tmdb_id so re-running is idempotent. Does not touch Scene
