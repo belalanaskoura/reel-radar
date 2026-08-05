@@ -4,15 +4,17 @@ import { useMemo, useState } from 'react';
 import { MovieCard, type MovieCardData } from '@/components/MovieCard';
 import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
 
-// Matches each word of the query independently rather than the whole
-// string as one literal substring -- otherwise "Avengers Doomsday" (a
-// space where the real title has a colon, "Avengers: Doomsday") fails to
-// match even though every word is present.
+// Matches each word of the query independently against the start of any
+// word in the title -- not a substring search. This does two things at
+// once: (1) "I" matches "Iron Maiden" but not "Obsession" (which merely
+// contains an "i"), and (2) splitting the title on non-letter characters
+// means "Avengers Doomsday" (space) still matches "Avengers: Doomsday"
+// (colon), since both produce the same word list.
 function matchesSearch(title: string, query: string): boolean {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return true;
-  const lowerTitle = title.toLowerCase();
-  return words.every((word) => lowerTitle.includes(word));
+  const queryWords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (queryWords.length === 0) return true;
+  const titleWords = title.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return queryWords.every((qWord) => titleWords.some((tWord) => tWord.startsWith(qWord)));
 }
 
 export function BrowseGrid({
