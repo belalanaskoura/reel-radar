@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { NavSearch } from '@/components/NavSearch';
+import { FilmIcon, TicketIcon, UserIcon } from '@/components/icons';
 
 export async function NavBar() {
   const supabase = await createClient();
@@ -21,35 +22,36 @@ export async function NavBar() {
           Reel<span style={{ color: 'var(--accent)' }}>Alert</span>
         </Link>
 
-        <div className="order-3 w-full sm:order-none sm:w-auto sm:flex-1 sm:max-w-sm">
-          <Suspense fallback={null}>
-            <NavSearch />
-          </Suspense>
-        </div>
+        <Suspense fallback={null}>
+          <NavSearch />
+        </Suspense>
 
         <div className="ml-auto flex items-center gap-3 text-sm sm:gap-6">
           <Link
             href="/"
-            className="hidden hover:opacity-70 sm:inline"
+            className="hidden items-center gap-1.5 hover:opacity-70 sm:inline-flex"
             style={{ color: 'var(--ink-dim)' }}
           >
+            <FilmIcon size={16} />
             Browse
           </Link>
           {user ? (
             <>
               <Link
                 href="/watchlist"
-                className="hover:opacity-70"
+                className="inline-flex items-center gap-1.5 hover:opacity-70"
                 style={{ color: 'var(--ink-dim)' }}
               >
-                Watchlist
+                <TicketIcon size={16} />
+                <span className="hidden sm:inline">Watchlist</span>
               </Link>
               <Link
                 href="/account"
-                className="hover:opacity-70"
+                className="inline-flex items-center gap-1.5 hover:opacity-70"
                 style={{ color: 'var(--ink-dim)' }}
               >
-                Profile
+                <UserIcon size={16} />
+                <span className="hidden sm:inline">Profile</span>
               </Link>
             </>
           ) : (

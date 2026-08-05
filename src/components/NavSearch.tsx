@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { SearchIcon } from '@/components/icons';
 
 // Renders only on the browse page -- search only does something there
 // (BrowseGrid reads the same ?q= param), so showing it elsewhere would
@@ -31,18 +32,24 @@ export function NavSearch() {
   }
 
   return (
-    <input
-      type="search"
-      value={query}
-      onChange={(e) => handleChange(e.target.value)}
-      placeholder="Search movies..."
-      aria-label="Search movies"
-      className="w-full min-w-0 rounded-sm border px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2"
-      style={{
-        borderColor: 'var(--rule)',
-        background: 'var(--bg-elevated)',
-        color: 'var(--ink)',
-      }}
-    />
+    <div className="relative order-3 w-full sm:order-none sm:w-auto sm:max-w-sm sm:flex-1">
+      <SearchIcon
+        className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2"
+        style={{ color: 'var(--ink-dim)' }}
+      />
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => handleChange(e.target.value)}
+        placeholder="Search movies..."
+        aria-label="Search movies"
+        className="w-full min-w-0 rounded-sm border py-1.5 pr-3 pl-8 text-sm focus:outline-none focus-visible:ring-2"
+        style={{
+          borderColor: 'var(--rule)',
+          background: 'var(--bg-elevated)',
+          color: 'var(--ink)',
+        }}
+      />
+    </div>
   );
 }
