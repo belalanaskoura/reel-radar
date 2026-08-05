@@ -6,12 +6,12 @@ soon, watchlist a title before it's even listed, and get notified by email
 (and optionally push) the moment tickets go on sale — with a link straight
 to booking.
 
-Live at: _add production URL once deployed_
+Live at: _https://reel-alert-lime.vercel.app_
 
 ## Why this exists
 
-Scene Cinemas doesn't notify you when booking opens for a movie you're
-waiting on. This app polls Scene on your behalf and pushes a
+Cinemas doesn't notify you when booking opens for a movie you're
+waiting on. This app polls on your behalf and pushes a
 notification the instant a watchlisted title becomes bookable, so you
 stop manually refreshing their site.
 
