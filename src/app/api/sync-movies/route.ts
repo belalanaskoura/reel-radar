@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { fetchUpcomingMovies } from '@/lib/tmdb';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { isLikelyEgyptRelease } from '@/lib/matching/egypt-distributor-filter';
+import { getEgyptReleaseDate } from '@/lib/matching/egypt-release-date';
 
 // Pulls upcoming movies from TMDB and upserts them into the `movies` table.
 // Matched on tmdb_id so re-running is idempotent. Does not touch Scene
@@ -34,17 +35,26 @@ export async function POST(request: Request) {
     }
   }
 
-  const { error } = await supabase.from('movies').upsert(
-    movies.map((m) => ({
+  // elCinema is the source of truth for a movie's Egypt release date when
+  // it has one -- see src/lib/matching/egypt-release-date.ts. TMDB's
+  // release_date remains the fallback for movies elCinema has no record of.
+  const rows = [];
+  for (const m of movies) {
+    const egyptDate = await getEgyptReleaseDate(supabase, m.id, m.title);
+    rows.push({
       tmdb_id: m.id,
       title: m.title,
       original_title: m.original_title,
       poster_path: m.poster_path,
-      release_date: m.release_date || null,
+      release_date: egyptDate || m.release_date || null,
       popularity: m.popularity,
-    })),
-    { onConflict: 'tmdb_id', ignoreDuplicates: false },
-  );
+    });
+  }
+
+  const { error } = await supabase.from('movies').upsert(rows, {
+    onConflict: 'tmdb_id',
+    ignoreDuplicates: false,
+  });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

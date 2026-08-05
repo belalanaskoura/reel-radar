@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeTitle } from './normalize';
 import { searchMovies, getEgTheatricalReleaseDate, type TmdbMovie } from '../tmdb';
+import { getEgyptReleaseDate } from './egypt-release-date';
 
 export type MatchOutcome = 'matched' | 'ambiguous' | 'unmatched';
 
@@ -102,6 +103,9 @@ export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<Match
       // is becoming the canonical one, so backfill the same fields
       // Phase 2's sync would have set, replacing Scene's format-suffixed
       // title (e.g. "Spider-Man: Brand New Day (2D)") with TMDB's clean one.
+      // elCinema is preferred over TMDB's release_date when it has a
+      // record of this movie -- see egypt-release-date.ts.
+      const egyptDate = await getEgyptReleaseDate(supabase, tmdbMovie.id, tmdbMovie.title);
       await supabase
         .from('movies')
         .update({
@@ -109,7 +113,7 @@ export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<Match
           title: tmdbMovie.title,
           original_title: tmdbMovie.original_title,
           poster_path: tmdbMovie.poster_path,
-          release_date: tmdbMovie.release_date || null,
+          release_date: egyptDate || tmdbMovie.release_date || null,
           popularity: tmdbMovie.popularity,
           match_status: 'matched',
         })

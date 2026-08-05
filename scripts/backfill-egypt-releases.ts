@@ -124,6 +124,7 @@ async function main() {
           tmdb_id: tmdbId,
           title: details.title || listingTitle,
           release_year: details.releaseYear,
+          release_date: details.releaseDate,
           match_status: tmdbId ? 'matched' : 'unmatched',
         },
         { onConflict: 'elcinema_id' },
