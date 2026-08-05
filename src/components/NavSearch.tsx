@@ -13,7 +13,7 @@ export function NavSearch() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  if (pathname !== '/') return null;
+  if (pathname !== '/browse') return null;
 
   const query = searchParams.get('q') ?? '';
 
@@ -28,7 +28,7 @@ export function NavSearch() {
     // typed while on page 3 of the old result set would land on page 3
     // of the new one instead.
     params.delete('page');
-    router.replace(params.size > 0 ? `/?${params}` : '/', { scroll: false });
+    router.replace(params.size > 0 ? `/browse?${params}` : '/browse', { scroll: false });
   }
 
   return (

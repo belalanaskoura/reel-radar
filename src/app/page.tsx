@@ -1,77 +1,146 @@
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { BrowseGrid } from '@/components/BrowseGrid';
-import type { MovieCardData } from '@/components/MovieCard';
+import { BellIcon, MapPinIcon, SearchIcon, TicketIcon } from '@/components/icons';
 
-export default async function Home() {
+export default async function LandingPage() {
   const supabase = await createClient();
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Fetches every browsable movie once -- search, the status filter, and
-  // pagination all run client-side against this full set, so typing
-  // filters instantly with no network round-trip per keystroke. Limit
-  // raised well past the catalog's current size now that sync-movies
-  // pulls through end of 2029 instead of 6 months out.
-  const { data: movies } = await supabase
-    .from('movies')
-    .select('id, title, release_date, poster_path, showtimes_cache(bookable, branches(name))')
-    .in('match_status', ['matched', 'unmatched'])
-    .order('release_date', { ascending: true, nullsFirst: false })
-    .limit(2000);
-
-  let watchedIds: string[] = [];
-  if (user) {
-    const { data: watchlistRows } = await supabase
-      .from('watchlist')
-      .select('movie_id')
-      .eq('user_id', user.id);
-    watchedIds = (watchlistRows ?? []).map((r) => r.movie_id);
-  }
-
-  const movieCards: MovieCardData[] = (movies ?? []).map((m) => ({
-    id: m.id,
-    title: m.title,
-    release_date: m.release_date,
-    poster_path: m.poster_path,
-    branches: (m.showtimes_cache ?? []).map((s) => ({
-      branch_name: (s.branches as unknown as { name: string } | null)?.name ?? '',
-      bookable: s.bookable,
-    })),
-  }));
+  // Signed-in visitors don't need a pitch -- they land straight on what
+  // they came for, same as before this page existed.
+  if (user) redirect('/browse');
 
   return (
     <main>
-      <div
-        className="relative overflow-hidden border-b"
-        style={{ borderColor: 'var(--rule)' }}
-      >
+      <div className="relative overflow-hidden">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              'radial-gradient(ellipse 80% 60% at 50% -20%, color-mix(in srgb, var(--accent) 16%, transparent), transparent)',
+              'radial-gradient(ellipse 90% 70% at 50% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent)',
           }}
         />
-        <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.05]"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(90deg, var(--ink) 0, var(--ink) 1px, transparent 1px, transparent 64px)',
+          }}
+        />
+
+        <div className="relative mx-auto flex max-w-3xl flex-col items-center px-4 py-20 text-center sm:px-6 sm:py-28">
+          <div
+            className="mb-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium"
+            style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }}
+          >
+            <MapPinIcon size={14} style={{ color: 'var(--accent)' }} />
+            Cairo Festival City &amp; District 5
+          </div>
+
           <h1
-            className="font-display mb-2 text-4xl leading-none sm:text-6xl"
+            className="font-display mb-4 text-5xl leading-[0.95] sm:text-7xl"
             style={{ color: 'var(--ink)' }}
           >
-            Now booking <span style={{ color: 'var(--accent)' }}>&amp; on the way</span>
+            Know the second
+            <br />
+            <span style={{ color: 'var(--accent)' }}>tickets go live.</span>
           </h1>
-          <p className="max-w-xl text-sm sm:text-base" style={{ color: 'var(--ink-dim)' }}>
-            Everything bookable right now at Cairo Festival City and District 5, plus movies
-            headed there that haven&apos;t opened yet. Watchlist one before it&apos;s even
-            listed and get notified the moment tickets go live.
+
+          <p className="mb-10 max-w-xl text-base sm:text-lg" style={{ color: 'var(--ink-dim)' }}>
+            Scene Cinemas doesn&apos;t tell you when booking opens. ReelAlert
+            watches for you, and pushes a notification to your phone the
+            moment a movie you care about is bookable.
           </p>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/signup"
+              className="rounded-sm px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+            >
+              Create a free account
+            </Link>
+            <Link
+              href="/browse"
+              className="rounded-sm border px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-80"
+              style={{ borderColor: 'var(--rule)', color: 'var(--ink)', background: 'var(--bg-elevated)' }}
+            >
+              Browse without an account
+            </Link>
+          </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
-        <BrowseGrid movies={movieCards} watchedIds={watchedIds} isSignedIn={!!user} />
+      <div className="mx-auto max-w-5xl px-4 pb-20 sm:px-6 sm:pb-28">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+          <FeatureCard
+            icon={<SearchIcon />}
+            title="See what's coming"
+            description="Every movie headed to Cairo Festival City or District 5 -- bookable now or still months out -- in one searchable list."
+          />
+          <FeatureCard
+            icon={<TicketIcon />}
+            title="Watchlist it"
+            description="Add a title before Scene has even listed it. No manually checking back every few days."
+          />
+          <FeatureCard
+            icon={<BellIcon />}
+            title="Get pinged"
+            description="The instant it's bookable at either branch, a push notification lands on your phone with a direct booking link."
+          />
+        </div>
+      </div>
+
+      <div className="border-t" style={{ borderColor: 'var(--rule)' }}>
+        <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 sm:py-20">
+          <h2 className="font-display mb-3 text-3xl leading-tight sm:text-4xl" style={{ color: 'var(--ink)' }}>
+            Stop refreshing Scene&apos;s site
+          </h2>
+          <p className="mb-8 text-sm sm:text-base" style={{ color: 'var(--ink-dim)' }}>
+            It&apos;s free, takes a minute, and no email confirmation to wait on.
+          </p>
+          <Link
+            href="/signup"
+            className="inline-block rounded-sm px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
+            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+          >
+            Create a free account
+          </Link>
+        </div>
       </div>
     </main>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div
+      className="poster-card rounded-sm border p-6"
+      style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+    >
+      <div
+        className="mb-4 flex h-11 w-11 items-center justify-center rounded-full"
+        style={{ background: 'var(--ok-bg)', color: 'var(--accent)' }}
+      >
+        {icon}
+      </div>
+      <h3 className="mb-1.5 text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+        {title}
+      </h3>
+      <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
+        {description}
+      </p>
+    </div>
   );
 }

@@ -91,7 +91,7 @@ export function BrowseGrid({
     } else {
       params.delete('page');
     }
-    router.replace(params.size > 0 ? `/?${params}` : '/', { scroll: false });
+    router.replace(params.size > 0 ? `/browse?${params}` : '/browse', { scroll: false });
   }
 
   function updateStatusFilter(value: StatusFilter) {

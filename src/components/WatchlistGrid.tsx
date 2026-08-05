@@ -61,7 +61,7 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
           Nothing here yet.
         </p>
         <Link
-          href="/"
+          href="/browse"
           className="rounded-sm px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
           style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
         >

@@ -28,7 +28,7 @@ export async function NavBar() {
 
         <div className="ml-auto flex items-center gap-3 text-sm sm:gap-6">
           <Link
-            href="/"
+            href="/browse"
             className="hidden items-center gap-1.5 hover:opacity-70 sm:inline-flex"
             style={{ color: 'var(--ink-dim)' }}
           >

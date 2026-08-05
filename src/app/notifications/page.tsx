@@ -132,7 +132,7 @@ export default async function NotificationsPage({
       </form>
 
       <p className="mt-6 text-center text-sm" style={{ color: 'var(--ink-dim)' }}>
-        <Link href="/" className="underline" style={{ color: 'var(--accent)' }}>
+        <Link href="/browse" className="underline" style={{ color: 'var(--accent)' }}>
           Skip for now
         </Link>{' '}
         -- you can always set this up later from your profile.
