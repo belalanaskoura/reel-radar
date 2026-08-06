@@ -33,49 +33,62 @@ export default async function NotificationsHistoryPage() {
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-4xl leading-none sm:text-5xl" style={{ color: 'var(--ink)' }}>
-            Notifications
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--ink-dim)' }}>
-            {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
-          </p>
+    <main>
+      <div className="relative overflow-hidden border-b" style={{ borderColor: 'var(--rule)' }}>
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(ellipse 80% 60% at 50% -20%, color-mix(in srgb, var(--accent) 16%, transparent), transparent)',
+          }}
+        />
+        <div className="relative mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-display text-4xl leading-none sm:text-5xl" style={{ color: 'var(--ink)' }}>
+                Notifications
+              </h1>
+              <p className="mt-1 text-sm" style={{ color: 'var(--ink-dim)' }}>
+                {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+              </p>
+            </div>
+            {unreadCount > 0 && (
+              <form action={markAllAsRead}>
+                <button
+                  type="submit"
+                  className="text-xs font-semibold tracking-widest uppercase underline"
+                  style={{ color: 'var(--accent-dim)' }}
+                >
+                  Mark all read
+                </button>
+              </form>
+            )}
+          </div>
         </div>
-        {unreadCount > 0 && (
-          <form action={markAllAsRead}>
-            <button
-              type="submit"
-              className="text-xs font-semibold tracking-widest uppercase underline"
-              style={{ color: 'var(--accent-dim)' }}
-            >
-              Mark all read
-            </button>
-          </form>
-        )}
       </div>
 
-      {notifications.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center rounded-sm border py-16 text-center"
-          style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
-        >
-          <BellIcon size={32} style={{ color: 'var(--ink-dim)' }} />
-          <p className="mt-3 text-sm" style={{ color: 'var(--ink-dim)' }}>
-            No notifications yet.
-          </p>
-          <p className="mt-1 text-sm" style={{ color: 'var(--ink-dim)' }}>
-            Watchlist a movie to get notified when it&apos;s bookable.
-          </p>
-        </div>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {notifications.map((n) => (
-            <NotificationRow key={n.id} notification={n} />
-          ))}
-        </ul>
-      )}
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+        {notifications.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center rounded-sm border py-16 text-center"
+            style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
+          >
+            <BellIcon size={32} style={{ color: 'var(--ink-dim)' }} />
+            <p className="mt-3 text-sm" style={{ color: 'var(--ink-dim)' }}>
+              No notifications yet.
+            </p>
+            <p className="mt-1 text-sm" style={{ color: 'var(--ink-dim)' }}>
+              Watchlist a movie to get notified when it&apos;s bookable.
+            </p>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {notifications.map((n) => (
+              <NotificationRow key={n.id} notification={n} />
+            ))}
+          </ul>
+        )}
+      </div>
     </main>
   );
 }

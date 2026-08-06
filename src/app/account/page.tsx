@@ -39,7 +39,7 @@ export default async function ProfilePage({
       .select('movie_id, movies(id, title, poster_path, release_date, showtimes_cache(bookable))')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(3),
+      .limit(4),
   ]);
 
   const profile = profileResult.data;
@@ -77,7 +77,15 @@ export default async function ProfilePage({
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+    <main className="relative overflow-hidden">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 80% 60% at 50% -20%, color-mix(in srgb, var(--accent) 16%, transparent), transparent)',
+        }}
+      />
+      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
 
       {/* Flash messages */}
       {(error || password_saved) && (
@@ -254,6 +262,7 @@ export default async function ProfilePage({
             </div>
           </section>
         </div>
+      </div>
       </div>
     </main>
   );

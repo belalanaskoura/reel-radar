@@ -126,16 +126,15 @@ function NavLink({
   return (
     <Link
       href={href}
-      className="relative inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-sm transition-colors hover:opacity-70 sm:px-3"
+      className="relative inline-flex flex-col items-center gap-0.5 rounded-sm px-2 py-1 text-sm transition-colors hover:opacity-70 sm:flex-row sm:gap-1.5 sm:px-3 sm:py-1.5"
       style={{ color: 'var(--ink-dim)' }}
     >
-      <span className="relative sm:hidden">
+      <span className="relative">
         {icon}
         {!!badgeCount && <NavBadge />}
       </span>
-      <span className="relative hidden text-xs font-medium tracking-wide sm:inline">
+      <span className="text-[9px] leading-none font-medium tracking-wide sm:text-xs">
         {label}
-        {!!badgeCount && <NavBadge />}
       </span>
     </Link>
   );
