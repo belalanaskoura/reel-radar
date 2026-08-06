@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <circle cx="100" cy="100" r="94" fill="#0c0f0e" />
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#40dcce" stroke-width="6" />
+  <circle cx="100" cy="100" r="56" fill="none" stroke="#40dcce" stroke-width="44" />
+  <g fill="#0c0f0e">
+    <circle cx="100" cy="52" r="19" />
+    <circle cx="100" cy="52" r="19" transform="rotate(72 100 100)" />
+    <circle cx="100" cy="52" r="19" transform="rotate(144 100 100)" />
+    <circle cx="100" cy="52" r="19" transform="rotate(216 100 100)" />
+    <circle cx="100" cy="52" r="19" transform="rotate(288 100 100)" />
+  </g>
+  <circle cx="100" cy="100" r="15" fill="#0c0f0e" />
+  <circle cx="100" cy="100" r="12" fill="none" stroke="#40dcce" stroke-width="2.5" />
+  <path
+    d="M 100 90 L 102.5 97.5 L 110 100 L 102.5 102.5 L 100 110 L 97.5 102.5 L 90 100 L 97.5 97.5 Z"
+    fill="#80cbc4"
+  />
+</svg>

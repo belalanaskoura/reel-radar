@@ -8,7 +8,7 @@ export interface MovieCardData {
   title: string;
   release_date: string | null;
   poster_path: string | null;
-  branches?: { branch_name: string; bookable: boolean; bookableDayCount: number }[];
+  branches?: { branch_id: string; branch_name: string; bookable: boolean; bookableDayCount: number }[];
 }
 
 export function MovieCard({
@@ -29,32 +29,47 @@ export function MovieCard({
 
   return (
     <div
-      className="poster-card flex flex-col overflow-hidden rounded-sm shadow-sm"
-      style={{ background: 'var(--bg-elevated)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}
+      className="poster-card group relative flex flex-col gap-3 rounded-lg p-2"
+      style={{ background: 'var(--surface)', boxShadow: '0 0 0 1px var(--rule)' }}
     >
-      <Link href={`/movies/${movie.id}`} className="contents">
-        <div className="relative aspect-[2/3] w-full" style={{ background: 'var(--listed-bg)' }}>
-          {poster ? (
-            <Image src={poster} alt={movie.title} fill sizes="200px" className="object-cover" />
-          ) : (
-            <div
-              className="flex h-full items-center justify-center px-3 text-center text-xs"
-              style={{ color: 'var(--ink-dim)' }}
-            >
-              No poster yet
-            </div>
-          )}
-        </div>
-      </Link>
-      <div className="flex flex-col gap-2 p-3">
-        <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
-          <h3
-            className="font-display line-clamp-2 text-lg leading-tight"
-            style={{ color: 'var(--ink)' }}
+      <Link
+        href={`/movies/${movie.id}`}
+        className="absolute inset-0 z-0 rounded-lg"
+        aria-label={movie.title}
+      />
+      <div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-md" style={{ background: 'var(--listed-bg)' }}>
+        {poster ? (
+          <Image
+            src={poster}
+            alt={movie.title}
+            fill
+            sizes="200px"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div
+            className="flex h-full items-center justify-center px-3 text-center text-xs"
+            style={{ color: 'var(--ink-dim)' }}
           >
-            {movie.title}
-          </h3>
-        </Link>
+            No poster yet
+          </div>
+        )}
+        {isBookable && (
+          <span
+            className="absolute top-2 right-2 rounded px-2 py-1 text-[10px] font-bold tracking-wider uppercase"
+            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+          >
+            Bookable
+          </span>
+        )}
+      </div>
+      <div className="pointer-events-none relative flex flex-col gap-1 px-1 pb-1">
+        <h3
+          className="font-display line-clamp-2 text-lg leading-tight uppercase"
+          style={{ color: 'var(--ink)' }}
+        >
+          {movie.title}
+        </h3>
         {(movie.release_date || !isBookable) && (
           <p className="text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
             {movie.release_date
@@ -64,32 +79,25 @@ export function MovieCard({
         )}
 
         {movie.branches && movie.branches.length > 0 ? (
-          <ul className="flex flex-col gap-1">
+          <div className="pointer-events-auto relative z-10 mt-1 flex min-w-0 flex-col gap-1">
             {movie.branches.map((b) => (
-              <li
-                key={b.branch_name}
-                className="rounded-sm px-2 py-1 text-[11px] leading-tight font-medium"
+              <Link
+                key={b.branch_id}
+                href={`/cinemas/${b.branch_id}`}
+                className="block w-full min-w-0 overflow-hidden rounded-sm px-0.5 py-1 text-center text-[8px] leading-tight font-bold tracking-normal whitespace-nowrap uppercase transition-opacity hover:opacity-80"
                 style={
                   b.bookable
-                    ? { background: 'var(--ok-bg)', color: 'var(--ok-ink)' }
+                    ? { background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }
                     : { background: 'var(--listed-bg)', color: 'var(--listed-ink)' }
                 }
               >
-                <div className="truncate">{b.branch_name}</div>
-                <div className="flex items-center gap-1">
-                  <span
-                    className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
-                    style={{ background: 'currentColor' }}
-                    aria-hidden="true"
-                  />
-                  {b.bookable ? 'Bookable' : 'Listed'}
-                </div>
-              </li>
+                {b.branch_name} {b.bookable ? 'Booking' : 'Listed'}
+              </Link>
             ))}
-          </ul>
+          </div>
         ) : (
           <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
-            Not yet listed at Scene
+            Not listed yet
           </p>
         )}
 
@@ -100,7 +108,7 @@ export function MovieCard({
                 ? removeFromWatchlist.bind(null, movie.id)
                 : addToWatchlist.bind(null, movie.id)
             }
-            className="mt-auto pt-1"
+            className="relative z-10 mt-2 pointer-events-auto"
           >
             <button
               type="submit"

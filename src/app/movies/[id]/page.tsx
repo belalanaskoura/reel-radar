@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { fetchMovieDetails, fetchCredits } from '@/lib/tmdb';
 import { posterUrl, backdropUrl, profileUrl } from '@/lib/tmdb-image';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
+import { filterFutureDates } from '@/lib/scene/dates';
 import { getFallbackCredits, type CreditsCastMember } from '@/lib/matching/credits';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { ShowtimePicker } from '@/components/ShowtimePicker';
@@ -209,7 +210,7 @@ export default async function MovieDetailPage({
             </h2>
             {movie.showtimes_cache.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-                Not yet listed at Scene Cinemas.
+                Not listed yet.
               </p>
             ) : (
               <ul className="flex flex-col gap-4">
@@ -218,6 +219,9 @@ export default async function MovieDetailPage({
                     (s) => s.branch_id === cache.branch_id,
                   );
                   const branchName = cache.branches?.name ?? cache.branch_id;
+                  const futureDates = Array.isArray(cache.raw_showtimes)
+                    ? filterFutureDates(cache.raw_showtimes as string[])
+                    : [];
                   return (
                     <li
                       key={cache.branch_id}
@@ -228,7 +232,7 @@ export default async function MovieDetailPage({
                         {branchName}
                       </p>
                       {cache.bookable ? (
-                        slugRow && Array.isArray(cache.raw_showtimes) && cache.raw_showtimes.length > 0 ? (
+                        slugRow && futureDates.length > 0 ? (
                           <>
                             <p className="mb-2 text-xs" style={{ color: 'var(--ok-ink)' }}>
                               Bookable, pick a day
@@ -236,7 +240,7 @@ export default async function MovieDetailPage({
                             <ShowtimePicker
                               branchId={cache.branch_id}
                               slug={slugRow.slug}
-                              dates={cache.raw_showtimes as string[]}
+                              dates={futureDates}
                             />
                           </>
                         ) : slugRow ? (

@@ -74,7 +74,8 @@ export async function POST(request: Request) {
           .from('notification_log')
           .delete()
           .eq('movie_id', row.movie_id)
-          .eq('branch_id', branch);
+          .eq('branch_id', branch)
+          .eq('kind', 'showtime');
       }
       continue;
     }
@@ -104,7 +105,8 @@ async function notifyWatchers(
     .from('notification_log')
     .select('user_id')
     .eq('movie_id', movieId)
-    .eq('branch_id', branch);
+    .eq('branch_id', branch)
+    .eq('kind', 'showtime');
   const alreadyNotifiedIds = new Set((alreadyNotified ?? []).map((r) => r.user_id));
 
   let sentCount = 0;
@@ -114,11 +116,12 @@ async function notifyWatchers(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('ntfy_topic, email')
+      .select('ntfy_topic, email, notify_cinema_showtimes')
       .eq('id', watcher.user_id)
       .single();
 
-    if (!profile?.email) continue; // nothing to notify with, skip entirely
+    if (!profile?.notify_cinema_showtimes) continue;
+    if (!profile.email) continue; // nothing to notify with, skip entirely
 
     const payload = { movieTitle: movie.title, branchName: branchRow.name, bookingUrl };
 
@@ -147,7 +150,7 @@ async function notifyWatchers(
     try {
       await supabase
         .from('notification_log')
-        .insert({ user_id: watcher.user_id, movie_id: movieId, branch_id: branch });
+        .insert({ user_id: watcher.user_id, movie_id: movieId, branch_id: branch, kind: 'showtime' });
       sentCount += 1;
     } catch {
       // best-effort, swallow and continue

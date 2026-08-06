@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     // (/api/scene-poster?src=...) below -- explicit opt-in needed per path.
     localPatterns: [
       { pathname: '/api/scene-poster' },
+      { pathname: '/SceneCinemasLogo.jpg' },
     ],
     remotePatterns: [
       {
@@ -46,6 +47,12 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'statics.scenecinemas.com',
         pathname: '/covers/**',
+      },
+      {
+        // Supabase Storage-hosted user avatars.
+        protocol: 'https',
+        hostname: 'ezckygwfbodsjfhfsseg.supabase.co',
+        pathname: '/storage/v1/object/public/avatars/**',
       },
     ],
   },

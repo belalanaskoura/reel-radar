@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bebas_Neue, Inter } from "next/font/google";
 import { NavBar } from "@/components/NavBar";
+import { SearchProvider } from "@/components/SearchProvider";
 import "./globals.css";
 
 const bebasNeue = Bebas_Neue({
@@ -23,8 +24,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${bebasNeue.variable} ${inter.variable}`}>
       <body className="min-h-screen font-[family-name:var(--font-body)] antialiased">
-        <NavBar />
-        {children}
+        <SearchProvider>
+          <NavBar />
+          {children}
+        </SearchProvider>
       </body>
     </html>
   );

@@ -1,79 +1,100 @@
 @import 'tailwindcss';
 
 /*
-  ReelRadar palette: matches Scene Cinemas' own brand colors (pulled
-  directly from cfc.scenecinemas.com's theme stylesheet) -- deep teal
-  primary (#00534C) with a mint highlight (#3DDACC) for active/selected
-  states, the same role it plays on Scene's own showtime selector.
-  Tokens are defined once and consumed everywhere via CSS variables --
-  components should never hardcode a color, only reference a token.
+  ReelRadar palette — cinematic dark-first design system.
+  Exact values extracted from the Figma design file.
+
+  Tokens:
+    --bg             page background
+    --bg-elevated    slightly raised surfaces (sections, footers)
+    --surface        card / panel background
+    --ink            primary text
+    --ink-dim        secondary / muted text
+    --rule           border / divider
+    --accent         primary teal (CTAs, active states, highlights)
+    --accent-ink     text on --accent backgrounds
+    --accent-dim     secondary teal (labels, links, sub-accents)
+    --ok-bg / --ok-ink     bookable badge
+    --listed-bg / --listed-ink   listed/coming-soon badge
+    --error-bg / --error-ink     error states
 */
+
+/* Light mode */
 :root {
-  --bg: #f6f7f6;
-  --bg-elevated: #ffffff;
-  --ink: #14201d;
-  --ink-dim: #5c6b67;
-  --rule: #dce3e0;
-  --accent: #00534c;
+  --bg: #f2f4f3;
+  --bg-elevated: #e8ecea;
+  --surface: #ffffff;
+  --ink: #0c0f0e;
+  --ink-dim: #3f4947;
+  --rule: #d0d8d5;
+  --accent: #00b5a5;
   --accent-ink: #ffffff;
-  --highlight: #0e8a7d;
-  --ok-bg: #e1f3ec;
-  --ok-ink: #0b6e4f;
-  --listed-bg: #e9ece9;
-  --listed-ink: #5c6b67;
+  --accent-dim: #2b9a8e;
+  --highlight: #00b5a5;
+  --ok-bg: #d6f5f0;
+  --ok-ink: #007a6f;
+  --listed-bg: #e8ecea;
+  --listed-ink: #3f4947;
   --error-bg: #fbe9e7;
   --error-ink: #9a3324;
 }
 
+/* Dark mode — primary, matches Figma exactly */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0c1210;
-    --bg-elevated: #15201c;
-    --ink: #eef3f1;
-    --ink-dim: #8ea19b;
-    --rule: #26332e;
-    --accent: #3ddacc;
-    --accent-ink: #0c1210;
-    --highlight: #3ddacc;
-    --ok-bg: #113026;
-    --ok-ink: #5fdcae;
-    --listed-bg: #1a2521;
-    --listed-ink: #8ea19b;
+    --bg: #0c0f0e;
+    --bg-elevated: #111414;
+    --surface: #1d2020;
+    --ink: #e1e3e2;
+    --ink-dim: #bfc9c6;
+    --rule: #252929;
+    --accent: #40dcce;
+    --accent-ink: #0c0f0e;
+    --accent-dim: #91d3c9;
+    --highlight: #40dcce;
+    --ok-bg: #0d2421;
+    --ok-ink: #40dcce;
+    --listed-bg: #1a1e1e;
+    --listed-ink: #91d3c9;
     --error-bg: #3a1810;
     --error-ink: #f3a58a;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #0c1210;
-  --bg-elevated: #15201c;
-  --ink: #eef3f1;
-  --ink-dim: #8ea19b;
-  --rule: #26332e;
-  --accent: #3ddacc;
-  --accent-ink: #0c1210;
-  --highlight: #3ddacc;
-  --ok-bg: #113026;
-  --ok-ink: #5fdcae;
-  --listed-bg: #1a2521;
-  --listed-ink: #8ea19b;
+  --bg: #0c0f0e;
+  --bg-elevated: #111414;
+  --surface: #1d2020;
+  --ink: #e1e3e2;
+  --ink-dim: #bfc9c6;
+  --rule: #252929;
+  --accent: #40dcce;
+  --accent-ink: #0c0f0e;
+  --accent-dim: #91d3c9;
+  --highlight: #40dcce;
+  --ok-bg: #0d2421;
+  --ok-ink: #40dcce;
+  --listed-bg: #1a1e1e;
+  --listed-ink: #91d3c9;
   --error-bg: #3a1810;
   --error-ink: #f3a58a;
 }
 
 :root[data-theme='light'] {
-  --bg: #f6f7f6;
-  --bg-elevated: #ffffff;
-  --ink: #14201d;
-  --ink-dim: #5c6b67;
-  --rule: #dce3e0;
-  --accent: #00534c;
+  --bg: #f2f4f3;
+  --bg-elevated: #e8ecea;
+  --surface: #ffffff;
+  --ink: #0c0f0e;
+  --ink-dim: #3f4947;
+  --rule: #d0d8d5;
+  --accent: #00b5a5;
   --accent-ink: #ffffff;
-  --highlight: #0e8a7d;
-  --ok-bg: #e1f3ec;
-  --ok-ink: #0b6e4f;
-  --listed-bg: #e9ece9;
-  --listed-ink: #5c6b67;
+  --accent-dim: #2b9a8e;
+  --highlight: #00b5a5;
+  --ok-bg: #d6f5f0;
+  --ok-ink: #007a6f;
+  --listed-bg: #e8ecea;
+  --listed-ink: #3f4947;
   --error-bg: #fbe9e7;
   --error-ink: #9a3324;
 }
@@ -98,12 +119,31 @@ body {
   letter-spacing: 0.02em;
 }
 
+.poster-card {
+  cursor: pointer;
+}
+.poster-card:hover {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Horizontal scroll strips (e.g. the cinema date picker) where the
+   native scrollbar would be visual noise; scrolling itself stays fully
+   functional via touch/trackpad/keyboard, only its own chrome is hidden. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .poster-card {
     transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
   .poster-card:hover {
     transform: translateY(-3px);
+    box-shadow: 0 0 0 1px var(--rule), 0 0 20px 0 color-mix(in srgb, var(--accent) 20%, transparent);
   }
 
   .step-in-forward {
@@ -132,6 +172,27 @@ body {
     to {
       opacity: 1;
       transform: translateX(0);
+    }
+  }
+
+  @keyframes radar-sweep {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes radar-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.4);
+      opacity: 0.6;
     }
   }
 }

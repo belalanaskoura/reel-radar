@@ -7,6 +7,12 @@ export interface BookableNotification {
   bookingUrl: string;
 }
 
+export interface NewReleaseNotification {
+  movieTitle: string;
+  releaseDate: string;
+  movieUrl: string;
+}
+
 export function formatCheckedTimestamp(): string {
   return new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 }
@@ -41,6 +47,38 @@ export async function notifyBookable(
         Priority: 'urgent',
         Tags: 'ticket',
         Click: notification.bookingUrl,
+      },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`ntfy request failed: ${res.status}`);
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Sends a push notification to one user's private ntfy topic when a
+// watchlisted movie's Egypt release date is first confirmed. Distinct
+// from notifyBookable: this fires once per movie (not per branch) and
+// happens well before the movie is actually bookable anywhere.
+export async function notifyNewRelease(
+  ntfyTopic: string,
+  notification: NewReleaseNotification,
+): Promise<void> {
+  const message = `${notification.movieTitle} is coming to Egypt on ${notification.releaseDate}!\n${notification.movieUrl}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${NTFY_BASE_URL}/${ntfyTopic}`, {
+      method: 'POST',
+      body: message,
+      headers: {
+        Title: toAsciiHeaderSafe(`${notification.movieTitle} release date confirmed`),
+        Priority: 'default',
+        Tags: 'calendar',
+        Click: notification.movieUrl,
       },
       signal: controller.signal,
     });

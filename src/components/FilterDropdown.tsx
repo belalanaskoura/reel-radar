@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ChevronDownIcon } from '@/components/icons';
 
 export type StatusFilter = 'all' | 'bookable' | 'coming_soon';
 
@@ -44,16 +45,19 @@ export function FilterDropdown({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-sm border px-3 py-2 text-sm transition-opacity hover:opacity-80"
-        style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
+        className="flex min-h-11 items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors hover:opacity-90"
+        style={{ background: 'var(--bg-elevated)', color: 'var(--ink)' }}
       >
-        <FilterIcon />
         {currentLabel}
+        <ChevronDownIcon
+          size={18}
+          style={{ color: 'var(--ink)', transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s ease' }}
+        />
       </button>
       {open && (
         <ul
           role="listbox"
-          className="absolute top-full right-0 z-10 mt-1 w-48 max-w-[calc(100vw-2rem)] overflow-hidden rounded-sm border shadow-md"
+          className="absolute top-full right-0 z-10 mt-2 w-52 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border shadow-lg"
           style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
         >
           {OPTIONS.map((option) => (
@@ -63,10 +67,11 @@ export function FilterDropdown({
                 role="option"
                 aria-selected={value === option.value}
                 onClick={() => select(option.value)}
-                className="block w-full px-3 py-2 text-left text-sm hover:opacity-80"
+                className="block min-h-11 w-full px-4 py-2.5 text-left text-sm hover:opacity-80"
                 style={{
-                  color: 'var(--ink)',
-                  background: value === option.value ? 'var(--listed-bg)' : 'transparent',
+                  color: value === option.value ? 'var(--accent)' : 'var(--ink)',
+                  background: value === option.value ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
+                  fontWeight: value === option.value ? 600 : 400,
                 }}
               >
                 {option.label}
@@ -76,18 +81,5 @@ export function FilterDropdown({
         </ul>
       )}
     </div>
-  );
-}
-
-function FilterIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M2 3h12M4.5 8h7M7 13h2"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }

@@ -1,9 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { MovieCard, type MovieCardData } from '@/components/MovieCard';
 import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
+import { useSearchQuery } from '@/components/SearchProvider';
 
 // Matches each word of the query independently against the start of any
 // word in the title, not a substring search. This does two things at
@@ -29,15 +29,14 @@ export function BrowseGrid({
   watchedIds: string[];
   isSignedIn: boolean;
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  // Search lives in the URL (?q=), written by the nav bar's search input
-  // (NavSearch), rendered separately, above this component in the
-  // tree, with no direct prop connection to it. Reading it here keeps
-  // both in sync without lifting state through a shared parent.
-  const query = searchParams.get('q') ?? '';
+  // Search lives in SearchProvider's context, written by the nav bar's
+  // search input (NavSearch), rendered separately, above this component
+  // in the tree, with no direct prop connection to it. Reading it here
+  // keeps both in sync without lifting state through a shared parent or
+  // triggering a navigation per keystroke (see SearchProvider).
+  const { query } = useSearchQuery();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const watchedIdSet = useMemo(() => new Set(watchedIds), [watchedIds]);
 
   const filtered = useMemo(() => {
@@ -85,34 +84,36 @@ export function BrowseGrid({
     return result;
   }, [movies, statusFilter, query]);
 
-  // Page number lives in the URL too (?page=), not local state; a new
-  // search (written by NavSearch, a sibling with no direct prop
-  // connection to this component) always omits ?page, which naturally
-  // reads back as page 1 here without needing a separate reset effect.
-  const pageParam = Number(searchParams.get('page'));
-  const requestedPage = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(requestedPage, totalPages);
-  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  function goToPage(nextPage: number) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (nextPage > 1) {
-      params.set('page', String(nextPage));
-    } else {
-      params.delete('page');
-    }
-    router.replace(params.size > 0 ? `/browse?${params}` : '/browse', { scroll: false });
+  // "Load More" appends in place rather than paging, so how many items
+  // are currently visible is local UI state, not something worth
+  // round-tripping through the URL the way search/filter are. Reset back
+  // to one page's worth whenever query or statusFilter change (a new
+  // search is typed into NavSearch -- a sibling with no direct prop
+  // connection to this component, so comparing against the previous
+  // render's values, React's documented pattern for adjusting state
+  // during render, is how this component notices without an effect) so
+  // switching filters doesn't leave a previous search's worth of extra
+  // rows rendered against a possibly much smaller new result set.
+  const [prevFilterKey, setPrevFilterKey] = useState(`${query}:${statusFilter}`);
+  const filterKey = `${query}:${statusFilter}`;
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setVisibleCount(PAGE_SIZE);
   }
+
+  const visibleItems = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
   function updateStatusFilter(value: StatusFilter) {
     setStatusFilter(value);
-    goToPage(1);
   }
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
+      <div
+        className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4 sm:mb-8"
+        style={{ borderColor: 'color-mix(in srgb, var(--ink) 5%, transparent)' }}
+      >
         <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
           {query.trim() ? (
             <>
@@ -132,7 +133,7 @@ export function BrowseGrid({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {pageItems.map((movie) => (
+            {visibleItems.map((movie) => (
               <MovieCard
                 key={movie.id}
                 movie={movie}
@@ -142,28 +143,15 @@ export function BrowseGrid({
             ))}
           </div>
 
-          {totalPages > 1 && (
-            <div className="mt-8 flex items-center justify-center gap-4">
+          {hasMore && (
+            <div className="mt-10 flex justify-center sm:mt-12">
               <button
                 type="button"
-                onClick={() => goToPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="rounded-sm border px-3 py-2 text-sm transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
+                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                className="min-h-11 rounded px-8 py-3 text-xs font-bold tracking-widest uppercase transition-all hover:opacity-90"
+                style={{ background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 0 0 1px var(--rule)' }}
               >
-                Previous
-              </button>
-              <span className="text-sm tabular-nums" style={{ color: 'var(--ink-dim)' }}>
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                className="rounded-sm border px-3 py-2 text-sm transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
-              >
-                Next
+                Load more titles
               </button>
             </div>
           )}

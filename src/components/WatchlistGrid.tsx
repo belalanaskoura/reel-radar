@@ -131,7 +131,7 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
 
               {movie.showtimes_cache.length === 0 ? (
                 <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
-                  Not yet listed at Scene
+                  Not listed yet
                 </p>
               ) : (
                 <ul className="flex flex-col gap-1">

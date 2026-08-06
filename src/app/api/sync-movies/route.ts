@@ -5,6 +5,7 @@ import { isLikelyEgyptRelease } from '@/lib/matching/egypt-distributor-filter';
 import { getEgyptReleaseInfo } from '@/lib/matching/egypt-release-date';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
+import { notifyNewReleases } from '@/lib/matching/notify-new-releases';
 
 // Runs an array of async tasks with at most `size` in flight at once,
 // preserving input order in the returned results. Used below to keep
@@ -123,6 +124,19 @@ export async function POST(request: Request) {
     }
   }
 
+  // Snapshot each candidate's previously-stored release_date before
+  // upserting, so a null -> real-date transition can be detected
+  // afterward to drive the "new release" watcher notification below.
+  // Keyed by tmdb_id since dedupedRows don't carry the movies.id yet.
+  const tmdbIds = dedupedRows.map((r) => r.tmdb_id);
+  const { data: previousRows } = await supabase
+    .from('movies')
+    .select('tmdb_id, release_date')
+    .in('tmdb_id', tmdbIds);
+  const previousReleaseDateByTmdbId = new Map(
+    (previousRows ?? []).map((r) => [r.tmdb_id as number, r.release_date as string | null]),
+  );
+
   const { error } = await supabase.from('movies').upsert(dedupedRows, {
     onConflict: 'tmdb_id',
     ignoreDuplicates: false,
@@ -130,6 +144,21 @@ export async function POST(request: Request) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const newlyDatedTmdbIds = dedupedRows
+    .filter((r) => r.release_date && !previousReleaseDateByTmdbId.get(r.tmdb_id))
+    .map((r) => r.tmdb_id);
+
+  let newReleasesNotified = 0;
+  if (newlyDatedTmdbIds.length > 0) {
+    const { data: newlyDatedMovies } = await supabase
+      .from('movies')
+      .select('id')
+      .in('tmdb_id', newlyDatedTmdbIds);
+    const newlyDatedMovieIds = (newlyDatedMovies ?? []).map((m) => m.id as string);
+    const result = await notifyNewReleases(supabase, newlyDatedMovieIds);
+    newReleasesNotified = result.notified;
   }
 
   // Catalog cleanup: a movie whose release_date has passed with zero
@@ -143,5 +172,6 @@ export async function POST(request: Request) {
     candidates: candidates.length,
     skippedDuplicates,
     removed,
+    newReleasesNotified,
   });
 }

@@ -1,8 +1,10 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { NavSearch } from '@/components/NavSearch';
-import { FilmIcon, TicketIcon, UserIcon } from '@/components/icons';
+import { RadarLogo } from '@/components/RadarLogo';
+import { BookmarkIcon, CinemaIcon, FilmIcon, UserIcon } from '@/components/icons';
 
 export async function NavBar() {
   const supabase = await createClient();
@@ -10,70 +12,107 @@ export async function NavBar() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let avatarUrl: string | null = null;
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', user.id)
+      .single();
+    avatarUrl = profile?.avatar_url ?? null;
+  }
+
   return (
-    <header className="sticky top-0 z-20 border-b backdrop-blur" style={{ borderColor: 'var(--rule)', background: 'color-mix(in srgb, var(--bg) 92%, transparent)' }}>
-      <div className="h-[3px]" style={{ background: 'var(--accent)' }} />
-      <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-4">
-        <Link
-          href="/"
-          className="font-display text-xl tracking-wide sm:text-2xl"
-          style={{ color: 'var(--ink)' }}
-        >
-          Reel<span style={{ color: 'var(--accent)' }}>Radar</span>
+    <header
+      className="sticky top-0 z-20 border-b backdrop-blur-md"
+      style={{
+        borderColor: 'var(--rule)',
+        background: 'color-mix(in srgb, var(--bg) 88%, transparent)',
+      }}
+    >
+      <nav className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-3 sm:px-6 sm:py-4">
+        {/* Wordmark */}
+        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+          <RadarLogo size={28} />
+          <span
+            className="font-display text-xl tracking-wider sm:text-2xl"
+            style={{ color: 'var(--ink)' }}
+          >
+            REELRADAR
+          </span>
         </Link>
 
+        {/* Search — only renders on /browse */}
         <Suspense fallback={null}>
           <NavSearch />
         </Suspense>
 
-        <div className="ml-auto flex items-center gap-3 text-sm sm:gap-6">
-          <Link
-            href="/browse"
-            className="hidden items-center gap-1.5 hover:opacity-70 sm:inline-flex"
-            style={{ color: 'var(--ink-dim)' }}
-          >
-            <FilmIcon size={16} />
-            Browse
-          </Link>
+        {/* Primary nav links — center-ish, pushed right on mobile */}
+        <div className="ml-auto flex items-center gap-1 sm:gap-1">
+          <NavLink href="/browse" icon={<FilmIcon size={15} />} label="Browse" />
+          {user && (
+            <NavLink href="/watchlist" icon={<BookmarkIcon size={15} />} label="Watchlist" />
+          )}
+          <NavLink href="/cinemas" icon={<CinemaIcon size={15} />} label="Cinemas" />
+        </div>
+
+        {/* Auth */}
+        <div className="flex items-center gap-2">
           {user ? (
-            <>
-              <Link
-                href="/watchlist"
-                className="inline-flex items-center gap-1.5 hover:opacity-70"
-                style={{ color: 'var(--ink-dim)' }}
-              >
-                <TicketIcon size={16} />
-                <span className="hidden sm:inline">Watchlist</span>
-              </Link>
-              <Link
-                href="/account"
-                className="inline-flex items-center gap-1.5 hover:opacity-70"
-                style={{ color: 'var(--ink-dim)' }}
-              >
-                <UserIcon size={16} />
-                <span className="hidden sm:inline">Profile</span>
-              </Link>
-            </>
+            <Link
+              href="/account"
+              className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border transition-opacity hover:opacity-70"
+              style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+              aria-label="Profile"
+            >
+              {avatarUrl ? (
+                <Image src={avatarUrl} alt="" fill sizes="32px" className="object-cover" />
+              ) : (
+                <UserIcon size={15} />
+              )}
+            </Link>
           ) : (
             <>
               <Link
                 href="/signin"
-                className="hover:opacity-70"
-                style={{ color: 'var(--ink-dim)' }}
+                className="hidden rounded-sm border px-4 py-1.5 text-xs font-semibold tracking-wide transition-opacity hover:opacity-80 sm:inline-block"
+                style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
               >
-                Sign in
+                SIGN IN
               </Link>
               <Link
-                href="/signup"
-                className="rounded-sm px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-90 sm:px-4"
-                style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                href="/signin"
+                className="flex h-8 w-8 items-center justify-center rounded-full border sm:hidden"
+                style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+                aria-label="Sign in"
               >
-                Sign up
+                <UserIcon size={15} />
               </Link>
             </>
           )}
         </div>
       </nav>
     </header>
+  );
+}
+
+function NavLink({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-sm transition-colors hover:opacity-70 sm:px-3"
+      style={{ color: 'var(--ink-dim)' }}
+    >
+      <span className="sm:hidden">{icon}</span>
+      <span className="hidden text-xs font-medium tracking-wide sm:inline">{label}</span>
+    </Link>
   );
 }

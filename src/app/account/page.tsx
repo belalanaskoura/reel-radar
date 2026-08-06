@@ -1,9 +1,14 @@
 import { redirect } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { posterUrl } from '@/lib/tmdb-image';
 import { signout } from '../signin/actions';
-import { updateNtfyTopic, updatePassword } from './actions';
-import { BellIcon, KeyIcon, SignOutIcon, UserIcon } from '@/components/icons';
+import { updateAlertPreferences, updateNtfyTopic, updatePassword } from './actions';
+import { AvatarUpload } from '@/components/AvatarUpload';
+import { AlertToggles } from '@/components/AlertToggles';
+import { SecurityPanel } from '@/components/SecurityPanel';
+import { BellIcon, SignOutIcon, FilmIcon } from '@/components/icons';
 
 export default async function ProfilePage({
   searchParams,
@@ -16,171 +21,304 @@ export default async function ProfilePage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) redirect('/signin');
 
-  if (!user) {
-    redirect('/signin');
-  }
+  const [profileResult, countResult, recentResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('ntfy_topic, avatar_url, notify_new_releases, notify_cinema_showtimes, display_name')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('watchlist')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+    supabase
+      .from('watchlist')
+      .select('movie_id, movies(id, title, poster_path, release_date, showtimes_cache(bookable))')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(3),
+  ]);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('ntfy_topic')
-    .eq('id', user.id)
-    .single();
+  const profile = profileResult.data;
+  const watchlistCount = countResult.count ?? 0;
+
+  type RecentMovie = {
+    id: string;
+    title: string;
+    poster_path: string | null;
+    release_date: string | null;
+    bookable: boolean;
+  };
+
+  const recentMovies: RecentMovie[] = (recentResult.data ?? []).flatMap((row) => {
+    const m = row.movies as unknown as {
+      id: string;
+      title: string;
+      poster_path: string | null;
+      release_date: string | null;
+      showtimes_cache: { bookable: boolean }[];
+    } | null;
+    if (!m) return [];
+    return [{
+      id: m.id,
+      title: m.title,
+      poster_path: m.poster_path,
+      release_date: m.release_date,
+      bookable: (m.showtimes_cache ?? []).some((s) => s.bookable),
+    }];
+  });
+
+  const displayName = profile?.display_name || (user.email ?? '')
+    .split('@')[0]
+    .replace(/[._-]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
-    <main>
-      <div className="relative overflow-hidden border-b" style={{ borderColor: 'var(--rule)' }}>
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(ellipse 80% 60% at 50% -20%, color-mix(in srgb, var(--accent) 16%, transparent), transparent)',
-          }}
-        />
-        <div className="relative mx-auto max-w-sm px-4 py-10 sm:px-6 sm:py-14">
-          <div className="mb-2 flex items-center gap-3">
-            <div
-              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full"
-              style={{ background: 'var(--ok-bg)', color: 'var(--accent)' }}
-            >
-              <UserIcon />
-            </div>
-            <h1 className="font-display text-4xl leading-none" style={{ color: 'var(--ink)' }}>
-              Profile
-            </h1>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-            {user.email}
-          </p>
+    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+
+      {/* Flash messages */}
+      {(error || saved || password_saved) && (
+        <div className="mb-6">
+          {error && (
+            <p role="alert" className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}>
+              {error}
+            </p>
+          )}
+          {saved && (
+            <p className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}>
+              Notification topic saved.
+            </p>
+          )}
+          {password_saved && (
+            <p className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}>
+              Password updated.
+            </p>
+          )}
         </div>
-      </div>
+      )}
 
-      <div className="mx-auto max-w-sm px-4 py-8 sm:px-6 sm:py-10">
-        {error && (
-          <p
-            role="alert"
-            className="mb-4 rounded-sm px-3 py-2 text-sm"
-            style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}
-          >
-            {error}
-          </p>
-        )}
-        {saved && (
-          <p
-            className="mb-4 rounded-sm px-3 py-2 text-sm"
-            style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}
-          >
-            Notification topic saved.
-          </p>
-        )}
-        {password_saved && (
-          <p
-            className="mb-4 rounded-sm px-3 py-2 text-sm"
-            style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}
-          >
-            Password updated.
-          </p>
-        )}
+      <div className="grid gap-8 lg:grid-cols-[220px_1fr]">
 
-        <section className="mb-8">
-          <h2
-            className="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase"
-            style={{ color: 'var(--ink-dim)' }}
-          >
-            <BellIcon size={14} />
-            Notifications
-          </h2>
-          <div className="rounded-sm border p-4" style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}>
-            <p className="mb-1 text-sm font-medium" style={{ color: 'var(--ink)' }}>
-              ntfy.sh topic
+        {/* ── Left: Identity sidebar ─────────────────────────────────── */}
+        <aside className="flex flex-col gap-4">
+          <AvatarUpload
+            userId={user.id}
+            avatarUrl={profile?.avatar_url ?? null}
+            size={120}
+            shape="square"
+          />
+
+          <div>
+            <h1
+              className="font-display text-3xl leading-none tracking-wide"
+              style={{ color: 'var(--ink)' }}
+            >
+              {displayName}
+            </h1>
+            <p className="mt-0.5 text-sm" style={{ color: 'var(--ink-dim)' }}>
+              {user.email}
             </p>
-            <p className="mb-3 text-sm" style={{ color: profile?.ntfy_topic ? 'var(--ink-dim)' : 'var(--error-ink)' }}>
-              {profile?.ntfy_topic ?? 'Not set. You will not receive push notifications.'}
-            </p>
-            <form action={updateNtfyTopic} className="flex flex-col gap-2">
-              <input type="hidden" name="return_to" value="/account" />
-              <input
-                name="ntfy_topic"
-                type="text"
-                defaultValue={profile?.ntfy_topic ?? ''}
-                placeholder="e.g. reelradar-a1b2c3"
-                className="rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
-                style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
-              />
-              <button
-                type="submit"
-                className="rounded-sm px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-                style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
-              >
-                Save topic
-              </button>
-            </form>
-            <Link href="/notifications" className="mt-2 inline-block text-xs underline" style={{ color: 'var(--accent)' }}>
-              What is ntfy? Full setup guide
-            </Link>
           </div>
-        </section>
 
-        <section className="mb-8">
-          <h2
-            className="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase"
-            style={{ color: 'var(--ink-dim)' }}
+          {/* Stats */}
+          <div
+            className="rounded-sm border px-3 py-3"
+            style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
           >
-            <KeyIcon size={14} />
-            Password
-          </h2>
-          <form
-            action={updatePassword}
-            className="flex flex-col gap-2 rounded-sm border p-4"
-            style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+            <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
+              Watchlist
+            </p>
+            <p className="font-display text-2xl leading-none mt-1" style={{ color: 'var(--ink)' }}>
+              {watchlistCount}
+            </p>
+          </div>
+
+          {/* Edit Profile */}
+          <Link
+            href="/account/edit"
+            className="flex items-center justify-center rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
+            style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
           >
-            <label htmlFor="new_password" className="text-sm font-medium" style={{ color: 'var(--ink)' }}>
-              New password
-            </label>
-            <input
-              id="new_password"
-              name="new_password"
-              type="password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-              className="rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
-              style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
-            />
-            <label htmlFor="confirm_password" className="text-sm font-medium" style={{ color: 'var(--ink)' }}>
-              Confirm new password
-            </label>
-            <input
-              id="confirm_password"
-              name="confirm_password"
-              type="password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-              className="rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
-              style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
-            />
+            Edit Profile
+          </Link>
+
+          {/* Settings (change password) */}
+          <SecurityPanel updatePassword={updatePassword} />
+
+          {/* Sign out */}
+          <form action={signout}>
             <button
               type="submit"
-              className="mt-1 rounded-sm px-3 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-              style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+              className="inline-flex items-center gap-2 text-sm transition-opacity hover:opacity-70"
+              style={{ color: 'var(--ink-dim)' }}
             >
-              Update password
+              <SignOutIcon size={15} />
+              Sign out
             </button>
           </form>
-        </section>
+        </aside>
 
-        <form action={signout}>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 rounded-sm border px-3 py-2 text-sm transition-opacity hover:opacity-70"
-            style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
+        {/* ── Right: Main content ────────────────────────────────────── */}
+        <div className="flex flex-col gap-8">
+
+          {/* Recently added */}
+          <section>
+            <div className="mb-5 flex items-baseline justify-between">
+              <div>
+                <h2
+                  className="font-display text-3xl leading-none tracking-wide sm:text-4xl"
+                  style={{ color: 'var(--ink)' }}
+                >
+                  RECENTLY ADDED
+                </h2>
+                <p className="mt-0.5 text-xs" style={{ color: 'var(--ink-dim)' }}>
+                  To your watchlist
+                </p>
+              </div>
+              {watchlistCount > 0 && (
+                <Link
+                  href="/watchlist"
+                  className="shrink-0 text-xs font-semibold tracking-widest uppercase transition-opacity hover:opacity-70"
+                  style={{ color: 'var(--accent-dim)' }}
+                >
+                  VIEW ALL →
+                </Link>
+              )}
+            </div>
+
+            {recentMovies.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                {recentMovies.map((m) => (
+                  <RecentCard key={m.id} movie={m} />
+                ))}
+              </div>
+            ) : (
+              <div
+                className="flex flex-col items-center justify-center rounded-sm border py-12 text-center"
+                style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
+              >
+                <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+                  Nothing watchlisted yet.
+                </p>
+                <Link
+                  href="/browse"
+                  className="mt-3 text-xs font-semibold tracking-widest uppercase transition-opacity hover:opacity-70"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  BROWSE MOVIES →
+                </Link>
+              </div>
+            )}
+          </section>
+
+          {/* Alert Preferences */}
+          <section
+            className="relative overflow-hidden rounded-sm border p-5"
+            style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
           >
-            <SignOutIcon size={16} />
-            Sign out
-          </button>
-        </form>
+            <div
+              className="pointer-events-none absolute right-3 top-3 opacity-[0.07]"
+              style={{ color: 'var(--accent)' }}
+            >
+              <BellIcon size={72} />
+            </div>
+
+            <h2
+              className="font-display mb-1 text-xl leading-none tracking-wide"
+              style={{ color: 'var(--ink)' }}
+            >
+              ALERT PREFERENCES
+            </h2>
+            <p className="mb-5 text-xs" style={{ color: 'var(--ink-dim)' }}>
+              Manage your radar signals.
+            </p>
+
+            <AlertToggles
+              initialValues={{
+                notify_new_releases: profile?.notify_new_releases ?? true,
+                notify_cinema_showtimes: profile?.notify_cinema_showtimes ?? true,
+              }}
+              updateAlertPreferences={updateAlertPreferences}
+            />
+
+            <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
+              <form action={updateNtfyTopic} className="flex flex-col gap-2 sm:max-w-sm">
+                <input type="hidden" name="return_to" value="/account" />
+                <label htmlFor="ntfy_topic" className="text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
+                  ntfy.sh topic
+                </label>
+                <input
+                  id="ntfy_topic"
+                  name="ntfy_topic"
+                  type="text"
+                  defaultValue={profile?.ntfy_topic ?? ''}
+                  placeholder="e.g. reelradar-a1b2c3"
+                  className="rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
+                  style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
+                />
+                <button
+                  type="submit"
+                  className="rounded-sm py-2 text-xs font-semibold tracking-wide transition-opacity hover:opacity-90"
+                  style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                >
+                  SAVE
+                </button>
+              </form>
+              <Link
+                href="/notifications"
+                className="mt-3 inline-block text-xs underline transition-opacity hover:opacity-70"
+                style={{ color: 'var(--accent-dim)' }}
+              >
+                What is ntfy? Setup guide →
+              </Link>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
+  );
+}
+
+function RecentCard({
+  movie,
+}: {
+  movie: { id: string; title: string; poster_path: string | null; release_date: string | null; bookable: boolean };
+}) {
+  const poster = posterUrl(movie.poster_path, 'w342');
+
+  return (
+    <Link href={`/movies/${movie.id}`} className="group flex flex-col">
+      <div
+        className="relative aspect-[2/3] overflow-hidden rounded-sm"
+        style={{ background: 'var(--surface)' }}
+      >
+        {poster ? (
+          <Image
+            src={poster}
+            alt={movie.title}
+            fill
+            sizes="(max-width: 640px) 50vw, 200px"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center" style={{ color: 'var(--ink-dim)' }}>
+            <FilmIcon size={32} />
+          </div>
+        )}
+      </div>
+      <div className="mt-2">
+        <p
+          className="font-display line-clamp-2 text-base leading-tight"
+          style={{ color: 'var(--ink)' }}
+        >
+          {movie.title}
+        </p>
+        <p className="mt-0.5 text-[10px] font-semibold tracking-wide uppercase" style={{ color: movie.bookable ? 'var(--accent)' : 'var(--ink-dim)' }}>
+          {movie.bookable ? 'Booking' : 'Coming Soon'}
+        </p>
+      </div>
+    </Link>
   );
 }

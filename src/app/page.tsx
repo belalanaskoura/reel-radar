@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { BellIcon, MapPinIcon, SearchIcon, TicketIcon } from '@/components/icons';
+import { posterUrl } from '@/lib/tmdb-image';
+import { RadarLogo } from '@/components/RadarLogo';
 
 export default async function LandingPage() {
   const supabase = await createClient();
@@ -9,138 +11,344 @@ export default async function LandingPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Signed-in visitors don't need a pitch; they land straight on what
-  // they came for, same as before this page existed.
   if (user) redirect('/browse');
 
+  // Fetch trending: bookable movies first (sorted by most bookable days),
+  // then fill with upcoming — gives a live "what's on right now" feel.
+  const { data: movies } = await supabase
+    .from('movies')
+    .select('id, title, release_date, poster_path, showtimes_cache(bookable, raw_showtimes)')
+    .eq('match_status', 'matched')
+    .order('release_date', { ascending: true, nullsFirst: false })
+    .limit(20);
+
+  // Sort: bookable (most days) → coming soon
+  const sorted = (movies ?? []).sort((a, b) => {
+    const aDays = (a.showtimes_cache ?? []).reduce(
+      (sum, s) => sum + (s.bookable && Array.isArray(s.raw_showtimes) ? s.raw_showtimes.length : 0),
+      0,
+    );
+    const bDays = (b.showtimes_cache ?? []).reduce(
+      (sum, s) => sum + (s.bookable && Array.isArray(s.raw_showtimes) ? s.raw_showtimes.length : 0),
+      0,
+    );
+    return bDays - aDays;
+  });
+
+  const trending = sorted.slice(0, 3);
+
   return (
-    <main>
-      <div className="relative overflow-hidden">
+    <main style={{ background: 'var(--bg)' }}>
+      {/* ── Hero ─────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden">
+        {/* Ambient glow */}
         <div
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              'radial-gradient(ellipse 90% 70% at 50% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent)',
+              'radial-gradient(ellipse 100% 80% at 50% -5%, color-mix(in srgb, var(--accent) 18%, transparent) 0%, transparent 70%)',
           }}
         />
+        {/* Grain texture overlay */}
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.05]"
+          className="pointer-events-none absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage:
-              'repeating-linear-gradient(90deg, var(--ink) 0, var(--ink) 1px, transparent 1px, transparent 64px)',
+              'repeating-linear-gradient(0deg, var(--ink) 0, var(--ink) 1px, transparent 1px, transparent 4px), repeating-linear-gradient(90deg, var(--ink) 0, var(--ink) 1px, transparent 1px, transparent 4px)',
           }}
         />
 
-        <div className="relative mx-auto flex max-w-3xl flex-col items-center px-4 py-20 text-center sm:px-6 sm:py-28">
+        <div className="relative mx-auto flex max-w-5xl flex-col items-center px-4 py-24 text-center sm:px-6 sm:py-36">
+          {/* Live pill */}
           <div
-            className="mb-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium"
-            style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }}
+            className="mb-8 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-medium tracking-widest uppercase"
+            style={{ borderColor: 'var(--rule)', background: 'var(--surface)', color: 'var(--accent-dim)' }}
           >
-            <MapPinIcon size={14} style={{ color: 'var(--accent)' }} />
-            Cairo&apos;s cinemas, all in one place
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: 'var(--accent)' }}
+            />
+            Live: Cairo Cinema Updates
           </div>
 
-          <h1
-            className="font-display mb-4 text-5xl leading-[0.95] sm:text-7xl"
-            style={{ color: 'var(--ink)' }}
-          >
-            Know the second
-            <br />
-            <span style={{ color: 'var(--accent)' }}>tickets go live.</span>
+          {/* Headline */}
+          <h1 className="font-display mb-6 leading-none" style={{ color: 'var(--ink)' }}>
+            <span className="block text-6xl sm:text-8xl lg:text-[110px]">NEVER MISS A</span>
+            <span
+              className="block text-6xl sm:text-8xl lg:text-[110px]"
+              style={{ color: 'var(--accent)' }}
+            >
+              PREMIERE
+            </span>
           </h1>
 
-          <p className="mb-10 max-w-xl text-base sm:text-lg" style={{ color: 'var(--ink-dim)' }}>
-            Cinemas don&apos;t tell you when booking opens. ReelRadar watches
-            for you, and pushes a notification the moment a movie you care
-            about is bookable.
+          <p
+            className="mb-10 max-w-lg text-base leading-relaxed sm:text-lg"
+            style={{ color: 'var(--ink-dim)' }}
+          >
+            Track upcoming releases across all Cairo cinemas. Curate your personal
+            watchlist and get notified the exact second booking opens for the
+            most anticipated films.
           </p>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
             <Link
               href="/signup"
-              className="rounded-sm px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
+              className="inline-flex items-center gap-2 rounded-sm px-6 py-3 text-sm font-semibold tracking-wide transition-opacity hover:opacity-90"
               style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
             >
-              Create a free account
+              START YOUR WATCHLIST
+              <ArrowRight />
+            </Link>
+            <Link
+              href="/cinemas"
+              className="inline-flex items-center gap-2 rounded-sm border px-6 py-3 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
+              style={{ borderColor: 'var(--rule)', color: 'var(--ink)', background: 'var(--surface)' }}
+            >
+              BROWSE CINEMAS
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Trending in Cairo ─────────────────────────────────────────── */}
+      <section
+        className="py-16 sm:py-20"
+        style={{ background: 'var(--bg-elevated)' }}
+      >
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="mb-8 flex items-end justify-between">
+            <div>
+              <h2
+                className="font-display text-4xl leading-none sm:text-5xl"
+                style={{ color: 'var(--ink)' }}
+              >
+                TRENDING IN CAIRO
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: 'var(--ink-dim)' }}>
+                The most anticipated films playing right now.
+              </p>
+            </div>
+            <Link
+              href="/browse"
+              className="hidden shrink-0 text-xs font-semibold tracking-widest uppercase transition-opacity hover:opacity-70 sm:inline-flex sm:items-center sm:gap-1"
+              style={{ color: 'var(--accent-dim)' }}
+            >
+              VIEW ALL
+              <ArrowRight size={12} />
+            </Link>
+          </div>
+
+          {trending.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {trending.map((movie) => {
+                const isBookable = (movie.showtimes_cache ?? []).some((s) => s.bookable);
+                const poster = posterUrl(movie.poster_path, 'w500');
+                return (
+                  <TrendingCard
+                    key={movie.id}
+                    id={movie.id}
+                    title={movie.title}
+                    releaseDate={movie.release_date}
+                    poster={poster}
+                    isBookable={isBookable}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+              Check back soon — catalog updates daily.
+            </p>
+          )}
+
+          <div className="mt-6 sm:hidden">
+            <Link
+              href="/browse"
+              className="text-xs font-semibold tracking-widest uppercase"
+              style={{ color: 'var(--accent-dim)' }}
+            >
+              VIEW ALL RELEASES →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Stay in the loop CTA ──────────────────────────────────────── */}
+      <section className="py-20 sm:py-28">
+        <div className="mx-auto max-w-2xl px-4 text-center sm:px-6">
+          <h2
+            className="font-display mb-4 text-4xl leading-none sm:text-6xl"
+            style={{ color: 'var(--ink)' }}
+          >
+            STAY IN THE
+            <br />
+            <span style={{ color: 'var(--accent)' }}>DARK ROOM</span>
+          </h2>
+          <p className="mb-10 text-sm leading-relaxed sm:text-base" style={{ color: 'var(--ink-dim)' }}>
+            Create a free account to watchlist upcoming films and receive
+            instant push notifications the moment booking opens — no
+            refreshing cinema sites, no missed premieres.
+          </p>
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <Link
+              href="/signup"
+              className="inline-flex items-center gap-2 rounded-sm px-6 py-3 text-sm font-semibold tracking-wide transition-opacity hover:opacity-90"
+              style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+            >
+              CREATE FREE ACCOUNT
+              <ArrowRight />
             </Link>
             <Link
               href="/browse"
-              className="rounded-sm border px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-80"
-              style={{ borderColor: 'var(--rule)', color: 'var(--ink)', background: 'var(--bg-elevated)' }}
+              className="text-sm transition-opacity hover:opacity-70"
+              style={{ color: 'var(--ink-dim)' }}
             >
-              Browse without an account
+              Or browse without signing up
             </Link>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="mx-auto max-w-5xl px-4 pb-20 sm:px-6 sm:pb-28">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-          <FeatureCard
-            icon={<SearchIcon />}
-            title="See what's coming"
-            description="Every movie headed to your cinemas, bookable now or still months out, in one searchable list."
-          />
-          <FeatureCard
-            icon={<TicketIcon />}
-            title="Watchlist it"
-            description="Add a title before it's even listed. No manually checking back every few days."
-          />
-          <FeatureCard
-            icon={<BellIcon />}
-            title="Get pinged"
-            description="The instant it's bookable, you get a push notification with a direct booking link."
-          />
-        </div>
-      </div>
-
-      <div className="border-t" style={{ borderColor: 'var(--rule)' }}>
-        <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 sm:py-20">
-          <h2 className="font-display mb-3 text-3xl leading-tight sm:text-4xl" style={{ color: 'var(--ink)' }}>
-            Stop refreshing cinema websites
-          </h2>
-          <p className="mb-8 text-sm sm:text-base" style={{ color: 'var(--ink-dim)' }}>
-            It&apos;s free, takes a minute, and no email confirmation to wait on.
-          </p>
-          <Link
-            href="/signup"
-            className="inline-block rounded-sm px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
-            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+      {/* ── Footer ───────────────────────────────────────────────────── */}
+      <footer
+        className="border-t"
+        style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+      >
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+            <div className="col-span-2 sm:col-span-2">
+              <div className="mb-2 flex items-center gap-2">
+                <RadarLogo size={24} />
+                <p
+                  className="font-display text-xl tracking-wider"
+                  style={{ color: 'var(--ink)' }}
+                >
+                  REELRADAR
+                </p>
+              </div>
+              <p className="max-w-xs text-xs leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
+                Cinematic exploration in the heart of Cairo. Track, discover, and
+                experience the silver screen like never before.
+              </p>
+            </div>
+            <div>
+              <p
+                className="mb-3 text-[10px] font-semibold tracking-widest uppercase"
+                style={{ color: 'var(--accent-dim)' }}
+              >
+                Explore
+              </p>
+              <ul className="flex flex-col gap-2">
+                {[['Movies', '/browse'], ['Cinemas', '/cinemas'], ['Watchlist', '/watchlist']].map(
+                  ([label, href]) => (
+                    <li key={label}>
+                      <Link
+                        href={href}
+                        className="text-xs transition-opacity hover:opacity-70"
+                        style={{ color: 'var(--ink-dim)' }}
+                      >
+                        {label}
+                      </Link>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+          </div>
+          <div
+            className="mt-10 border-t pt-6 text-center text-[10px] tracking-widest uppercase"
+            style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
           >
-            Create a free account
-          </Link>
+            © 2026 REELRADAR. ALL RIGHTS RESERVED.
+          </div>
         </div>
-      </div>
+      </footer>
     </main>
   );
 }
 
-function FeatureCard({
-  icon,
+function TrendingCard({
+  id,
   title,
-  description,
+  releaseDate,
+  poster,
+  isBookable,
 }: {
-  icon: React.ReactNode;
+  id: string;
   title: string;
-  description: string;
+  releaseDate: string | null;
+  poster: string | null;
+  isBookable: boolean;
 }) {
+  const dateLabel = releaseDate
+    ? new Date(releaseDate + 'T00:00:00').toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : null;
+
   return (
-    <div
-      className="poster-card rounded-sm border p-6"
-      style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+    <Link
+      href={`/movies/${id}`}
+      className="poster-card group relative flex aspect-[2/3] overflow-hidden rounded-sm"
+      style={{ background: 'var(--surface)' }}
     >
+      {poster && (
+        <Image
+          src={poster}
+          alt={title}
+          fill
+          sizes="(max-width: 640px) 100vw, 33vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+      )}
+
+      {/* Gradient overlay */}
       <div
-        className="mb-4 flex h-11 w-11 items-center justify-center rounded-full"
-        style={{ background: 'var(--ok-bg)', color: 'var(--accent)' }}
-      >
-        {icon}
+        className="absolute inset-0"
+        style={{
+          background: 'linear-gradient(to top, rgba(12,15,14,0.95) 0%, rgba(12,15,14,0.3) 50%, transparent 100%)',
+        }}
+      />
+
+      {/* Status badge top-right */}
+      <div className="absolute top-3 right-3">
+        <span
+          className="rounded-sm px-2 py-0.5 text-[10px] font-semibold tracking-widest uppercase"
+          style={
+            isBookable
+              ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
+              : { background: 'rgba(29,32,32,0.85)', color: 'var(--accent-dim)', border: '1px solid var(--rule)' }
+          }
+        >
+          {isBookable ? 'BOOKING OPEN' : 'COMING SOON'}
+        </span>
       </div>
-      <h3 className="mb-1.5 text-sm font-semibold" style={{ color: 'var(--ink)' }}>
-        {title}
-      </h3>
-      <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
-        {description}
-      </p>
-    </div>
+
+      {/* Info at bottom */}
+      <div className="absolute right-0 bottom-0 left-0 p-4">
+        <h3
+          className="font-display mb-1 text-2xl leading-tight"
+          style={{ color: '#ffffff' }}
+        >
+          {title}
+        </h3>
+        {dateLabel && (
+          <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
+            {isBookable ? `Now playing · ${dateLabel}` : dateLabel}
+          </p>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function ArrowRight({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 12h14M12 5l7 7-7 7" />
+    </svg>
   );
 }
