@@ -39,8 +39,8 @@ stop manually refreshing their site.
   so cost stays flat as the user base grows.
 - **Notifications** go out over two independent channels: email (via
   [Resend](https://resend.com), automatic for every account, no setup) and
-  push (via [ntfy.sh](https://ntfy.sh), opt-in, one private topic per user).
-  Either channel failing doesn't block the other.
+  browser push (Web Push API, opt-in, one subscription per device). Either
+  channel failing doesn't block the other.
 
 ## Stack
 
@@ -51,8 +51,8 @@ stop manually refreshing their site.
 - **elCinema** and **Scene Cinemas** — scraped directly (see
   [`src/lib/elcinema/`](src/lib/elcinema/) and [`src/lib/scene/`](src/lib/scene/))
 - **Resend** — transactional email for the always-on notification channel
-- **ntfy.sh** — optional push notifications, no proprietary push service or
-  app install required beyond the free ntfy client
+- **web-push** (Web Push API + VAPID) — optional browser push notifications,
+  no third-party push service or app install required
 - **cheerio** for HTML parsing, **Playwright** for browser-driven
   verification during development
 
@@ -81,6 +81,8 @@ tables described there before the app will run against it.
 | `SYNC_SECRET` | Shared secret required (via `x-sync-secret` header) to call the scheduled job routes below |
 | `RESEND_API_KEY` | [Resend API](https://resend.com/api-keys) key, used to send the always-on email notification |
 | `RESEND_FROM_EMAIL` | Verified sending address for Resend (needs a domain-verified sender in production) |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | VAPID public key (public), used by the browser to subscribe to push |
+| `VAPID_PRIVATE_KEY` | VAPID private key, server-only — used to sign push messages. Generate a pair with `npx web-push generate-vapid-keys`. Never expose to the client. |
 
 Google sign-in is configured entirely in the Supabase dashboard (Authentication → Providers → Google) and the corresponding Google Cloud OAuth client — no additional env vars in this repo.
 

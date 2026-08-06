@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { BrowseGrid } from '@/components/BrowseGrid';
-import { NtfyBanner } from '@/components/NtfyBanner';
+import { PushBanner } from '@/components/PushBanner';
 import type { MovieCardData } from '@/components/MovieCard';
 
 export default async function BrowsePage() {
@@ -36,7 +36,7 @@ export default async function BrowsePage() {
   );
 
   let watchedIds: string[] = [];
-  let showNtfyBanner = false;
+  let showPushBanner = false;
   if (user) {
     const { data: watchlistRows } = await supabase
       .from('watchlist')
@@ -44,12 +44,12 @@ export default async function BrowsePage() {
       .eq('user_id', user.id);
     watchedIds = (watchlistRows ?? []).map((r) => r.movie_id);
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('ntfy_topic')
-      .eq('id', user.id)
-      .single();
-    showNtfyBanner = !profile?.ntfy_topic;
+    const { data: subscriptions } = await supabase
+      .from('push_subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1);
+    showPushBanner = !subscriptions || subscriptions.length === 0;
   }
 
   const movieCards: MovieCardData[] = visibleMovies.map((m) => ({
@@ -81,9 +81,9 @@ export default async function BrowsePage() {
           Now booking &amp; on the way
         </h1>
 
-        {showNtfyBanner && (
+        {showPushBanner && (
           <div className="mt-6">
-            <NtfyBanner />
+            <PushBanner />
           </div>
         )}
       </div>

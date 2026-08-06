@@ -1,4 +1,4 @@
-import { formatCheckedTimestamp, type BookableNotification, type NewReleaseNotification } from '@/lib/ntfy';
+import { formatCheckedTimestamp, type BookableNotification, type NewReleaseNotification } from '@/lib/notifications';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const REQUEST_TIMEOUT_MS = 15_000;

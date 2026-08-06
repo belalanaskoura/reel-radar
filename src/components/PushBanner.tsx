@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { BellIcon } from '@/components/icons';
 
-const DISMISS_KEY = 'reelradar:ntfy-banner-dismissed';
+const DISMISS_KEY = 'reelradar:push-banner-dismissed';
 const listeners = new Set<() => void>();
 
 function subscribe(callback: () => void) {
@@ -25,7 +25,7 @@ function dismiss() {
   listeners.forEach((callback) => callback());
 }
 
-export function NtfyBanner() {
+export function PushBanner() {
   const dismissed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (dismissed) return null;
@@ -44,7 +44,7 @@ export function NtfyBanner() {
       <p className="pr-6 text-sm" style={{ color: 'var(--ink)' }}>
         Get notified the instant tickets go live:{' '}
         <Link href="/notifications" className="underline" style={{ color: 'var(--accent)' }}>
-          set up push notifications
+          turn on push notifications
         </Link>
         .
       </p>

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { notifyNewRelease } from '@/lib/ntfy';
+import { notifyNewReleasePush } from '@/lib/push';
 import { notifyNewReleaseByEmail } from '@/lib/email';
 
 // Notifies watchers once when a watchlisted movie's release_date is first
@@ -56,7 +56,7 @@ export async function notifyNewReleases(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('ntfy_topic, email, notify_new_releases')
+      .select('email, notify_new_releases')
       .eq('id', userId)
       .single();
 
@@ -75,12 +75,10 @@ export async function notifyNewReleases(
       // best-effort, swallow and continue
     }
 
-    if (profile.ntfy_topic) {
-      try {
-        await notifyNewRelease(profile.ntfy_topic, payload);
-      } catch {
-        // best-effort, swallow and continue
-      }
+    try {
+      await notifyNewReleasePush(supabase, userId as string, payload);
+    } catch {
+      // best-effort, swallow and continue
     }
 
     try {

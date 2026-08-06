@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { checkBookability } from '@/lib/scene/fetcher';
-import { notifyBookable } from '@/lib/ntfy';
+import { notifyBookablePush } from '@/lib/push';
 import { notifyBookableByEmail } from '@/lib/email';
 import type { BranchId } from '@/lib/scene/types';
 import { BRANCH_BASE_URLS } from '@/lib/scene/types';
@@ -116,7 +116,7 @@ async function notifyWatchers(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('ntfy_topic, email, notify_cinema_showtimes')
+      .select('email, notify_cinema_showtimes')
       .eq('id', watcher.user_id)
       .single();
 
@@ -125,9 +125,9 @@ async function notifyWatchers(
 
     const payload = { movieTitle: movie.title, branchName: branchRow.name, bookingUrl };
 
-    // Email and ntfy are independent, best-effort channels: one failing
+    // Email and push are independent, best-effort channels: one failing
     // must never block the other or abort the rest of this watcher loop
-    // (a real bug in the pre-email version, where an uncaught ntfy error
+    // (a real bug in an earlier version, where an uncaught send error
     // killed every notification after it in the same poll run).
     try {
       await notifyBookableByEmail(profile.email, payload);
@@ -135,12 +135,10 @@ async function notifyWatchers(
       // best-effort, swallow and continue
     }
 
-    if (profile.ntfy_topic) {
-      try {
-        await notifyBookable(profile.ntfy_topic, payload);
-      } catch {
-        // best-effort, swallow and continue
-      }
+    try {
+      await notifyBookablePush(supabase, watcher.user_id, payload);
+    } catch {
+      // best-effort, swallow and continue
     }
 
     // Logged once an email attempt was made, regardless of outcome: this

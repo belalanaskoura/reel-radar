@@ -4,18 +4,19 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { posterUrl } from '@/lib/tmdb-image';
 import { signout } from '../signin/actions';
-import { updateAlertPreferences, updateNtfyTopic, updatePassword } from './actions';
+import { updateAlertPreferences, updatePassword } from './actions';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import { AlertToggles } from '@/components/AlertToggles';
 import { SecurityPanel } from '@/components/SecurityPanel';
+import { PushSubscribeButton } from '@/components/PushSubscribeButton';
 import { BellIcon, SignOutIcon, FilmIcon } from '@/components/icons';
 
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; password_saved?: string }>;
+  searchParams: Promise<{ error?: string; password_saved?: string }>;
 }) {
-  const { error, saved, password_saved } = await searchParams;
+  const { error, password_saved } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -26,7 +27,7 @@ export default async function ProfilePage({
   const [profileResult, countResult, recentResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('ntfy_topic, avatar_url, notify_new_releases, notify_cinema_showtimes, display_name')
+      .select('avatar_url, notify_new_releases, notify_cinema_showtimes, display_name')
       .eq('id', user.id)
       .single(),
     supabase
@@ -79,16 +80,11 @@ export default async function ProfilePage({
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
 
       {/* Flash messages */}
-      {(error || saved || password_saved) && (
+      {(error || password_saved) && (
         <div className="mb-6">
           {error && (
             <p role="alert" className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}>
               {error}
-            </p>
-          )}
-          {saved && (
-            <p className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}>
-              Notification topic saved.
             </p>
           )}
           {password_saved && (
@@ -244,34 +240,16 @@ export default async function ProfilePage({
             />
 
             <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
-              <form action={updateNtfyTopic} className="flex flex-col gap-2 sm:max-w-sm">
-                <input type="hidden" name="return_to" value="/account" />
-                <label htmlFor="ntfy_topic" className="text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
-                  ntfy.sh topic
-                </label>
-                <input
-                  id="ntfy_topic"
-                  name="ntfy_topic"
-                  type="text"
-                  defaultValue={profile?.ntfy_topic ?? ''}
-                  placeholder="e.g. reelradar-a1b2c3"
-                  className="rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
-                  style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
-                />
-                <button
-                  type="submit"
-                  className="rounded-sm py-2 text-xs font-semibold tracking-wide transition-opacity hover:opacity-90"
-                  style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
-                >
-                  SAVE
-                </button>
-              </form>
+              <p className="mb-2 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
+                Push notifications
+              </p>
+              <PushSubscribeButton />
               <Link
                 href="/notifications"
                 className="mt-3 inline-block text-xs underline transition-opacity hover:opacity-70"
                 style={{ color: 'var(--accent-dim)' }}
               >
-                What is ntfy? Setup guide →
+                Setup guide →
               </Link>
             </div>
           </section>
