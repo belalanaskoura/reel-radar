@@ -3,7 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchDayShowtimes, sleep, REQUEST_DELAY_MS } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 
-const BRANCHES: BranchId[] = ['cfc', 'district5'];
+const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 
 // Records which showtime formats (Standard, Premiere/VIP, IMAX, ...) are
 // currently available at each branch, for display on /cinemas. This data

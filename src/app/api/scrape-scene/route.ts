@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchAllListings, checkBookability, sleep, REQUEST_DELAY_MS } from '@/lib/scene/fetcher';
-import type { BranchId } from '@/lib/scene/types';
+import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 
-const BRANCHES: BranchId[] = ['cfc', 'district5'];
+const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 
 // Scrapes one (or, if ?branch is omitted, both) Scene branch's listing
 // pages, upserts a placeholder `movies` row (tmdb_id null, match_status

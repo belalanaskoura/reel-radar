@@ -7,7 +7,11 @@ const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 // production with OPTIMIZED_EXTERNAL_IMAGE_REQUEST_UNAUTHORIZED). Routed
 // through our own same-origin proxy (src/app/api/scene-poster/route.ts)
 // instead, which sidesteps Vercel's optimizer for this host entirely.
-const SCENE_POSTER_HOSTS = ['cfc.scenecinemas.com', 'district5.scenecinemas.com'];
+// Matches any scenecinemas.com subdomain (not just today's two branches)
+// so a future branch needs no change here.
+function isScenePosterHost(hostname: string): boolean {
+  return hostname === 'scenecinemas.com' || hostname.endsWith('.scenecinemas.com');
+}
 
 // `movies.poster_path` is usually a TMDB-relative path, but can also hold
 // a full elCinema or Scene Cinemas poster URL (fallbacks for movies TMDB
@@ -19,7 +23,7 @@ export function posterUrl(posterPath: string | null, size: 'w200' | 'w342' | 'w5
   if (!posterPath) return null;
   if (posterPath.startsWith('http://') || posterPath.startsWith('https://')) {
     const hostname = new URL(posterPath).hostname;
-    if (SCENE_POSTER_HOSTS.includes(hostname)) {
+    if (isScenePosterHost(hostname)) {
       return `/api/scene-poster?src=${encodeURIComponent(posterPath)}`;
     }
     return posterPath;

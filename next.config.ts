@@ -39,24 +39,25 @@ const nextConfig: NextConfig = {
       },
       {
         // Scene Cinemas poster fallback (last resort, after TMDB and
-        // elCinema) -- same-origin per branch, confirmed on both cfc and
-        // district5 at this exact path.
+        // elCinema) -- same-origin per branch. Wildcarded across every
+        // `<branch>.scenecinemas.com` subdomain rather than one entry per
+        // branch, so a future branch (any subdomain of scenecinemas.com,
+        // per Phase 0's confirmed URL structure) needs no config change.
         protocol: 'https',
-        hostname: 'cfc.scenecinemas.com',
-        pathname: '/cdn-nextjs/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'district5.scenecinemas.com',
+        hostname: '*.scenecinemas.com',
         pathname: '/cdn-nextjs/**',
       },
       {
         // Every `<branch>.scenecinemas.com/cdn-nextjs/**` poster URL is
-        // actually a 302 redirect that lands here -- confirmed live on
-        // both branches. Next's image optimizer refuses to follow a
-        // redirect to a host outside remotePatterns, which is why this
-        // fallback silently 502'd in production (dev mode doesn't hit
-        // the same strict check) until this host was added.
+        // actually a 302 redirect that lands on statics.scenecinemas.com
+        // -- confirmed live on both branches. Next's image optimizer
+        // refuses to follow a redirect to a host outside remotePatterns,
+        // which is why this fallback silently 502'd in production (dev
+        // mode doesn't hit the same strict check) until this host was
+        // added. Covered by the wildcard above already (statics is also
+        // a *.scenecinemas.com subdomain), kept as an explicit second
+        // entry only because its path (/covers/**) differs from the
+        // per-branch pattern's (/cdn-nextjs/**).
         protocol: 'https',
         hostname: 'statics.scenecinemas.com',
         pathname: '/covers/**',

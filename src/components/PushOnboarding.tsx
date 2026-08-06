@@ -34,6 +34,38 @@ export function PushOnboarding() {
         </div>
       </div>
 
+      <div
+        className="mt-4 rounded-sm border p-4 text-left text-sm sm:p-5"
+        style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }}
+      >
+        <p className="mb-2 font-semibold" style={{ color: 'var(--ink)' }}>
+          On iPhone or iPad
+        </p>
+        <p>
+          Safari only allows notifications for sites added to your Home
+          Screen. Before turning notifications on:
+        </p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5">
+          <li>
+            Open this site in <strong>Safari</strong> (not another
+            browser).
+          </li>
+          <li>
+            Tap the <strong>Share</strong> button (the square with an
+            arrow pointing up).
+          </li>
+          <li>
+            Scroll down and tap <strong>Add to Home Screen</strong>, then{' '}
+            <strong>Add</strong>.
+          </li>
+          <li>
+            Close Safari and open ReelRadar from the new icon on your Home
+            Screen.
+          </li>
+          <li>Sign in again, then turn on notifications from there.</li>
+        </ol>
+      </div>
+
       <p className="mt-8 text-center text-sm" style={{ color: 'var(--ink-dim)' }}>
         <Link href="/browse" className="underline" style={{ color: 'var(--accent)' }}>
           Skip for now

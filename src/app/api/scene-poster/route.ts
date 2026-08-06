@@ -9,11 +9,14 @@ import { NextRequest, NextResponse } from 'next/server';
 // blocking Vercel's IP range. Proxying the fetch through our own server
 // (not Vercel's separate image-optimization infra) and serving it same-origin
 // sidesteps that entirely.
-const ALLOWED_HOSTS = [
-  'cfc.scenecinemas.com',
-  'district5.scenecinemas.com',
-  'statics.scenecinemas.com',
-];
+// Wildcarded to any scenecinemas.com subdomain (rather than one entry per
+// known branch) so a future branch's poster host needs no code change --
+// mirrors the same *.scenecinemas.com pattern in next.config.ts and
+// tmdb-image.ts. Must check for a subdomain boundary, not just a suffix
+// match, or "evilscenecinemas.com" would incorrectly pass.
+function isAllowedHost(hostname: string): boolean {
+  return hostname === 'scenecinemas.com' || hostname.endsWith('.scenecinemas.com');
+}
 
 export async function GET(request: NextRequest) {
   const target = request.nextUrl.searchParams.get('src');
@@ -28,7 +31,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'invalid url' }, { status: 400 });
   }
 
-  if (parsed.protocol !== 'https:' || !ALLOWED_HOSTS.includes(parsed.hostname)) {
+  if (parsed.protocol !== 'https:' || !isAllowedHost(parsed.hostname)) {
     return NextResponse.json({ error: 'host not allowed' }, { status: 400 });
   }
 
