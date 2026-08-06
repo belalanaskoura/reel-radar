@@ -116,7 +116,11 @@ export default async function MovieDetailPage({
               {movie.title}
             </h1>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm tabular-nums" style={{ color: 'var(--ink-dim)' }}>
-              <span>{movie.release_date ?? details?.release_date ?? 'Release date TBA'}</span>
+              <span>
+                {(movie.release_date ?? details?.release_date)
+                  ? `${isBookable ? 'Released on' : 'Release Date'} ${movie.release_date ?? details?.release_date}`
+                  : 'Release date TBA'}
+              </span>
               {details?.runtime ? <span>{details.runtime} min</span> : null}
               {details?.genres && details.genres.length > 0 && (
                 <span>{details.genres.map((g) => g.name).join(', ')}</span>

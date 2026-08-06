@@ -78,7 +78,9 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
       </div>
 
       <ul className="flex flex-col gap-4">
-        {sortedMovies.map((movie) => (
+        {sortedMovies.map((movie) => {
+          const isBookable = movie.showtimes_cache.some((c) => c.bookable);
+          return (
           <li
             key={movie.id}
             className="poster-card flex gap-4 rounded-sm border p-4"
@@ -109,7 +111,9 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
                     </h2>
                   </Link>
                   <p className="text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
-                    {movie.release_date ?? 'Release date TBA'}
+                    {movie.release_date
+                      ? `${isBookable ? 'Released on' : 'Release Date'} ${movie.release_date}`
+                      : 'Release date TBA'}
                   </p>
                 </div>
                 <form action={removeFromWatchlist.bind(null, movie.id)}>
@@ -173,7 +177,8 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
               )}
             </div>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </>
   );

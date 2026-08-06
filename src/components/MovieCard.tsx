@@ -57,7 +57,9 @@ export function MovieCard({
         </Link>
         {(movie.release_date || !isBookable) && (
           <p className="text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
-            {movie.release_date ?? 'Release date TBA'}
+            {movie.release_date
+              ? `${isBookable ? 'Released on' : 'Release Date'} ${movie.release_date}`
+              : 'Release date TBA'}
           </p>
         )}
 
