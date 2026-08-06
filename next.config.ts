@@ -1,6 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async headers() {
+    return [
+      {
+        // iOS Safari's PWA-installability detection is strict about this
+        // exact content type -- Vercel's static file serving defaults to
+        // application/json, which iOS doesn't reliably recognize as a
+        // valid web app manifest, causing "Add to Home Screen" to fall
+        // back to a plain bookmark instead of an installed standalone app.
+        source: '/manifest.json',
+        headers: [{ key: 'Content-Type', value: 'application/manifest+json' }],
+      },
+    ];
+  },
   images: {
     // Next 16 defaults local image paths to allowing only an empty query
     // string, which blocks our own same-origin poster proxy
