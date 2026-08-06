@@ -14,8 +14,15 @@ const USER_AGENT =
   '(KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 const REQUEST_TIMEOUT_MS = 15_000;
 
-// Same courtesy delay spider-bot used between requests on a single run.
-export const REQUEST_DELAY_MS = 2_000;
+// spider-bot used 2000ms between requests; lowered here because
+// /api/scrape-scene must finish within the free external scheduler's
+// 30s job timeout (no Vercel Cron on Hobby, see Phase 1), and even
+// split per branch (?branch=cfc / ?branch=district5), the larger branch
+// (cfc, ~20 movies) took ~58s at 2000ms and still ~27s at 500ms in real
+// testing -- too thin a margin for an unattended job against a live
+// third-party site with variable latency. Still a real, deliberate
+// pause between requests, just less conservative than the original.
+export const REQUEST_DELAY_MS = 250;
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

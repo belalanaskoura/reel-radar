@@ -5,22 +5,38 @@ import type { BranchId } from '@/lib/scene/types';
 
 const BRANCHES: BranchId[] = ['cfc', 'district5'];
 
-// Scrapes both Scene branches' listing pages, upserts a placeholder
-// `movies` row (tmdb_id null, match_status 'unmatched') for any slug not
-// already linked via `movie_branch_slugs`, and writes bookability into
-// `showtimes_cache`. Phase 5 later matches these placeholder rows to real
-// TMDB entries instead of creating new ones; title/slug is enough for
-// this phase to prove the scraper and cache work end to end.
+// Scrapes one (or, if ?branch is omitted, both) Scene branch's listing
+// pages, upserts a placeholder `movies` row (tmdb_id null, match_status
+// 'unmatched') for any slug not already linked via `movie_branch_slugs`,
+// and writes bookability into `showtimes_cache`. Phase 5 later matches
+// these placeholder rows to real TMDB entries instead of creating new
+// ones; title/slug is enough for this phase to prove the scraper and
+// cache work end to end.
+//
+// Split into a ?branch=cfc / ?branch=district5 param (rather than always
+// scraping both in one call) because the free external scheduler this
+// app relies on (no Vercel Cron on Hobby, see Phase 1) caps a single job
+// at a 30s timeout: scraping ~35 movies combined, at REQUEST_DELAY_MS
+// (2s) between each polite fetch, takes 70s+ of sleep alone before any
+// real network/DB time, so one combined call cannot reliably finish in
+// time. Omitting ?branch still scrapes both sequentially in one call,
+// for manual/local use where the 30s cap doesn't apply.
 export async function POST(request: Request) {
   const secret = request.headers.get('x-sync-secret');
   if (secret !== process.env.SYNC_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const branchParam = new URL(request.url).searchParams.get('branch');
+  if (branchParam && !BRANCHES.includes(branchParam as BranchId)) {
+    return NextResponse.json({ error: `Unknown branch: ${branchParam}` }, { status: 400 });
+  }
+  const branchesToScrape: BranchId[] = branchParam ? [branchParam as BranchId] : BRANCHES;
+
   const supabase = createServiceRoleClient();
   const results: Record<string, { listed: number; bookable: number }> = {};
 
-  for (const branch of BRANCHES) {
+  for (const branch of branchesToScrape) {
     const listings = await fetchAllListings(branch);
     let bookableCount = 0;
 
