@@ -2,7 +2,21 @@
 
 import { useEffect, useState } from 'react';
 
-type Status = 'checking' | 'unsupported' | 'denied' | 'subscribed' | 'unsubscribed';
+type Status = 'checking' | 'unsupported' | 'needs-install' | 'denied' | 'subscribed' | 'unsubscribed';
+
+// iOS Safari only allows push subscriptions from a site that's been added
+// to the Home Screen and launched from that icon (running in standalone
+// display mode) -- a plain Safari tab has serviceWorker/PushManager
+// present but subscribe() fails there, so this has to be checked before
+// ever attempting to subscribe, not caught as a generic error afterward.
+function isIosSafariNotInstalled(): boolean {
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (!isIos) return false;
+  const isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return !isStandalone;
+}
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -36,6 +50,10 @@ export function PushSubscribeButton() {
     (async () => {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         setStatus('unsupported');
+        return;
+      }
+      if (isIosSafariNotInstalled()) {
+        setStatus('needs-install');
         return;
       }
       if (Notification.permission === 'denied') {
@@ -80,8 +98,10 @@ export function PushSubscribeButton() {
       if (!res.ok) throw new Error('Failed to save subscription.');
 
       setStatus('subscribed');
-    } catch {
-      setError('Something went wrong turning on notifications. Please try again.');
+    } catch (err) {
+      console.error('Push subscribe failed:', err);
+      const message = err instanceof Error ? err.message : 'Please try again.';
+      setError(`Couldn't turn on notifications: ${message}`);
     } finally {
       setBusy(false);
     }
@@ -114,6 +134,17 @@ export function PushSubscribeButton() {
     return (
       <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
         Push notifications aren&apos;t supported in this browser.
+      </p>
+    );
+  }
+
+  if (status === 'needs-install') {
+    return (
+      <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+        On iPhone/iPad, Safari only allows notifications for sites added to
+        your Home Screen. Tap the <strong>Share</strong> button, then{' '}
+        <strong>Add to Home Screen</strong>, then open ReelRadar from that
+        icon and turn on notifications from there.
       </p>
     );
   }

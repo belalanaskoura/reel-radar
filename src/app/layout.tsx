@@ -18,6 +18,15 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "ReelRadar",
   description: "Browse what's bookable and coming soon at Scene Cinemas, and get notified the moment tickets go live.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "ReelRadar",
+  },
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
