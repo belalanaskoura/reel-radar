@@ -163,3 +163,31 @@ export function BookmarkIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ShareIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M12 16V4" />
+      <path d="M7 9l5-5 5 5" />
+      <rect x="4" y="14" width="16" height="7" rx="2" />
+    </svg>
+  );
+}
+
+export function PlusSquareIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M12 8v8M8 12h8" />
+    </svg>
+  );
+}
+
+export function SmartphoneIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <rect x="6" y="2" width="12" height="20" rx="2" />
+      <path d="M11 18h2" />
+    </svg>
+  );
+}
