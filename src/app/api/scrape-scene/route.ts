@@ -74,9 +74,42 @@ export async function POST(request: Request) {
         }
         movieId = newMovie.id;
 
-        await supabase
+        const { error: slugInsertError } = await supabase
           .from('movie_branch_slugs')
           .insert({ movie_id: movieId, branch_id: branch, slug: listing.slug });
+
+        if (slugInsertError) {
+          // 23505 = unique violation on (branch_id, slug): a concurrent
+          // scrape run (now that the external scheduler runs this every
+          // 30 min, overlapping runs are real, not hypothetical -- this
+          // exact race produced 4 duplicate "Toy Story 5 DUB" placeholder
+          // rows before the unique constraint existed) won the insert
+          // first. Use its link instead of ours, and delete the orphaned
+          // `movies` row this run just created for it, since nothing
+          // points at it and it would otherwise sit as a duplicate.
+          if (slugInsertError.code === '23505') {
+            const { data: winningLink } = await supabase
+              .from('movie_branch_slugs')
+              .select('movie_id, movies(poster_path)')
+              .eq('branch_id', branch)
+              .eq('slug', listing.slug)
+              .single();
+
+            await supabase.from('movies').delete().eq('id', movieId);
+
+            if (!winningLink) {
+              throw new Error(
+                `Lost the slug-insert race for ${branch}/${listing.slug} but couldn't find the winning link`,
+              );
+            }
+            movieId = winningLink.movie_id;
+            currentPosterPath =
+              (winningLink.movies as unknown as { poster_path: string | null } | null)
+                ?.poster_path ?? null;
+          } else {
+            throw new Error(`Failed to insert movie_branch_slugs: ${slugInsertError.message}`);
+          }
+        }
       }
 
       await sleep(REQUEST_DELAY_MS);
