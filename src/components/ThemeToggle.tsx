@@ -34,10 +34,12 @@ export function ThemeToggle() {
       onClick={cycle}
       aria-label={LABELS[preference]}
       title={LABELS[preference]}
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-opacity hover:opacity-70 sm:h-8 sm:w-8"
+      className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border transition-opacity hover:opacity-70 sm:h-8 sm:w-8"
       style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
     >
-      {ICONS[preference]}
+      <span key={preference} className="theme-icon-swap flex items-center justify-center">
+        {ICONS[preference]}
+      </span>
     </button>
   );
 }

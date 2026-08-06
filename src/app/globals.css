@@ -138,12 +138,39 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  /* Smooths the theme switch (light/dark/system) so every themed surface
+     crossfades together instead of snapping instantly -- scoped to just
+     color-related properties (not `all`) to avoid transitioning layout
+     properties like width/height on every element, which would be both
+     janky and expensive across a whole page. Every component in this app
+     consumes the --bg/--ink/etc. custom properties via inline `style`, so
+     this one rule is what makes the transition apply everywhere at once
+     rather than needing a transition declared per component. */
+  *, *::before, *::after {
+    transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, fill 0.25s ease, stroke 0.25s ease;
+  }
+
   .poster-card {
     transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
   .poster-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 0 0 1px var(--rule), 0 0 20px 0 color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  .theme-icon-swap {
+    animation: theme-icon-swap 0.28s ease both;
+  }
+
+  @keyframes theme-icon-swap {
+    from {
+      opacity: 0;
+      transform: rotate(-45deg) scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: rotate(0deg) scale(1);
+    }
   }
 
   .step-in-forward {
