@@ -19,7 +19,7 @@ export async function NavBar() {
           className="font-display text-xl tracking-wide sm:text-2xl"
           style={{ color: 'var(--ink)' }}
         >
-          Reel<span style={{ color: 'var(--accent)' }}>Alert</span>
+          Reel<span style={{ color: 'var(--accent)' }}>Radar</span>
         </Link>
 
         <Suspense fallback={null}>
