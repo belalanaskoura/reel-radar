@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { NavSearch } from '@/components/NavSearch';
 import { RadarLogo } from '@/components/RadarLogo';
-import { BookmarkIcon, CinemaIcon, FilmIcon, UserIcon } from '@/components/icons';
+import { BellIcon, BookmarkIcon, CinemaIcon, FilmIcon, UserIcon } from '@/components/icons';
 
 export async function NavBar() {
   const supabase = await createClient();
@@ -13,6 +13,7 @@ export async function NavBar() {
   } = await supabase.auth.getUser();
 
   let avatarUrl: string | null = null;
+  let unreadCount = 0;
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
@@ -20,6 +21,13 @@ export async function NavBar() {
       .eq('id', user.id)
       .single();
     avatarUrl = profile?.avatar_url ?? null;
+
+    const { count } = await supabase
+      .from('notification_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .is('read_at', null);
+    unreadCount = count ?? 0;
   }
 
   return (
@@ -51,7 +59,15 @@ export async function NavBar() {
         <div className="ml-auto flex items-center gap-1 sm:gap-1">
           <NavLink href="/browse" icon={<FilmIcon size={15} />} label="Browse" />
           {user && (
-            <NavLink href="/watchlist" icon={<BookmarkIcon size={15} />} label="Watchlist" />
+            <>
+              <NavLink href="/watchlist" icon={<BookmarkIcon size={15} />} label="Watchlist" />
+              <NavLink
+                href="/notifications-history"
+                icon={<BellIcon size={15} />}
+                label="Notifications"
+                badgeCount={unreadCount}
+              />
+            </>
           )}
           <NavLink href="/cinemas" icon={<CinemaIcon size={15} />} label="Cinemas" />
         </div>
@@ -100,19 +116,37 @@ function NavLink({
   href,
   icon,
   label,
+  badgeCount,
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
+  badgeCount?: number;
 }) {
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-sm transition-colors hover:opacity-70 sm:px-3"
+      className="relative inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-sm transition-colors hover:opacity-70 sm:px-3"
       style={{ color: 'var(--ink-dim)' }}
     >
-      <span className="sm:hidden">{icon}</span>
-      <span className="hidden text-xs font-medium tracking-wide sm:inline">{label}</span>
+      <span className="relative sm:hidden">
+        {icon}
+        {!!badgeCount && <NavBadge />}
+      </span>
+      <span className="relative hidden text-xs font-medium tracking-wide sm:inline">
+        {label}
+        {!!badgeCount && <NavBadge />}
+      </span>
     </Link>
+  );
+}
+
+function NavBadge() {
+  return (
+    <span
+      className="absolute -top-1 -right-1.5 h-1.5 w-1.5 rounded-full"
+      style={{ background: 'var(--accent)' }}
+      aria-hidden="true"
+    />
   );
 }

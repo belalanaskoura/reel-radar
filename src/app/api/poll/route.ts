@@ -144,11 +144,22 @@ async function notifyWatchers(
     // Logged once an email attempt was made, regardless of outcome: this
     // job has no retry mechanism for either channel, so a transient send
     // failure here permanently skips this watcher for this bookable
-    // episode rather than resending on every subsequent poll.
+    // episode rather than resending on every subsequent poll. title/
+    // message/url are a display snapshot for the /notifications-history
+    // feed -- kept even though this row's only other job is dedupe,
+    // since re-deriving "what did we actually tell this person" later
+    // from movies/branches state would give the wrong answer once either
+    // changes.
     try {
-      await supabase
-        .from('notification_log')
-        .insert({ user_id: watcher.user_id, movie_id: movieId, branch_id: branch, kind: 'showtime' });
+      await supabase.from('notification_log').insert({
+        user_id: watcher.user_id,
+        movie_id: movieId,
+        branch_id: branch,
+        kind: 'showtime',
+        title: movie.title,
+        message: `${movie.title} is bookable at ${branchRow.name}!`,
+        url: bookingUrl,
+      });
       sentCount += 1;
     } catch {
       // best-effort, swallow and continue

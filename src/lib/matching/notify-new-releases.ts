@@ -82,9 +82,15 @@ export async function notifyNewReleases(
     }
 
     try {
-      await supabase
-        .from('notification_log')
-        .insert({ user_id: userId, movie_id: movieId, branch_id: null, kind: 'new_release' });
+      await supabase.from('notification_log').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: null,
+        kind: 'new_release',
+        title: payload.movieTitle,
+        message: `${payload.movieTitle} is coming to Egypt on ${payload.releaseDate}!`,
+        url: payload.movieUrl,
+      });
       notified += 1;
     } catch {
       // best-effort, swallow and continue
