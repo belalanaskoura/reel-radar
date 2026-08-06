@@ -3,12 +3,14 @@ self.addEventListener('push', (event) => {
   const payload = event.data.json();
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: '/icon.svg',
-      badge: '/icon.svg',
-      data: { url: payload.url },
-    }),
+    self.registration
+      .showNotification(payload.title, {
+        body: payload.body,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        data: { url: payload.url },
+      })
+      .catch((err) => console.error('showNotification failed:', err)),
   );
 });
 
