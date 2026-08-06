@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { NavSearch } from '@/components/NavSearch';
 import { RadarLogo } from '@/components/RadarLogo';
-import { BellIcon, BookmarkIcon, CinemaIcon, FilmIcon, UserIcon } from '@/components/icons';
+import { BellIcon, CinemaIcon, FilmIcon, UserIcon } from '@/components/icons';
 
 export async function NavBar() {
   const supabase = await createClient();
@@ -59,15 +59,12 @@ export async function NavBar() {
         <div className="ml-auto flex items-center gap-1 sm:gap-1">
           <NavLink href="/browse" icon={<FilmIcon size={15} />} label="Browse" />
           {user && (
-            <>
-              <NavLink href="/watchlist" icon={<BookmarkIcon size={15} />} label="Watchlist" />
-              <NavLink
-                href="/notifications-history"
-                icon={<BellIcon size={15} />}
-                label="Notifications"
-                badgeCount={unreadCount}
-              />
-            </>
+            <NavLink
+              href="/notifications-history"
+              icon={<BellIcon size={15} />}
+              label="Notifications"
+              badgeCount={unreadCount}
+            />
           )}
           <NavLink href="/cinemas" icon={<CinemaIcon size={15} />} label="Cinemas" />
         </div>

@@ -9,7 +9,7 @@ import { AvatarUpload } from '@/components/AvatarUpload';
 import { AlertToggles } from '@/components/AlertToggles';
 import { SecurityPanel } from '@/components/SecurityPanel';
 import { PushSubscribeButton } from '@/components/PushSubscribeButton';
-import { BellIcon, SignOutIcon, FilmIcon } from '@/components/icons';
+import { ArrowRightIcon, BellIcon, BookmarkIcon, SignOutIcon, FilmIcon } from '@/components/icons';
 
 export default async function ProfilePage({
   searchParams,
@@ -126,18 +126,25 @@ export default async function ProfilePage({
             </p>
           </div>
 
-          {/* Stats */}
-          <div
-            className="rounded-sm border px-3 py-3"
-            style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
+          {/* Watchlist — prominent link, not just a stat */}
+          <Link
+            href="/watchlist"
+            className="flex items-center justify-between rounded-sm border px-3 py-3 transition-opacity hover:opacity-80"
+            style={{ borderColor: 'var(--accent)', background: 'var(--ok-bg)' }}
           >
-            <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-              Watchlist
-            </p>
-            <p className="font-display text-2xl leading-none mt-1" style={{ color: 'var(--ink)' }}>
-              {watchlistCount}
-            </p>
-          </div>
+            <div className="flex items-center gap-2.5">
+              <BookmarkIcon size={18} style={{ color: 'var(--accent)' }} />
+              <div>
+                <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
+                  Watchlist
+                </p>
+                <p className="font-display text-2xl leading-none mt-0.5" style={{ color: 'var(--ink)' }}>
+                  {watchlistCount}
+                </p>
+              </div>
+            </div>
+            <ArrowRightIcon size={16} style={{ color: 'var(--accent)' }} />
+          </Link>
 
           {/* Edit Profile */}
           <Link
