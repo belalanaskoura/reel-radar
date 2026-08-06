@@ -64,18 +64,26 @@ export function MovieCard({
         )}
 
         {movie.branches && movie.branches.length > 0 ? (
-          <ul className="flex flex-wrap gap-1">
+          <ul className="flex flex-col gap-1">
             {movie.branches.map((b) => (
               <li
                 key={b.branch_name}
-                className="rounded-sm px-2 py-0.5 text-[11px] font-medium"
+                className="rounded-sm px-2 py-1 text-[11px] leading-tight font-medium"
                 style={
                   b.bookable
                     ? { background: 'var(--ok-bg)', color: 'var(--ok-ink)' }
                     : { background: 'var(--listed-bg)', color: 'var(--listed-ink)' }
                 }
               >
-                {b.branch_name}: {b.bookable ? 'Bookable' : 'Listed'}
+                <div className="truncate">{b.branch_name}</div>
+                <div className="flex items-center gap-1">
+                  <span
+                    className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                    style={{ background: 'currentColor' }}
+                    aria-hidden="true"
+                  />
+                  {b.bookable ? 'Bookable' : 'Listed'}
+                </div>
               </li>
             ))}
           </ul>
