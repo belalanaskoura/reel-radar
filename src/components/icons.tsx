@@ -140,10 +140,9 @@ export function MapPinIcon(props: IconProps) {
 export function CinemaIcon(props: IconProps) {
   return (
     <svg {...svgProps(props)}>
-      <rect x="2" y="7" width="20" height="14" rx="2" />
-      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-      <path d="M12 12v4" />
-      <path d="M8 12h8" />
+      <path d="M3 5c3-1.5 15-1.5 18 0" />
+      <rect x="4" y="5" width="16" height="11" rx="1" />
+      <path d="M4 20l3-4M20 20l-3-4M9 20h6" />
     </svg>
   );
 }

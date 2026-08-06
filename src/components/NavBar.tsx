@@ -30,7 +30,7 @@ export async function NavBar() {
         background: 'color-mix(in srgb, var(--bg) 88%, transparent)',
       }}
     >
-      <nav className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-3 sm:px-6 sm:py-4">
+      <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-4">
         {/* Wordmark */}
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
           <RadarLogo size={28} />

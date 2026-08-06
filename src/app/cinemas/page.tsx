@@ -42,9 +42,6 @@ export default async function CinemasPage() {
         >
           Available cinemas
         </h1>
-        <p className="mt-3 max-w-xl text-sm sm:text-base" style={{ color: 'var(--ink-dim)' }}>
-          Both Scene Cinemas branches this app tracks. Pick one to see it on Scene&apos;s own site.
-        </p>
       </div>
 
       <div className="relative mx-auto max-w-5xl px-4 pb-10 sm:px-6 sm:pb-14">
@@ -62,15 +59,15 @@ export default async function CinemasPage() {
               />
 
               <div
-                className="pointer-events-none relative flex h-40 shrink-0 items-center justify-center p-8 sm:h-auto sm:w-64"
+                className="pointer-events-none relative h-28 shrink-0 sm:h-auto sm:w-64"
                 style={{ background: '#000000' }}
               >
                 <Image
                   src="/SceneCinemasLogo.jpg"
                   alt="Scene Cinemas"
-                  width={160}
-                  height={80}
-                  className="h-auto w-full object-contain"
+                  fill
+                  sizes="(max-width: 640px) 100vw, 256px"
+                  className="object-contain p-6 sm:p-8"
                 />
               </div>
 
