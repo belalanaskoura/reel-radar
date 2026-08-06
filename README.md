@@ -1,4 +1,4 @@
-# ReelAlert
+# ReelRadar
 
 A watchlist app for [Scene Cinemas](https://cfc.scenecinemas.com) (Cairo
 Festival City and District 5): browse everything bookable now or coming
@@ -6,7 +6,7 @@ soon, watchlist a title before it's even listed, and get notified by email
 (and optionally push) the moment tickets go on sale — with a link straight
 to booking.
 
-Live at: _https://reel-alert-lime.vercel.app_
+Live at: _https://reel-radar.vercel.app_
 
 ## Why this exists
 

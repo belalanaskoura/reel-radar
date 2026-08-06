@@ -10,7 +10,7 @@ const RANDOM_SUFFIX_LENGTH = 4;
 
 function randomTopic() {
   const suffix = Math.random().toString(36).slice(2, 2 + RANDOM_SUFFIX_LENGTH);
-  return `reelalert-${suffix}`;
+  return `reelradar-${suffix}`;
 }
 
 export function NtfyOnboarding({ initialTopic }: { initialTopic: string | null }) {
@@ -303,7 +303,7 @@ function DoneStep() {
         You&apos;re set
       </h2>
       <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-        Watchlist a movie and ReelAlert will push a notification the moment
+        Watchlist a movie and ReelRadar will push a notification the moment
         it&apos;s bookable at Cairo Festival City or District 5, with a link
         straight to booking.
       </p>

@@ -15,7 +15,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ReelAlert",
+  title: "ReelRadar",
   description: "Browse what's bookable and coming soon at Scene Cinemas, and get notified the moment tickets go live.",
 };
 

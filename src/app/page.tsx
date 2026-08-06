@@ -50,7 +50,7 @@ export default async function LandingPage() {
           </h1>
 
           <p className="mb-10 max-w-xl text-base sm:text-lg" style={{ color: 'var(--ink-dim)' }}>
-            Cinemas don&apos;t tell you when booking opens. ReelAlert watches
+            Cinemas don&apos;t tell you when booking opens. ReelRadar watches
             for you, and pushes a notification the moment a movie you care
             about is bookable.
           </p>

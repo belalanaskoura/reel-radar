@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { BellIcon } from '@/components/icons';
 
-const DISMISS_KEY = 'reelalert:ntfy-banner-dismissed';
+const DISMISS_KEY = 'reelradar:ntfy-banner-dismissed';
 const listeners = new Set<() => void>();
 
 function subscribe(callback: () => void) {

@@ -103,7 +103,7 @@ export default async function ProfilePage({
                 name="ntfy_topic"
                 type="text"
                 defaultValue={profile?.ntfy_topic ?? ''}
-                placeholder="e.g. reelalert-a1b2c3"
+                placeholder="e.g. reelradar-a1b2c3"
                 className="rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
                 style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
               />

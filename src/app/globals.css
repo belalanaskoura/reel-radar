@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /*
-  ReelAlert palette: matches Scene Cinemas' own brand colors (pulled
+  ReelRadar palette: matches Scene Cinemas' own brand colors (pulled
   directly from cfc.scenecinemas.com's theme stylesheet) -- deep teal
   primary (#00534C) with a mint highlight (#3DDACC) for active/selected
   states, the same role it plays on Scene's own showtime selector.
