@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { isLikelyEgyptRelease } from '@/lib/matching/egypt-distributor-filter';
 import { getEgyptReleaseInfo } from '@/lib/matching/egypt-release-date';
 import { normalizeTitle } from '@/lib/matching/normalize';
+import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
 
 // Runs an array of async tasks with at most `size` in flight at once,
 // preserving input order in the returned results. Used below to keep
@@ -131,9 +132,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Catalog cleanup: a movie whose release_date has passed with zero
+  // Scene listings on either branch is never coming to Egypt cinemas --
+  // see src/lib/matching/remove-unreleasable.ts for why that's a safe
+  // permanent removal rather than just hiding it.
+  const { removed } = await removeUnreleasableMovies(supabase);
+
   return NextResponse.json({
     synced: dedupedRows.length,
     candidates: candidates.length,
     skippedDuplicates,
+    removed,
   });
 }
