@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { NavSearch } from '@/components/NavSearch';
 import { RadarLogo } from '@/components/RadarLogo';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { BellIcon, CinemaIcon, FilmIcon, UserIcon } from '@/components/icons';
 
 export async function NavBar() {
@@ -38,12 +39,13 @@ export async function NavBar() {
         background: 'color-mix(in srgb, var(--bg) 88%, transparent)',
       }}
     >
-      <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-4">
+      <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-2 gap-y-2 px-3 py-3 sm:flex-nowrap sm:gap-x-6 sm:px-6 sm:py-4">
         {/* Wordmark */}
-        <Link href="/" className="flex shrink-0 items-center gap-2.5">
-          <RadarLogo size={28} />
+        <Link href="/" className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
+          <RadarLogo size={24} className="sm:hidden" />
+          <RadarLogo size={28} className="hidden sm:block" />
           <span
-            className="font-display text-xl tracking-wider sm:text-2xl"
+            className="font-display text-base tracking-wider sm:text-2xl"
             style={{ color: 'var(--ink)' }}
           >
             REELRADAR
@@ -56,7 +58,7 @@ export async function NavBar() {
         </Suspense>
 
         {/* Primary nav links — center-ish, pushed right on mobile */}
-        <div className="ml-auto flex items-center gap-1 sm:gap-1">
+        <div className="ml-auto flex min-w-0 items-center gap-0 sm:gap-1">
           <NavLink href="/browse" icon={<FilmIcon size={15} />} label="Browse" />
           {user && (
             <NavLink
@@ -69,19 +71,20 @@ export async function NavBar() {
           <NavLink href="/cinemas" icon={<CinemaIcon size={15} />} label="Cinemas" />
         </div>
 
-        {/* Auth */}
-        <div className="flex items-center gap-2">
+        {/* Theme + Auth */}
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <ThemeToggle />
           {user ? (
             <Link
               href="/account"
-              className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border transition-opacity hover:opacity-70"
+              className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border transition-opacity hover:opacity-70 sm:h-8 sm:w-8"
               style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
               aria-label="Profile"
             >
               {avatarUrl ? (
                 <Image src={avatarUrl} alt="" fill sizes="32px" className="object-cover" />
               ) : (
-                <UserIcon size={15} />
+                <UserIcon size={14} />
               )}
             </Link>
           ) : (
@@ -95,11 +98,11 @@ export async function NavBar() {
               </Link>
               <Link
                 href="/signin"
-                className="flex h-8 w-8 items-center justify-center rounded-full border sm:hidden"
+                className="flex h-7 w-7 items-center justify-center rounded-full border sm:hidden"
                 style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
                 aria-label="Sign in"
               >
-                <UserIcon size={15} />
+                <UserIcon size={14} />
               </Link>
             </>
           )}
@@ -123,14 +126,14 @@ function NavLink({
   return (
     <Link
       href={href}
-      className="relative inline-flex flex-col items-center gap-0.5 rounded-sm px-2 py-1 text-sm transition-colors hover:opacity-70 sm:flex-row sm:gap-1.5 sm:px-3 sm:py-1.5"
+      className="relative inline-flex flex-col items-center gap-0.5 rounded-sm px-1.5 py-1 text-sm transition-colors hover:opacity-70 sm:flex-row sm:gap-1.5 sm:px-3 sm:py-1.5"
       style={{ color: 'var(--ink-dim)' }}
     >
       <span className="relative">
         {icon}
         {!!badgeCount && <NavBadge />}
       </span>
-      <span className="text-[9px] leading-none font-medium tracking-wide sm:text-xs">
+      <span className="text-[8px] leading-none font-medium tracking-wide whitespace-nowrap sm:text-xs">
         {label}
       </span>
     </Link>

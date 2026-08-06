@@ -1,8 +1,25 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Bebas_Neue, Inter } from "next/font/google";
 import { NavBar } from "@/components/NavBar";
 import { SearchProvider } from "@/components/SearchProvider";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
+
+// Runs before first paint (a plain <script>, not a React effect) so the
+// stored theme preference applies immediately -- without this, the page
+// would always paint in the OS-default theme first, then flash to the
+// user's actual saved preference once ThemeProvider's effect ran.
+const NO_FLASH_THEME_SCRIPT = `
+(function() {
+  try {
+    var stored = localStorage.getItem('reelradar:theme');
+    if (stored === 'light' || stored === 'dark') {
+      document.documentElement.setAttribute('data-theme', stored);
+    }
+  } catch (e) {}
+})();
+`;
 
 const bebasNeue = Bebas_Neue({
   variable: "--font-marquee",
@@ -31,12 +48,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${bebasNeue.variable} ${inter.variable}`}>
+    <html lang="en" className={`${bebasNeue.variable} ${inter.variable}`} suppressHydrationWarning>
+      <head>
+        <Script id="no-flash-theme" strategy="beforeInteractive">
+          {NO_FLASH_THEME_SCRIPT}
+        </Script>
+      </head>
       <body className="min-h-screen font-[family-name:var(--font-body)] antialiased">
-        <SearchProvider>
-          <NavBar />
-          {children}
-        </SearchProvider>
+        <ThemeProvider>
+          <SearchProvider>
+            <NavBar />
+            {children}
+          </SearchProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

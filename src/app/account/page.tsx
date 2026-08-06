@@ -9,6 +9,7 @@ import { AvatarUpload } from '@/components/AvatarUpload';
 import { AlertToggles } from '@/components/AlertToggles';
 import { SecurityPanel } from '@/components/SecurityPanel';
 import { PushSubscribeButton } from '@/components/PushSubscribeButton';
+import { ThemeSettings } from '@/components/ThemeSettings';
 import { ArrowRightIcon, BellIcon, BookmarkIcon, SignOutIcon, FilmIcon } from '@/components/icons';
 
 export default async function ProfilePage({
@@ -154,6 +155,14 @@ export default async function ProfilePage({
           >
             Edit Profile
           </Link>
+
+          {/* Appearance */}
+          <div>
+            <p className="mb-1.5 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
+              Appearance
+            </p>
+            <ThemeSettings />
+          </div>
 
           {/* Settings (change password) */}
           <SecurityPanel updatePassword={updatePassword} />
