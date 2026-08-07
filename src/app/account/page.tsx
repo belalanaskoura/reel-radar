@@ -106,8 +106,12 @@ export default async function ProfilePage({
 
       <div className="grid gap-8 lg:grid-cols-[220px_1fr]">
 
-        {/* ── Left: Identity sidebar ─────────────────────────────────── */}
-        <aside className="flex flex-col gap-4">
+        {/* ── Left: Identity + account controls ──────────────────────── */}
+        {/* order-1 on mobile (identity/watchlist first), lg:order-none
+            restores natural DOM order (this is the first grid child either
+            way at desktop width, so order-none is equivalent to order-1
+            there too -- kept explicit for clarity). */}
+        <aside className="order-1 flex flex-col gap-4 lg:order-none">
           <AvatarUpload
             userId={user.id}
             avatarUrl={profile?.avatar_url ?? null}
@@ -155,7 +159,63 @@ export default async function ProfilePage({
           >
             Edit Profile
           </Link>
+        </aside>
 
+        {/* ── Recently added — order-2 on mobile (above Appearance/
+            Settings, below identity), moves into the right column on
+            desktop (lg:order-none, lg:col-start-2) ──────────────────── */}
+        <section className="order-2 lg:order-none lg:col-start-2 lg:row-start-1">
+          <div className="mb-5 flex items-baseline justify-between">
+            <div>
+              <h2
+                className="font-display text-3xl leading-none tracking-wide sm:text-4xl"
+                style={{ color: 'var(--ink)' }}
+              >
+                RECENTLY ADDED
+              </h2>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--ink-dim)' }}>
+                To your watchlist
+              </p>
+            </div>
+            {watchlistCount > 0 && (
+              <Link
+                href="/watchlist"
+                className="shrink-0 text-xs font-semibold tracking-widest uppercase transition-opacity hover:opacity-70"
+                style={{ color: 'var(--accent-dim)' }}
+              >
+                VIEW ALL →
+              </Link>
+            )}
+          </div>
+
+          {recentMovies.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              {recentMovies.map((m) => (
+                <RecentCard key={m.id} movie={m} />
+              ))}
+            </div>
+          ) : (
+            <div
+              className="flex flex-col items-center justify-center rounded-sm border py-12 text-center"
+              style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
+            >
+              <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+                Nothing watchlisted yet.
+              </p>
+              <Link
+                href="/browse"
+                className="mt-3 text-xs font-semibold tracking-widest uppercase transition-opacity hover:opacity-70"
+                style={{ color: 'var(--accent)' }}
+              >
+                BROWSE MOVIES →
+              </Link>
+            </div>
+          )}
+        </section>
+
+        {/* ── Appearance / Settings / Sign out — order-3 on mobile,
+            back into the left sidebar's column on desktop ──────────── */}
+        <div className="order-3 flex flex-col gap-4 lg:order-none lg:col-start-1 lg:row-start-2">
           {/* Appearance */}
           <div>
             <p className="mb-1.5 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
@@ -166,117 +226,66 @@ export default async function ProfilePage({
 
           {/* Settings (change password) */}
           <SecurityPanel updatePassword={updatePassword} />
+        </div>
 
-          {/* Sign out */}
+        {/* ── Alert Preferences — order-4 on mobile, right column on
+            desktop ─────────────────────────────────────────────────── */}
+        <section
+          className="relative order-4 overflow-hidden rounded-sm border p-5 lg:order-none lg:col-start-2 lg:row-start-2"
+          style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
+        >
+          <div
+            className="pointer-events-none absolute right-3 top-3 opacity-[0.07]"
+            style={{ color: 'var(--accent)' }}
+          >
+            <BellIcon size={72} />
+          </div>
+
+          <h2
+            className="font-display mb-1 text-xl leading-none tracking-wide"
+            style={{ color: 'var(--ink)' }}
+          >
+            ALERT PREFERENCES
+          </h2>
+          <p className="mb-5 text-xs" style={{ color: 'var(--ink-dim)' }}>
+            Manage your radar signals.
+          </p>
+
+          <AlertToggles
+            initialValues={{
+              notify_new_releases: profile?.notify_new_releases ?? true,
+              notify_cinema_showtimes: profile?.notify_cinema_showtimes ?? true,
+            }}
+            updateAlertPreferences={updateAlertPreferences}
+          />
+
+          <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
+            <p className="mb-2 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
+              Push notifications
+            </p>
+            <PushSubscribeButton />
+            <Link
+              href="/notifications"
+              className="mt-3 inline-block text-xs underline transition-opacity hover:opacity-70"
+              style={{ color: 'var(--accent-dim)' }}
+            >
+              Setup guide →
+            </Link>
+          </div>
+        </section>
+
+        {/* ── Sign out — always last, on mobile and desktop ──────────── */}
+        <div className="order-5 lg:order-none lg:col-start-1 lg:row-start-3">
           <form action={signout}>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 text-sm transition-opacity hover:opacity-70"
-              style={{ color: 'var(--ink-dim)' }}
+              className="flex w-full items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
+              style={{ borderColor: 'var(--rule)', color: 'var(--ink)' }}
             >
               <SignOutIcon size={15} />
               Sign out
             </button>
           </form>
-        </aside>
-
-        {/* ── Right: Main content ────────────────────────────────────── */}
-        <div className="flex flex-col gap-8">
-
-          {/* Recently added */}
-          <section>
-            <div className="mb-5 flex items-baseline justify-between">
-              <div>
-                <h2
-                  className="font-display text-3xl leading-none tracking-wide sm:text-4xl"
-                  style={{ color: 'var(--ink)' }}
-                >
-                  RECENTLY ADDED
-                </h2>
-                <p className="mt-0.5 text-xs" style={{ color: 'var(--ink-dim)' }}>
-                  To your watchlist
-                </p>
-              </div>
-              {watchlistCount > 0 && (
-                <Link
-                  href="/watchlist"
-                  className="shrink-0 text-xs font-semibold tracking-widest uppercase transition-opacity hover:opacity-70"
-                  style={{ color: 'var(--accent-dim)' }}
-                >
-                  VIEW ALL →
-                </Link>
-              )}
-            </div>
-
-            {recentMovies.length > 0 ? (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                {recentMovies.map((m) => (
-                  <RecentCard key={m.id} movie={m} />
-                ))}
-              </div>
-            ) : (
-              <div
-                className="flex flex-col items-center justify-center rounded-sm border py-12 text-center"
-                style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
-              >
-                <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-                  Nothing watchlisted yet.
-                </p>
-                <Link
-                  href="/browse"
-                  className="mt-3 text-xs font-semibold tracking-widest uppercase transition-opacity hover:opacity-70"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  BROWSE MOVIES →
-                </Link>
-              </div>
-            )}
-          </section>
-
-          {/* Alert Preferences */}
-          <section
-            className="relative overflow-hidden rounded-sm border p-5"
-            style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
-          >
-            <div
-              className="pointer-events-none absolute right-3 top-3 opacity-[0.07]"
-              style={{ color: 'var(--accent)' }}
-            >
-              <BellIcon size={72} />
-            </div>
-
-            <h2
-              className="font-display mb-1 text-xl leading-none tracking-wide"
-              style={{ color: 'var(--ink)' }}
-            >
-              ALERT PREFERENCES
-            </h2>
-            <p className="mb-5 text-xs" style={{ color: 'var(--ink-dim)' }}>
-              Manage your radar signals.
-            </p>
-
-            <AlertToggles
-              initialValues={{
-                notify_new_releases: profile?.notify_new_releases ?? true,
-                notify_cinema_showtimes: profile?.notify_cinema_showtimes ?? true,
-              }}
-              updateAlertPreferences={updateAlertPreferences}
-            />
-
-            <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
-              <p className="mb-2 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
-                Push notifications
-              </p>
-              <PushSubscribeButton />
-              <Link
-                href="/notifications"
-                className="mt-3 inline-block text-xs underline transition-opacity hover:opacity-70"
-                style={{ color: 'var(--accent-dim)' }}
-              >
-                Setup guide →
-              </Link>
-            </div>
-          </section>
         </div>
       </div>
       </div>

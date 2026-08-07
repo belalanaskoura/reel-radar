@@ -1,5 +1,13 @@
 @import 'tailwindcss';
 
+/* Custom breakpoint between the default base and `sm:` (640px) -- the
+   nav needs a size step at real-phone width (~390px, the size of most
+   current phones) without waiting for tablet width. Tailwind v4's
+   default scale has no stop there. */
+@theme {
+  --breakpoint-xs: 390px;
+}
+
 /*
   ReelRadar palette — cinematic dark-first design system.
   Exact values extracted from the Figma design file.
@@ -156,6 +164,21 @@ body {
   .poster-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 0 0 1px var(--rule), 0 0 20px 0 color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  .page-transition {
+    animation: page-transition 0.22s ease both;
+  }
+
+  @keyframes page-transition {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .theme-icon-swap {

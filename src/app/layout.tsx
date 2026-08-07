@@ -4,6 +4,7 @@ import { Bebas_Neue, Inter } from "next/font/google";
 import { NavBar } from "@/components/NavBar";
 import { SearchProvider } from "@/components/SearchProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { PageTransition } from "@/components/PageTransition";
 import "./globals.css";
 
 // Runs before first paint (a plain <script>, not a React effect) so the
@@ -58,7 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider>
           <SearchProvider>
             <NavBar />
-            {children}
+            <PageTransition>{children}</PageTransition>
           </SearchProvider>
         </ThemeProvider>
       </body>
