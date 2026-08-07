@@ -137,7 +137,12 @@ export default async function MovieDetailPage({
         </div>
 
         <div className="mt-6 flex flex-col gap-8 pb-16 sm:flex-row">
-          <div className="flex-1">
+          {/* order-2/order-1 puts showtimes above cast & crew on mobile
+              (booking is the primary action here, reading about cast is
+              secondary) without changing which column either renders in
+              at `sm:`, where flex-row makes DOM order irrelevant to
+              visual position anyway. */}
+          <div className="order-2 flex-1 sm:order-1">
             {details?.tagline && (
               <p className="mb-3 text-sm italic" style={{ color: 'var(--highlight)' }}>
                 {details.tagline}
@@ -210,7 +215,7 @@ export default async function MovieDetailPage({
             )}
           </div>
 
-          <div className="w-full sm:w-72 sm:flex-shrink-0">
+          <div className="order-1 w-full sm:order-2 sm:w-72 sm:flex-shrink-0">
             <h2 className="mb-4 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
               Showtimes
             </h2>

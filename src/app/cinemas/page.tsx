@@ -11,13 +11,23 @@ export default async function CinemasPage() {
   // instead of one round-trip per branch -- showtimes_cache is still the
   // source of truth (same table /browse and the poll job read), just
   // queried once instead of N+1 times.
+  //
+  // Joined through to movies.match_status and filtered the same way the
+  // per-branch page (/cinemas/[id]) and /browse already do: an 'ambiguous'
+  // row (unresolved TMDB match, Phase 5's manual-review queue) is never
+  // shown anywhere in the app, but without this filter a bookable-but-
+  // ambiguous showtime was still counted here -- inflating this page's
+  // number above what the branch detail page (which does filter) shows
+  // for the same branch.
   const [{ data: branches }, { data: bookableRows }] = await Promise.all([
     supabase.from('branches').select('id, name, base_url, address, formats').order('id', { ascending: true }),
-    supabase.from('showtimes_cache').select('branch_id').eq('bookable', true),
+    supabase.from('showtimes_cache').select('branch_id, movies(match_status)').eq('bookable', true),
   ]);
 
   const bookableCountByBranch = new Map<string, number>();
   for (const row of bookableRows ?? []) {
+    const matchStatus = (row.movies as unknown as { match_status: string } | null)?.match_status;
+    if (matchStatus !== 'matched' && matchStatus !== 'unmatched') continue;
     bookableCountByBranch.set(row.branch_id, (bookableCountByBranch.get(row.branch_id) ?? 0) + 1);
   }
 

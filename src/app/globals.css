@@ -153,18 +153,27 @@ body {
      janky and expensive across a whole page. Every component in this app
      consumes the --bg/--ink/etc. custom properties via inline `style`, so
      this one rule is what makes the transition apply everywhere at once
-     rather than needing a transition declared per component. */
+     rather than needing a transition declared per component.
+
+     A longer duration with an ease-in-out curve reads calmer for a
+     whole-page repaint than the previous 0.25s `ease` did -- `ease`
+     front-loads most of its motion in the first third, which read as an
+     abrupt snap followed by a slow fade-out across dozens of elements
+     changing at once. ease-in-out spreads the motion evenly instead. */
   *, *::before, *::after {
-    transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, fill 0.25s ease, stroke 0.25s ease;
+    transition: background-color 0.4s ease-in-out, border-color 0.4s ease-in-out, color 0.4s ease-in-out, fill 0.4s ease-in-out, stroke 0.4s ease-in-out;
   }
 
   /* Route content remounts (key={pathname}) on every navigation, which
      would otherwise replay the color transition above on every themed
      element on the page at once, stacking with the slide/fade below and
-     making navigation feel sluggish on mobile -- color transitions are
-     only wanted on an actual theme switch, not on mount, so freshly
-     mounted page content opts out of them entirely. */
-  .page-transition, .page-transition * {
+     making navigation feel sluggish on mobile. PageTransition applies
+     this class only for the brief window right after mount (see that
+     component), not permanently -- an earlier version of this rule
+     targeted `.page-transition` directly and unconditionally, which
+     killed the theme crossfade for the entire page body at all times
+     (everything but the nav bar), not just during a route change. */
+  .no-color-transition, .no-color-transition * {
     transition: none;
   }
 
