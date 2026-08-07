@@ -38,7 +38,11 @@ export default async function CinemaDetailPage({
       | { id: string; title: string; poster_path: string | null; match_status: string }
       | null;
     if (!m) return [];
-    if (!['matched', 'unmatched'].includes(m.match_status)) return [];
+    // 'ambiguous' is allowed through here too, matching /browse's rule:
+    // a row reaching this point already has a real movie_branch_slugs
+    // link for this branch, i.e. Scene genuinely lists it, regardless of
+    // whether TMDB matching resolved cleanly.
+    if (!['matched', 'unmatched', 'ambiguous'].includes(m.match_status)) return [];
     const cache = cacheByMovieId.get(m.id);
     return [{
       id: m.id,
