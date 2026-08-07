@@ -1,3 +1,4 @@
+import type { User } from '@supabase/supabase-js';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -40,18 +41,28 @@ export async function NavBar() {
       }}
     >
       <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-2 gap-y-2 px-3 py-3 xs:gap-x-3 sm:flex-nowrap sm:gap-x-6 sm:px-6 sm:py-4">
-        {/* Wordmark */}
-        <Link href="/" className="flex shrink-0 items-center gap-1.5 xs:gap-2 sm:gap-2.5">
-          <RadarLogo size={24} className="xs:hidden" />
-          <RadarLogo size={27} className="hidden xs:block sm:hidden" />
-          <RadarLogo size={28} className="hidden sm:block" />
-          <span
-            className="font-display text-base tracking-wider xs:text-lg sm:text-2xl"
-            style={{ color: 'var(--ink)' }}
-          >
-            REELRADAR
-          </span>
-        </Link>
+        {/* Wordmark + (mobile only) theme/auth -- kept in one flex-nowrap
+            row so they can never be split onto different lines by the
+            nav-links group below growing wider (e.g. a 3rd signed-in-only
+            link) and eating the last of the row's width. */}
+        <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-start">
+          <Link href="/" className="flex shrink-0 items-center gap-1.5 xs:gap-2 sm:gap-2.5">
+            <RadarLogo size={24} className="xs:hidden" />
+            <RadarLogo size={27} className="hidden xs:block sm:hidden" />
+            <RadarLogo size={28} className="hidden sm:block" />
+            <span
+              className="font-display text-base tracking-wider xs:text-lg sm:text-2xl"
+              style={{ color: 'var(--ink)' }}
+            >
+              REELRADAR
+            </span>
+          </Link>
+
+          <div className="flex shrink-0 items-center gap-1.5 xs:gap-2 sm:hidden">
+            <ThemeToggle />
+            <AuthSlot user={user} avatarUrl={avatarUrl} />
+          </div>
+        </div>
 
         {/* Search — only renders on /browse */}
         <Suspense fallback={null}>
@@ -74,43 +85,10 @@ export async function NavBar() {
           <NavLink href="/cinemas" iconSize={15} iconSizeXs={17} label="Cinemas" icon={CinemaIcon} />
         </div>
 
-        {/* Theme + Auth */}
-        <div className="flex shrink-0 items-center gap-1.5 xs:gap-2">
+        {/* Theme + Auth — desktop only here, duplicated above for mobile */}
+        <div className="hidden shrink-0 items-center gap-1.5 xs:gap-2 sm:flex">
           <ThemeToggle />
-          {user ? (
-            <Link
-              href="/account"
-              className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border transition-opacity hover:opacity-70 xs:h-8 xs:w-8 sm:h-8 sm:w-8"
-              style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-              aria-label="Profile"
-            >
-              {avatarUrl ? (
-                <Image src={avatarUrl} alt="" fill sizes="32px" className="object-cover" />
-              ) : (
-                <UserIcon size={14} className="xs:hidden" />
-              )}
-              {!avatarUrl && <UserIcon size={16} className="hidden xs:block" />}
-            </Link>
-          ) : (
-            <>
-              <Link
-                href="/signin"
-                className="hidden rounded-sm border px-4 py-1.5 text-xs font-semibold tracking-wide transition-opacity hover:opacity-80 sm:inline-block"
-                style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-              >
-                SIGN IN
-              </Link>
-              <Link
-                href="/signin"
-                className="flex h-7 w-7 items-center justify-center rounded-full border xs:h-8 xs:w-8 sm:hidden"
-                style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                aria-label="Sign in"
-              >
-                <UserIcon size={14} className="xs:hidden" />
-                <UserIcon size={16} className="hidden xs:block" />
-              </Link>
-            </>
-          )}
+          <AuthSlot user={user} avatarUrl={avatarUrl} />
         </div>
       </nav>
     </header>
@@ -157,5 +135,46 @@ function NavBadge() {
       style={{ background: 'var(--accent)' }}
       aria-hidden="true"
     />
+  );
+}
+
+function AuthSlot({ user, avatarUrl }: { user: User | null; avatarUrl: string | null }) {
+  if (user) {
+    return (
+      <Link
+        href="/account"
+        className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border transition-opacity hover:opacity-70 xs:h-8 xs:w-8 sm:h-8 sm:w-8"
+        style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+        aria-label="Profile"
+      >
+        {avatarUrl ? (
+          <Image src={avatarUrl} alt="" fill sizes="32px" className="object-cover" />
+        ) : (
+          <UserIcon size={14} className="xs:hidden" />
+        )}
+        {!avatarUrl && <UserIcon size={16} className="hidden xs:block" />}
+      </Link>
+    );
+  }
+
+  return (
+    <>
+      <Link
+        href="/signin"
+        className="hidden rounded-sm border px-4 py-1.5 text-xs font-semibold tracking-wide transition-opacity hover:opacity-80 sm:inline-block"
+        style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+      >
+        SIGN IN
+      </Link>
+      <Link
+        href="/signin"
+        className="flex h-7 w-7 items-center justify-center rounded-full border xs:h-8 xs:w-8 sm:hidden"
+        style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+        aria-label="Sign in"
+      >
+        <UserIcon size={14} className="xs:hidden" />
+        <UserIcon size={16} className="hidden xs:block" />
+      </Link>
+    </>
   );
 }

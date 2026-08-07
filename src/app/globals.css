@@ -158,6 +158,16 @@ body {
     transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, fill 0.25s ease, stroke 0.25s ease;
   }
 
+  /* Route content remounts (key={pathname}) on every navigation, which
+     would otherwise replay the color transition above on every themed
+     element on the page at once, stacking with the slide/fade below and
+     making navigation feel sluggish on mobile -- color transitions are
+     only wanted on an actual theme switch, not on mount, so freshly
+     mounted page content opts out of them entirely. */
+  .page-transition, .page-transition * {
+    transition: none;
+  }
+
   .poster-card {
     transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
