@@ -17,19 +17,25 @@ export default async function MovieDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: movieRow } = await supabase
-    .from('movies')
-    .select(
-      `id, tmdb_id, title, release_date, poster_path,
-       movie_branch_slugs (branch_id, slug, branches (name)),
-       showtimes_cache (branch_id, bookable, raw_showtimes, branches (name))`,
-    )
-    .eq('id', id)
-    .maybeSingle();
+  // Independent of each other (the movie lookup doesn't need `user`), so
+  // run concurrently rather than as two sequential round-trips.
+  const [
+    {
+      data: { user },
+    },
+    { data: movieRow },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase
+      .from('movies')
+      .select(
+        `id, tmdb_id, title, release_date, poster_path,
+         movie_branch_slugs (branch_id, slug, branches (name)),
+         showtimes_cache (branch_id, bookable, raw_showtimes, branches (name))`,
+      )
+      .eq('id', id)
+      .maybeSingle(),
+  ]);
 
   if (!movieRow) notFound();
   const movie = movieRow as unknown as MovieRow;

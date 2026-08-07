@@ -6,10 +6,6 @@ import type { MovieCardData } from '@/components/MovieCard';
 export default async function BrowsePage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   // Fetches every browsable movie once: search, the status filter, and
   // pagination all run client-side against this full set, so typing
   // filters instantly with no network round-trip per keystroke. Limit
@@ -24,12 +20,23 @@ export default async function BrowsePage() {
   // failed TMDB match (findTmdbMatch only overwrites title/poster on a
   // confirmed match), so it's exactly the Scene-sourced title, safe to
   // show. Being listed on the real site is what matters most here.
-  const { data: movies } = await supabase
-    .from('movies')
-    .select('id, title, release_date, poster_path, match_status, showtimes_cache(branch_id, bookable, raw_showtimes, branches(name))')
-    .in('match_status', ['matched', 'unmatched', 'ambiguous'])
-    .order('release_date', { ascending: true, nullsFirst: false })
-    .limit(2000);
+  //
+  // The movie catalog fetch doesn't depend on `user`, so it runs
+  // concurrently with the auth check rather than waiting on it.
+  const [
+    {
+      data: { user },
+    },
+    { data: movies },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase
+      .from('movies')
+      .select('id, title, release_date, poster_path, match_status, showtimes_cache(branch_id, bookable, raw_showtimes, branches(name))')
+      .in('match_status', ['matched', 'unmatched', 'ambiguous'])
+      .order('release_date', { ascending: true, nullsFirst: false })
+      .limit(2000),
+  ]);
 
   const visibleMovies = (movies ?? []).filter(
     (m) => m.match_status !== 'ambiguous' || (m.showtimes_cache ?? []).length > 0,
@@ -38,17 +45,11 @@ export default async function BrowsePage() {
   let watchedIds: string[] = [];
   let showPushBanner = false;
   if (user) {
-    const { data: watchlistRows } = await supabase
-      .from('watchlist')
-      .select('movie_id')
-      .eq('user_id', user.id);
+    const [{ data: watchlistRows }, { data: subscriptions }] = await Promise.all([
+      supabase.from('watchlist').select('movie_id').eq('user_id', user.id),
+      supabase.from('push_subscriptions').select('id').eq('user_id', user.id).limit(1),
+    ]);
     watchedIds = (watchlistRows ?? []).map((r) => r.movie_id);
-
-    const { data: subscriptions } = await supabase
-      .from('push_subscriptions')
-      .select('id')
-      .eq('user_id', user.id)
-      .limit(1);
     showPushBanner = !subscriptions || subscriptions.length === 0;
   }
 

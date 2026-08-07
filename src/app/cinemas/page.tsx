@@ -6,26 +6,20 @@ import { MapPinIcon, ArrowRightIcon } from '@/components/icons';
 export default async function CinemasPage() {
   const supabase = await createClient();
 
-  const { data: branches } = await supabase
-    .from('branches')
-    .select('id, name, base_url, address, formats')
-    .order('id', { ascending: true });
+  // Branches and bookable counts fetched concurrently rather than
+  // sequentially, and the counts come from one query grouped client-side
+  // instead of one round-trip per branch -- showtimes_cache is still the
+  // source of truth (same table /browse and the poll job read), just
+  // queried once instead of N+1 times.
+  const [{ data: branches }, { data: bookableRows }] = await Promise.all([
+    supabase.from('branches').select('id, name, base_url, address, formats').order('id', { ascending: true }),
+    supabase.from('showtimes_cache').select('branch_id').eq('bookable', true),
+  ]);
 
-  // Bookable-movie count per branch, computed live rather than cached on
-  // `branches` itself: showtimes_cache is the source of truth (same table
-  // /browse and the poll job read), and a plain count query here is cheap
-  // -- no need to duplicate it into a denormalized column that could drift.
-  const counts = await Promise.all(
-    (branches ?? []).map(async (b) => {
-      const { count } = await supabase
-        .from('showtimes_cache')
-        .select('*', { count: 'exact', head: true })
-        .eq('branch_id', b.id)
-        .eq('bookable', true);
-      return [b.id, count ?? 0] as const;
-    }),
-  );
-  const bookableCountByBranch = new Map(counts);
+  const bookableCountByBranch = new Map<string, number>();
+  for (const row of bookableRows ?? []) {
+    bookableCountByBranch.set(row.branch_id, (bookableCountByBranch.get(row.branch_id) ?? 0) + 1);
+  }
 
   return (
     <main className="relative overflow-x-hidden">

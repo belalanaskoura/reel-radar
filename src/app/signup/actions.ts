@@ -14,5 +14,5 @@ export async function signup(formData: FormData) {
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect('/notifications');
+  redirect('/notifications?from=signup');
 }

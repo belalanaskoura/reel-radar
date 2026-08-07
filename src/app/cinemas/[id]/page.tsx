@@ -13,27 +13,23 @@ export default async function CinemaDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: branch } = await supabase
-    .from('branches')
-    .select('id, name, base_url, address, formats')
-    .eq('id', id)
-    .maybeSingle();
+  // All three filter on `id` alone (the route param, known upfront) --
+  // none actually depends on another's result, so they run concurrently
+  // instead of as three sequential round-trips.
+  const [{ data: branch }, { data: slugRows }, { data: cacheRows }] = await Promise.all([
+    supabase.from('branches').select('id, name, base_url, address, formats').eq('id', id).maybeSingle(),
+    // Same match_status filter /browse applies: 'ambiguous' rows have no
+    // clean, confirmed title yet (Phase 5's manual-review queue) and
+    // shouldn't be shown anywhere in the app until resolved, not just on
+    // browse.
+    supabase
+      .from('movie_branch_slugs')
+      .select('movie_id, slug, movies(id, title, poster_path, match_status)')
+      .eq('branch_id', id),
+    supabase.from('showtimes_cache').select('movie_id, bookable, raw_showtimes').eq('branch_id', id),
+  ]);
 
   if (!branch) notFound();
-
-  // Same match_status filter /browse applies: 'ambiguous' rows have no
-  // clean, confirmed title yet (Phase 5's manual-review queue) and
-  // shouldn't be shown anywhere in the app until resolved, not just on
-  // browse.
-  const { data: slugRows } = await supabase
-    .from('movie_branch_slugs')
-    .select('movie_id, slug, movies(id, title, poster_path, match_status)')
-    .eq('branch_id', id);
-
-  const { data: cacheRows } = await supabase
-    .from('showtimes_cache')
-    .select('movie_id, bookable, raw_showtimes')
-    .eq('branch_id', id);
 
   const cacheByMovieId = new Map((cacheRows ?? []).map((c) => [c.movie_id, c]));
 

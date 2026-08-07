@@ -41,7 +41,7 @@ async function getExistingSubscription(): Promise<PushSubscription | null> {
 // server about the resulting subscription (or removing it). Renders as a
 // single button whose label/action reflects the current subscription
 // state, checked on mount rather than assumed.
-export function PushSubscribeButton() {
+export function PushSubscribeButton({ hideIosInstallHint = false }: { hideIosInstallHint?: boolean } = {}) {
   const [status, setStatus] = useState<Status>('checking');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +139,7 @@ export function PushSubscribeButton() {
   }
 
   if (status === 'needs-install') {
+    if (hideIosInstallHint) return null;
     return (
       <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
         On iPhone/iPad, Safari only allows notifications for sites added to
