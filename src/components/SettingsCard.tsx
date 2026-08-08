@@ -1,49 +1,112 @@
-import type { ReactNode } from 'react';
+'use client';
 
-// Shared shell for every settings section on /account -- title, one-line
-// description, optional corner icon watermark (matches the Alert
-// Preferences card's original treatment), consistent border/background.
-// Before this, some sections had their own bordered card and others were
-// bare controls with a plain text label, which is part of why the page
-// read as an unstructured stack rather than a list of distinct settings.
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { ChevronDownIcon } from '@/components/icons';
+
+// Collapsible settings row: closed by default, a plain header (no
+// border/fill) until tapped, expanding in place to reveal its content in
+// a bordered panel. Replaces the earlier always-open bordered card for
+// every section on /account/edit -- with five-plus of those stacked
+// vertically the page read as a wall of filled boxes; collapsed rows let
+// only the section someone's actually adjusting take up that visual
+// weight.
+//
+// Animates a real measured pixel height, not `grid-template-rows: 0fr/1fr`
+// (an earlier version of this component). That fr-unit trick is
+// technically animatable but browsers don't interpolate it as smoothly as
+// a real height -- it read as an abrupt snap rather than a genuine ease,
+// especially for taller sections like Identity or Cinema Alerts. A
+// ResizeObserver keeps the measured height correct if the content's own
+// height changes while open (e.g. CinemaAlertsCard's branch grid), not
+// just at the moment of toggling.
 export function SettingsCard({
   title,
   description,
   icon,
+  defaultOpen = false,
   children,
 }: {
   title: string;
   description?: string;
   icon?: ReactNode;
+  defaultOpen?: boolean;
   children: ReactNode;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+
+  // Measures synchronously before paint so a defaultOpen card renders at
+  // its real height on first frame instead of starting from 0 and
+  // visibly animating open on load.
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (el) setHeight(el.scrollHeight);
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el || !open) return;
+
+    const observer = new ResizeObserver(() => setHeight(el.scrollHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [open]);
+
+  function toggle() {
+    // Re-measure right before opening so height reflects any content
+    // that changed while collapsed (e.g. a value loaded async), rather
+    // than animating to a stale number from mount.
+    if (!open && contentRef.current) setHeight(contentRef.current.scrollHeight);
+    setOpen((o) => !o);
+  }
+
   return (
-    <section
-      className="relative overflow-hidden rounded-sm border p-5"
-      style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
-    >
-      {icon && (
-        <div
-          className="pointer-events-none absolute top-3 right-3 opacity-[0.07]"
-          style={{ color: 'var(--accent)' }}
-        >
-          {icon}
-        </div>
-      )}
-
-      <h2
-        className="font-display mb-1 text-xl leading-none tracking-wide"
-        style={{ color: 'var(--ink)' }}
+    <div className="border-b" style={{ borderColor: 'var(--rule)' }}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 py-4 text-left transition-opacity hover:opacity-80"
       >
-        {title}
-      </h2>
-      {description && (
-        <p className="mb-5 text-xs" style={{ color: 'var(--ink-dim)' }}>
-          {description}
-        </p>
-      )}
+        {icon && (
+          <div className="shrink-0" style={{ color: 'var(--accent)' }}>
+            {icon}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-lg leading-none tracking-wide" style={{ color: 'var(--ink)' }}>
+            {title}
+          </h2>
+          {description && (
+            <p className="mt-1 truncate text-xs" style={{ color: 'var(--ink-dim)' }}>
+              {description}
+            </p>
+          )}
+        </div>
+        <ChevronDownIcon
+          size={18}
+          className="shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.65,0,0.35,1)]"
+          style={{ color: 'var(--ink-dim)', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        />
+      </button>
 
-      {children}
-    </section>
+      <div
+        className="overflow-hidden transition-[height] duration-300 ease-[cubic-bezier(0.65,0,0.35,1)]"
+        style={{ height: open ? height : 0 }}
+      >
+        <div
+          ref={contentRef}
+          className="pb-5 transition-[opacity,transform] duration-200 ease-out"
+          style={{
+            opacity: open ? 1 : 0,
+            transform: open ? 'translateY(0)' : 'translateY(-4px)',
+            transitionDelay: open ? '100ms' : '0ms',
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
   );
 }

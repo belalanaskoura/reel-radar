@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDownIcon } from '@/components/icons';
+import { useAnimatedOpen } from '@/lib/useAnimatedOpen';
 
 export interface CinemaOption {
   id: string;
@@ -19,6 +20,7 @@ export function CinemaFilterDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { mounted, animationClass } = useAnimatedOpen(open);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -53,10 +55,10 @@ export function CinemaFilterDropdown({
           style={{ color: 'var(--ink)', transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s ease' }}
         />
       </button>
-      {open && (
+      {mounted && (
         <ul
           role="listbox"
-          className="absolute top-full right-0 z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border shadow-lg"
+          className={`absolute top-full right-0 z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-lg border shadow-lg ${animationClass}`}
           style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
         >
           <li>
@@ -82,7 +84,7 @@ export function CinemaFilterDropdown({
                 role="option"
                 aria-selected={value === cinema.id}
                 onClick={() => select(cinema.id)}
-                className="block min-h-11 w-full px-4 py-2.5 text-left text-sm hover:opacity-80"
+                className="block min-h-11 w-full px-4 py-2.5 text-left text-sm transition-[opacity,background-color,color] duration-150 hover:opacity-80"
                 style={{
                   color: value === cinema.id ? 'var(--accent)' : 'var(--ink)',
                   background: value === cinema.id ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',

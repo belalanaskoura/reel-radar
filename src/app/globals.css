@@ -321,4 +321,40 @@ body {
       opacity: 0;
     }
   }
+
+  /* FilterDropdown/CinemaFilterDropdown's menu -- previously a bare
+     `{open && (...)}` conditional with no transition at all, so the menu
+     snapped in and vanished instantly (the only animated part was the
+     chevron). Applied on both open and close via a `closing` class the
+     component toggles instead of unmounting immediately, so the menu
+     fades/scales out instead of disappearing mid-frame. Origin at the
+     top since both dropdowns anchor `top-full` below their trigger. */
+  .dropdown-menu-in {
+    animation: dropdown-menu-in 0.15s ease both;
+  }
+  .dropdown-menu-out {
+    animation: dropdown-menu-out 0.12s ease both;
+  }
+
+  @keyframes dropdown-menu-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  @keyframes dropdown-menu-out {
+    from {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.96) translateY(-4px);
+    }
+  }
 }
