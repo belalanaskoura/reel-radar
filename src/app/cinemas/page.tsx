@@ -20,7 +20,10 @@ export default async function CinemasPage() {
   // stricter filter here previously undercounted relative to what the
   // branch detail page actually showed for the same branch.
   const [{ data: branches }, { data: bookableRows }] = await Promise.all([
-    supabase.from('branches').select('id, name, base_url, address, formats').order('id', { ascending: true }),
+    supabase
+      .from('branches')
+      .select('id, name, base_url, address, formats, chain, logo_url')
+      .order('id', { ascending: true }),
     supabase.from('showtimes_cache').select('branch_id, movies(match_status)').eq('bookable', true),
   ]);
 
@@ -66,13 +69,24 @@ export default async function CinemasPage() {
                 className="pointer-events-none relative h-28 shrink-0 sm:h-auto sm:w-64"
                 style={{ background: '#000000' }}
               >
-                <Image
-                  src="/SceneCinemasLogo.jpg"
-                  alt="Scene Cinemas"
-                  fill
-                  sizes="(max-width: 640px) 100vw, 256px"
-                  className="object-contain p-6 sm:p-8"
-                />
+                {branch.logo_url ? (
+                  <Image
+                    src={branch.logo_url}
+                    alt={branch.chain === 'vox' ? 'VOX Cinemas' : 'Scene Cinemas'}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 256px"
+                    className="object-contain p-6 sm:p-8"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <span
+                      className="font-display text-lg tracking-widest uppercase"
+                      style={{ color: 'var(--ink-dim)' }}
+                    >
+                      {branch.chain === 'vox' ? 'VOX Cinemas' : 'Scene Cinemas'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="pointer-events-none relative flex flex-1 flex-col gap-2 p-5 sm:p-6">
@@ -97,7 +111,7 @@ export default async function CinemasPage() {
 
                 {branch.address && (
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${branch.name} Scene Cinemas, ${branch.address}`)}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${branch.name}, ${branch.address}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="pointer-events-auto relative z-10 flex w-fit items-start gap-1.5 hover:opacity-80"

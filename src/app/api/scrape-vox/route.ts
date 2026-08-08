@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchVoxShowtimes } from '@/lib/elcinema/vox-showtimes';
 import { sleep, REQUEST_DELAY_MS } from '@/lib/elcinema/fetcher';
-import { VOX_ELCINEMA_THEATER_IDS, type VoxBranchId } from '@/lib/branches';
+import { VOX_ELCINEMA_THEATER_IDS, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 
 const VOX_BRANCHES = Object.keys(VOX_ELCINEMA_THEATER_IDS) as VoxBranchId[];
 const DAYS_AHEAD = 5; // confirmed rolling window: today through +4 have real showtimes, +5 is always empty
@@ -35,7 +35,11 @@ export async function POST(request: Request) {
     const theaterId = VOX_ELCINEMA_THEATER_IDS[branch];
 
     const titleByElcinemaId = new Map<number, string>();
-    const bookableDatesByElcinemaId = new Map<number, string[]>();
+    // Full per-day, per-format, per-showtime detail (times, prices) --
+    // not just which dates are bookable -- so the movie detail page can
+    // show real VOX showtimes the same way it does for Scene, instead of
+    // just a "bookable" flag with a generic outbound link.
+    const dayDetailsByElcinemaId = new Map<number, VoxDayDetail[]>();
     let addressBackfill: string | null = null;
 
     for (let dayOffset = 0; dayOffset < DAYS_AHEAD; dayOffset++) {
@@ -46,15 +50,12 @@ export async function POST(request: Request) {
       if (!addressBackfill && day.address) addressBackfill = day.address;
 
       for (const movie of day.movies) {
-        const hasShowtimes = movie.formats.some((f) => f.showtimes.length > 0);
-        if (!hasShowtimes) continue;
+        const formatsWithShowtimes = movie.formats.filter((f) => f.showtimes.length > 0);
+        if (formatsWithShowtimes.length === 0) continue;
         titleByElcinemaId.set(movie.elcinemaId, movie.title);
-        // A movie can have multiple format blocks (e.g. "Standard" and
-        // "MAX VIP") on the same day -- dedupe so raw_showtimes represents
-        // distinct bookable days, not one entry per format.
-        const dates = bookableDatesByElcinemaId.get(movie.elcinemaId) ?? [];
-        if (!dates.includes(date)) dates.push(date);
-        bookableDatesByElcinemaId.set(movie.elcinemaId, dates);
+        const details = dayDetailsByElcinemaId.get(movie.elcinemaId) ?? [];
+        details.push({ date, formats: formatsWithShowtimes });
+        dayDetailsByElcinemaId.set(movie.elcinemaId, details);
       }
     }
 
@@ -120,16 +121,16 @@ export async function POST(request: Request) {
         }
       }
 
-      const dates = bookableDatesByElcinemaId.get(elcinemaId) ?? [];
-      if (dates.length > 0) bookableCount += 1;
+      const dayDetails = dayDetailsByElcinemaId.get(elcinemaId) ?? [];
+      if (dayDetails.length > 0) bookableCount += 1;
 
       await supabase.from('showtimes_cache').upsert(
         {
           movie_id: movieId,
           branch_id: branch,
-          bookable: dates.length > 0,
+          bookable: dayDetails.length > 0,
           last_checked_at: new Date().toISOString(),
-          raw_showtimes: dates,
+          raw_showtimes: dayDetails,
         },
         { onConflict: 'movie_id,branch_id' },
       );

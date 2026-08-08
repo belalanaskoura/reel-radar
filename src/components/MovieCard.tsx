@@ -22,6 +22,7 @@ export function MovieCard({
 }) {
   const poster = posterUrl(movie.poster_path);
   const isBookable = movie.branches?.some((b) => b.bookable) ?? false;
+  const isListed = (movie.branches?.length ?? 0) > 0;
   // Once bookable, adding to a watchlist no longer serves its purpose --
   // the whole point was to get notified of this transition, which has
   // already happened. Still let existing watchers remove it, though.
@@ -54,12 +55,16 @@ export function MovieCard({
             No poster yet
           </div>
         )}
-        {isBookable && (
+        {isListed && (
           <span
             className="absolute top-2 right-2 rounded px-2 py-1 text-[10px] font-bold tracking-wider uppercase"
-            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+            style={
+              isBookable
+                ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
+                : { background: 'var(--listed-bg)', color: 'var(--listed-ink)' }
+            }
           >
-            Bookable
+            {isBookable ? 'Bookable' : 'Listed'}
           </span>
         )}
       </div>
@@ -78,24 +83,7 @@ export function MovieCard({
           </p>
         )}
 
-        {movie.branches && movie.branches.length > 0 ? (
-          <div className="pointer-events-auto relative z-10 mt-1 flex min-w-0 flex-col gap-1">
-            {movie.branches.map((b) => (
-              <Link
-                key={b.branch_id}
-                href={`/cinemas/${b.branch_id}`}
-                className="block w-full min-w-0 overflow-hidden rounded-sm px-0.5 py-1 text-center text-[8px] leading-tight font-bold tracking-normal whitespace-nowrap uppercase transition-opacity hover:opacity-80"
-                style={
-                  b.bookable
-                    ? { background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }
-                    : { background: 'var(--listed-bg)', color: 'var(--listed-ink)' }
-                }
-              >
-                {b.branch_name} {b.bookable ? 'Booking' : 'Listed'}
-              </Link>
-            ))}
-          </div>
-        ) : (
+        {!isListed && (
           <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
             Not listed yet
           </p>

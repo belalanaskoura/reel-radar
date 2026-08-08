@@ -26,3 +26,24 @@ export function formatSceneDateLabel(date: string): string {
   const parsed = new Date(Number(year), Number(month) - 1, Number(day));
   return parsed.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
+
+// elCinema/VOX's own date format (YYYY-MM-DD, ISO) -- a distinct format
+// from Scene's dd-mm-yyyy above, so these are separate functions rather
+// than one shared parser guessing at the input shape.
+export function parseIsoDate(date: string): Date {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function filterFutureIsoDates(dates: string[]): string[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return dates.filter((date) => parseIsoDate(date) >= today);
+}
+
+export function formatIsoDateLabel(date: string): string {
+  const [year, month, day] = date.split('-');
+  if (!day || !month || !year) return date;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+  return parsed.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}

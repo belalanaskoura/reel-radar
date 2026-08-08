@@ -4,10 +4,12 @@ import { createClient } from '@/lib/supabase/server';
 import { fetchMovieDetails, fetchCredits, fetchPersonImdbId } from '@/lib/tmdb';
 import { posterUrl, backdropUrl, profileUrl } from '@/lib/tmdb-image';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
-import { filterFutureDates } from '@/lib/scene/dates';
+import { filterFutureDates, filterFutureIsoDates } from '@/lib/scene/dates';
+import { chainForBranch, voxBranchShowtimesUrl, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { getFallbackCredits, type CreditsCastMember } from '@/lib/matching/credits';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { ShowtimePicker } from '@/components/ShowtimePicker';
+import { VoxShowtimePicker } from '@/components/VoxShowtimePicker';
 import { MovieDetailTabs } from '@/components/MovieDetailTabs';
 
 export default async function MovieDetailPage({
@@ -122,8 +124,20 @@ export default async function MovieDetailPage({
               (s) => s.branch_id === cache.branch_id,
             );
             const branchName = cache.branches?.name ?? cache.branch_id;
-            const futureDates = Array.isArray(cache.raw_showtimes)
-              ? filterFutureDates(cache.raw_showtimes as string[])
+            const isVox = chainForBranch(cache.branch_id) === 'vox';
+            const futureDates =
+              !isVox && Array.isArray(cache.raw_showtimes)
+                ? filterFutureDates(cache.raw_showtimes as string[])
+                : [];
+            // VOX rows store real per-day showtime detail (see
+            // scrape-vox), not a plain date array like Scene -- filter to
+            // future days and keep only the matching detail objects.
+            const voxDays: VoxDayDetail[] = isVox && Array.isArray(cache.raw_showtimes)
+              ? filterFutureIsoDates(
+                  (cache.raw_showtimes as VoxDayDetail[]).map((d) => d.date),
+                )
+                  .map((date) => (cache.raw_showtimes as VoxDayDetail[]).find((d) => d.date === date))
+                  .filter((d): d is VoxDayDetail => !!d)
               : [];
             return (
               <li
@@ -135,7 +149,24 @@ export default async function MovieDetailPage({
                   {branchName}
                 </p>
                 {cache.bookable ? (
-                  slugRow && futureDates.length > 0 ? (
+                  isVox ? (
+                    voxDays.length > 0 ? (
+                      <VoxShowtimePicker
+                        days={voxDays}
+                        branchShowtimesUrl={voxBranchShowtimesUrl(cache.branch_id as VoxBranchId)}
+                      />
+                    ) : (
+                      <a
+                        href={voxBranchShowtimesUrl(cache.branch_id as VoxBranchId)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block rounded-sm px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
+                        style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                      >
+                        View on VOX Cinemas&rsquo; site &rarr;
+                      </a>
+                    )
+                  ) : slugRow && futureDates.length > 0 ? (
                     <>
                       <p className="mb-2 text-xs" style={{ color: 'var(--ok-ink)' }}>
                         Bookable, pick a day
