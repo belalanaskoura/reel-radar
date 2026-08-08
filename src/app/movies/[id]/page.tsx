@@ -198,7 +198,7 @@ export default async function MovieDetailPage({
                       className="inline-block rounded-sm px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
                       style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                     >
-                      Select showtime on Scene &rarr;
+                      Select showtime on Scene Cinemas&rsquo; site &rarr;
                     </a>
                   ) : null
                 ) : (

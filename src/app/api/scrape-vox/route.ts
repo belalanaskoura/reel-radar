@@ -14,8 +14,12 @@ const DAYS_AHEAD = 5; // confirmed rolling window: today through +4 have real sh
 // list into showtimes_cache. Same shape as scrape-scene, except elCinema
 // has no cheap bookability-only check (see fetchVoxShowtimes) so this
 // route does the full 5-day fetch upfront per branch instead of a
-// per-movie fetch -- 3 branches x 5 days = 15 requests per full run,
-// comfortably inside the external scheduler's 30s budget.
+// per-movie fetch -- 5 requests per branch (5 days x 1s REQUEST_DELAY_MS).
+// Confirmed for real against the live deployment: one branch takes
+// ~10-13s, so all 3 branches in a single call (the ?branch-omitted path)
+// reliably blows past the external scheduler's 30s timeout -- that must
+// be scheduled as 3 separate ?branch= jobs, same as scrape-scene's own
+// cfc/district5 split, not as one combined job.
 export async function POST(request: Request) {
   const secret = request.headers.get('x-sync-secret');
   if (secret !== process.env.SYNC_SECRET) {

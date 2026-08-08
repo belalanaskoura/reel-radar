@@ -34,13 +34,16 @@ export async function POST(request: Request) {
   const branchesToScrape: BranchId[] = branchParam ? [branchParam as BranchId] : BRANCHES;
 
   const supabase = createServiceRoleClient();
-  const results: Record<string, { listed: number; bookable: number }> = {};
+  const results: Record<string, { listed: number; bookable: number; delisted: number }> = {};
 
   for (const branch of branchesToScrape) {
     const listings = await fetchAllListings(branch);
     let bookableCount = 0;
+    let delistedCount = 0;
+    const seenSlugs = new Set<string>();
 
     for (const listing of listings) {
+      seenSlugs.add(listing.slug);
       // Find an existing slug link for this branch, or create a
       // placeholder movie + link if this slug hasn't been seen before.
       const { data: existingLink } = await supabase
@@ -137,7 +140,38 @@ export async function POST(request: Request) {
       );
     }
 
-    results[branch] = { listed: listings.length, bookable: bookableCount };
+    // A movie previously linked to this branch but absent from this
+    // run's listings has been pulled from Scene's site entirely (its own
+    // page now returns the "invalid slug" message rather than a real
+    // 404, per Phase 0's finding, so its detail page can't signal this on
+    // its own). Without this, a delisted movie's last-known
+    // showtimes_cache row (bookable: true, real dates) sits unchanged
+    // forever, since nothing else ever revisits it -- /api/poll only
+    // covers watchlisted movies, and this scraper otherwise only ever
+    // touches slugs still present in the current listing. Confirmed for
+    // real: a movie pulled from CFC's site kept showing a stale bookable
+    // date days after it stopped being bookable there.
+    const { data: knownSlugs } = await supabase
+      .from('movie_branch_slugs')
+      .select('movie_id, slug')
+      .eq('branch_id', branch);
+
+    const delistedMovieIds = (knownSlugs ?? [])
+      .filter((row) => !seenSlugs.has(row.slug))
+      .map((row) => row.movie_id);
+
+    if (delistedMovieIds.length > 0) {
+      const { data: cleared } = await supabase
+        .from('showtimes_cache')
+        .update({ bookable: false, raw_showtimes: [], last_checked_at: new Date().toISOString() })
+        .eq('branch_id', branch)
+        .eq('bookable', true)
+        .in('movie_id', delistedMovieIds)
+        .select('movie_id');
+      delistedCount = cleared?.length ?? 0;
+    }
+
+    results[branch] = { listed: listings.length, bookable: bookableCount, delisted: delistedCount };
   }
 
   return NextResponse.json(results);
