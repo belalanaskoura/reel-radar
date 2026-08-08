@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BellIcon, PlusSquareIcon, ShareIcon, SmartphoneIcon } from '@/components/icons';
 import { PushSubscribeButton } from '@/components/PushSubscribeButton';
+import { BranchSubscriptionToggles, type BranchOption } from '@/components/BranchSubscriptionToggles';
 
 // Only iOS needs the "add to Home Screen first" steps -- rendering them
 // unconditionally (the previous version) meant every non-iOS visitor saw
@@ -23,7 +24,17 @@ function useIsIos(): boolean {
 // multi-step wizard here -- one card holds the explainer, the button,
 // and (iOS only) the Home Screen steps, instead of stacking separate
 // cards that mostly repeat the same "turn on notifications" message.
-export function PushOnboarding({ showSkip = true }: { showSkip?: boolean }) {
+export function PushOnboarding({
+  showSkip = true,
+  branches,
+  initialBranchSubscription,
+  updateBranchSubscriptions,
+}: {
+  showSkip?: boolean;
+  branches?: BranchOption[];
+  initialBranchSubscription?: string[] | null;
+  updateBranchSubscriptions?: (branchIds: string[] | null) => Promise<{ error: string | null }>;
+}) {
   const isIos = useIsIos();
 
   return (
@@ -71,6 +82,19 @@ export function PushOnboarding({ showSkip = true }: { showSkip?: boolean }) {
         <div className="mt-5 flex justify-center">
           <PushSubscribeButton hideIosInstallHint={isIos} />
         </div>
+
+        {branches && branches.length > 0 && updateBranchSubscriptions && (
+          <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
+            <p className="mb-3 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
+              Showtime alerts by cinema
+            </p>
+            <BranchSubscriptionToggles
+              branches={branches}
+              initialValue={initialBranchSubscription ?? null}
+              updateBranchSubscriptions={updateBranchSubscriptions}
+            />
+          </div>
+        )}
       </div>
 
       {showSkip && (

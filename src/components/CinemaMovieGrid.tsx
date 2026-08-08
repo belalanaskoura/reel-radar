@@ -27,11 +27,13 @@ export function CinemaMovieGrid({
   branchShortName,
   movies,
   dates,
+  chain,
 }: {
   branchId: string;
   branchShortName: string;
   movies: CinemaMovie[];
   dates: CinemaDate[];
+  chain: 'scene' | 'vox';
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export function CinemaMovieGrid({
 
   return (
     <div className="flex flex-col gap-6">
-      {dates.length > 0 && (
+      {chain === 'scene' && dates.length > 0 && (
         <div className="flex flex-col gap-3">
           <h2 className="font-display text-xl tracking-wide uppercase" style={{ color: 'var(--ink)' }}>
             Select date
@@ -155,7 +157,7 @@ export function CinemaMovieGrid({
                         : { background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }
                     }
                   >
-                    {branchShortName}: {movie.bookable ? 'Booking' : 'Listed'}
+                    {movie.bookable ? 'Bookable' : 'Listed'}
                   </span>
                 </div>
                 <p

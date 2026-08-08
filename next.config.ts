@@ -21,7 +21,14 @@ const nextConfig: NextConfig = {
     localPatterns: [
       { pathname: '/api/scene-poster' },
       { pathname: '/SceneCinemasLogo.jpg' },
+      { pathname: '/Vox_Cinemas_Logo.svg' },
     ],
+    // The VOX logo is an SVG -- Next.js blocks SVGs through next/image by
+    // default (they can embed scripts), so this needs an explicit opt-in.
+    // Only ever used for our own local logo assets under public/, never a
+    // remote/user-supplied source, so the usual SVG-XSS concern doesn't
+    // apply here.
+    dangerouslyAllowSVG: true,
     remotePatterns: [
       {
         protocol: 'https',

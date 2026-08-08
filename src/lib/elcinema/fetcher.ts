@@ -16,7 +16,7 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function get(url: string): Promise<string> {
+export async function fetchElCinemaHtml(url: string): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -42,7 +42,7 @@ export interface BoxOfficeEntry {
 // against the site's own filter form (`year`/`week`, not path segments).
 export async function fetchBoxOfficeWeek(year: number, week: number): Promise<BoxOfficeEntry[]> {
   const url = `${BASE_URL}/en/boxoffice/EG?country=EG&year=${year}&week=${week}`;
-  const html = await get(url);
+  const html = await fetchElCinemaHtml(url);
   const $ = cheerio.load(html);
 
   const entries: BoxOfficeEntry[] = [];
@@ -105,7 +105,7 @@ function parseElCinemaDate(dayMonthText: string, yearText: string): string | nul
 // every work page: a real day-level date, not just the release year.
 export async function fetchWorkDetails(elcinemaId: number): Promise<ElCinemaWorkDetails> {
   const url = `${BASE_URL}/en/work/${elcinemaId}/`;
-  const html = await get(url);
+  const html = await fetchElCinemaHtml(url);
   const $ = cheerio.load(html);
 
   const title = $('h1 .left').first().text().trim();
@@ -198,7 +198,7 @@ export interface ElCinemaSearchResult {
 // yet in the historical box-office backfill, e.g. a brand-new release).
 export async function searchElCinema(query: string): Promise<ElCinemaSearchResult[]> {
   const url = `${BASE_URL}/en/search/?q=${encodeURIComponent(query)}`;
-  const html = await get(url);
+  const html = await fetchElCinemaHtml(url);
   const $ = cheerio.load(html);
 
   const results: ElCinemaSearchResult[] = [];
