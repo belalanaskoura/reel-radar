@@ -3,8 +3,11 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { checkBookability } from '@/lib/scene/fetcher';
 import { notifyBookablePush } from '@/lib/push';
 import { notifyBookableByEmail } from '@/lib/email';
-import type { BranchId } from '@/lib/scene/types';
+import type { BranchId as SceneBranchId } from '@/lib/scene/types';
 import { BRANCH_BASE_URLS } from '@/lib/scene/types';
+import { chainForBranch, VOX_ELCINEMA_THEATER_IDS, voxBranchShowtimesUrl, type VoxBranchId } from '@/lib/branches';
+import { fetchVoxShowtimes } from '@/lib/elcinema/vox-showtimes';
+import { sleep as elcinemaSleep, REQUEST_DELAY_MS as ELCINEMA_DELAY_MS } from '@/lib/elcinema/fetcher';
 
 // The centralized poll job: checks bookability for every (movie, branch)
 // pair that at least one user is watching, never per-user (per the
@@ -40,33 +43,65 @@ export async function POST(request: Request) {
   let notified = 0;
 
   for (const row of slugRows ?? []) {
-    const branch = row.branch_id as BranchId;
-    const movieDetailsUrl = `${BRANCH_BASE_URLS[branch]}/movie-details/${row.slug}.html`;
+    const branch = row.branch_id;
+    const chain = chainForBranch(branch);
 
-    const bookability = await checkBookability(movieDetailsUrl);
-    checked += 1;
-
+    // Read the previous state before writing the new one, so wasBookable
+    // reflects last poll's result, not this one.
     const { data: existingCache } = await supabase
       .from('showtimes_cache')
       .select('bookable')
       .eq('movie_id', row.movie_id)
       .eq('branch_id', branch)
       .maybeSingle();
-
     const wasBookable = existingCache?.bookable ?? false;
 
-    await supabase.from('showtimes_cache').upsert(
-      {
-        movie_id: row.movie_id,
-        branch_id: branch,
-        bookable: bookability.bookable,
-        last_checked_at: new Date().toISOString(),
-        raw_showtimes: bookability.availableDates,
-      },
-      { onConflict: 'movie_id,branch_id' },
-    );
+    let bookable: boolean;
+    let bookingUrl: string;
 
-    if (!bookability.bookable) {
+    if (chain === 'scene') {
+      const sceneBranch = branch as SceneBranchId;
+      const movieDetailsUrl = `${BRANCH_BASE_URLS[sceneBranch]}/movie-details/${row.slug}.html`;
+      const bookability = await checkBookability(movieDetailsUrl);
+      bookable = bookability.bookable;
+      bookingUrl = movieDetailsUrl;
+
+      await supabase.from('showtimes_cache').upsert(
+        {
+          movie_id: row.movie_id,
+          branch_id: branch,
+          bookable,
+          last_checked_at: new Date().toISOString(),
+          raw_showtimes: bookability.availableDates,
+        },
+        { onConflict: 'movie_id,branch_id' },
+      );
+    } else {
+      // VOX has no cheap bookability-only check (every elCinema request
+      // returns full showtime detail) and no per-movie/per-showtime
+      // booking link -- every VOX branch just links to VOX's homepage.
+      // Only today is checked here (1 request); the fuller 5-day
+      // raw_showtimes list is scrape-vox's job, so this deliberately
+      // updates bookable/last_checked_at only and leaves raw_showtimes
+      // alone rather than overwriting it with a 1-day snapshot.
+      const theaterId = VOX_ELCINEMA_THEATER_IDS[branch as VoxBranchId];
+      const today = new Date().toISOString().slice(0, 10);
+      await elcinemaSleep(ELCINEMA_DELAY_MS);
+      const day = await fetchVoxShowtimes(theaterId, today);
+      const movie = day.movies.find((m) => String(m.elcinemaId) === row.slug);
+      bookable = !!movie && movie.formats.some((f) => f.showtimes.length > 0);
+      bookingUrl = voxBranchShowtimesUrl(branch as VoxBranchId);
+
+      await supabase
+        .from('showtimes_cache')
+        .update({ bookable, last_checked_at: new Date().toISOString() })
+        .eq('movie_id', row.movie_id)
+        .eq('branch_id', branch);
+    }
+
+    checked += 1;
+
+    if (!bookable) {
       if (wasBookable) {
         // Transitioned back to not-bookable: clear the log so a future
         // re-opening (added showtimes, re-release) notifies again.
@@ -82,7 +117,7 @@ export async function POST(request: Request) {
 
     if (wasBookable) continue; // already bookable last poll, nothing new
 
-    notified += await notifyWatchers(supabase, row.movie_id, branch, movieDetailsUrl);
+    notified += await notifyWatchers(supabase, row.movie_id, branch, bookingUrl);
   }
 
   return NextResponse.json({ checked, notified });
@@ -91,7 +126,7 @@ export async function POST(request: Request) {
 async function notifyWatchers(
   supabase: ReturnType<typeof createServiceRoleClient>,
   movieId: string,
-  branch: BranchId,
+  branch: string,
   bookingUrl: string,
 ): Promise<number> {
   const { data: movie } = await supabase.from('movies').select('title').eq('id', movieId).single();
@@ -116,11 +151,19 @@ async function notifyWatchers(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('email, notify_cinema_showtimes')
+      .select('email, notify_cinema_showtimes, subscribed_branch_ids')
       .eq('id', watcher.user_id)
       .single();
 
     if (!profile?.notify_cinema_showtimes) continue;
+    // null means "every branch" (the default, and what every existing
+    // user effectively had before this column existed) -- only a
+    // non-null array narrows to specific branches. Not logged as
+    // notified: if this user later subscribes to this branch, they
+    // should still be able to see this movie is already bookable here,
+    // not have it permanently marked "already told you" for a
+    // notification they never actually got.
+    if (profile.subscribed_branch_ids && !profile.subscribed_branch_ids.includes(branch)) continue;
     if (!profile.email) continue; // nothing to notify with, skip entirely
 
     const payload = { movieTitle: movie.title, branchName: branchRow.name, bookingUrl };

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { posterUrl } from '@/lib/tmdb-image';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
+import { chainForBranch, voxBranchShowtimesUrl, type VoxBranchId } from '@/lib/branches';
 import { TicketIcon, TrashIcon } from '@/components/icons';
 import { SortToggle, type SortDirection } from '@/components/SortToggle';
 import { removeFromWatchlist } from '@/app/watchlist/actions';
@@ -148,16 +149,20 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
                         {cache.bookable ? (
                           <>
                             <span style={{ color: 'var(--ok-ink)' }}>Bookable</span>
-                            {Array.isArray(cache.raw_showtimes) &&
+                            {/* VOX rows store real per-day showtime detail objects
+                                here, not a plain date string[] like Scene -- this
+                                inline date list only makes sense for Scene. */}
+                            {chainForBranch(cache.branch_id) !== 'vox' &&
+                              Array.isArray(cache.raw_showtimes) &&
                               cache.raw_showtimes.length > 0 && (
                                 <span className="tabular-nums" style={{ color: 'var(--ink-dim)' }}>
                                   {' '}
-                                  ({cache.raw_showtimes.join(', ')})
+                                  ({(cache.raw_showtimes as string[]).join(', ')})
                                 </span>
                               )}
-                            {slugRow && (
+                            {chainForBranch(cache.branch_id) === 'vox' ? (
                               <a
-                                href={sceneMovieUrl(cache.branch_id, slugRow.slug)}
+                                href={voxBranchShowtimesUrl(cache.branch_id as VoxBranchId)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="ml-2 underline"
@@ -165,6 +170,18 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
                               >
                                 Book now
                               </a>
+                            ) : (
+                              slugRow && (
+                                <a
+                                  href={sceneMovieUrl(cache.branch_id, slugRow.slug)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-2 underline"
+                                  style={{ color: 'var(--accent)' }}
+                                >
+                                  Book now
+                                </a>
+                              )
                             )}
                           </>
                         ) : (

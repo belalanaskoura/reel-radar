@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { ArrowLeftIcon, MapPinIcon } from '@/components/icons';
 import { CinemaMovieGrid, type CinemaMovie, type CinemaDate } from '@/components/CinemaMovieGrid';
 import { parseSceneDate, filterFutureDates, formatSceneDateLabel } from '@/lib/scene/dates';
+import { voxBranchShowtimesUrl, type VoxBranchId } from '@/lib/branches';
 
 export default async function CinemaDetailPage({
   params,
@@ -17,7 +18,11 @@ export default async function CinemaDetailPage({
   // none actually depends on another's result, so they run concurrently
   // instead of as three sequential round-trips.
   const [{ data: branch }, { data: slugRows }, { data: cacheRows }] = await Promise.all([
-    supabase.from('branches').select('id, name, base_url, address, formats').eq('id', id).maybeSingle(),
+    supabase
+      .from('branches')
+      .select('id, name, base_url, address, formats, chain, logo_url')
+      .eq('id', id)
+      .maybeSingle(),
     // Same match_status filter /browse applies: 'ambiguous' rows have no
     // clean, confirmed title yet (Phase 5's manual-review queue) and
     // shouldn't be shown anywhere in the app until resolved, not just on
@@ -57,10 +62,18 @@ export default async function CinemaDetailPage({
   // showtime on: the union of every bookable movie's cached available
   // dates, deduplicated and sorted -- not a fixed "next 5 days" window,
   // since a branch's actual bookable range varies by what's playing.
+  // Scene-only: VOX's showtimes_cache.raw_showtimes holds real per-day
+  // showtime detail objects, not a plain date string[] (see
+  // src/lib/branches.ts's VoxDayDetail) -- CinemaMovieGrid's date-tab
+  // picker this feeds is already gated to chain === 'scene', so this
+  // stays empty for VOX branches rather than trying to parse VOX's shape
+  // as a Scene date.
   const allDates = new Set<string>();
-  for (const cache of cacheRows ?? []) {
-    if (cache.bookable && Array.isArray(cache.raw_showtimes)) {
-      for (const d of cache.raw_showtimes as string[]) allDates.add(d);
+  if (branch.chain !== 'vox') {
+    for (const cache of cacheRows ?? []) {
+      if (cache.bookable && Array.isArray(cache.raw_showtimes)) {
+        for (const d of cache.raw_showtimes as string[]) allDates.add(d);
+      }
     }
   }
   const sortedDates = filterFutureDates([...allDates]).sort(
@@ -109,17 +122,18 @@ export default async function CinemaDetailPage({
           branchShortName={branchShortName}
           movies={movies}
           dates={dates}
+          chain={branch.chain === 'vox' ? 'vox' : 'scene'}
         />
 
         {branch.address && (
           <div className="mt-10 flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-display text-xl tracking-wide uppercase" style={{ color: 'var(--ink)' }}>
-                Find us
+                Location
               </h2>
             </div>
             <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${branch.name} Scene Cinemas, ${branch.address}`)}`}
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${branch.name}, ${branch.address}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 rounded-lg p-4 transition-opacity hover:opacity-80"
@@ -137,13 +151,13 @@ export default async function CinemaDetailPage({
         )}
 
         <a
-          href={branch.base_url}
+          href={branch.chain === 'vox' ? voxBranchShowtimesUrl(branch.id as VoxBranchId) : branch.base_url}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-8 inline-block text-xs underline"
           style={{ color: 'var(--accent-dim)' }}
         >
-          View {branch.name} on Scene Cinemas&apos; site
+          View {branch.name} on {branch.chain === 'vox' ? "VOX Cinemas'" : "Scene Cinemas'"} site
         </a>
       </div>
     </main>

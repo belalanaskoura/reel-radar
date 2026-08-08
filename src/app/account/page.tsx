@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { posterUrl } from '@/lib/tmdb-image';
 import { signout } from '../signin/actions';
-import { updateAlertPreferences, updatePassword } from './actions';
+import { updateAlertPreferences, updateBranchSubscriptions, updatePassword } from './actions';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import { AlertToggles } from '@/components/AlertToggles';
+import { BranchSubscriptionToggles } from '@/components/BranchSubscriptionToggles';
 import { SecurityPanel } from '@/components/SecurityPanel';
 import { PushSubscribeButton } from '@/components/PushSubscribeButton';
 import { ThemeSettings } from '@/components/ThemeSettings';
+import { sortBranchesForDisplay } from '@/lib/branches';
 import { ArrowRightIcon, BellIcon, BookmarkIcon, SignOutIcon, FilmIcon } from '@/components/icons';
 
 export default async function ProfilePage({
@@ -25,10 +27,10 @@ export default async function ProfilePage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/signin');
 
-  const [profileResult, countResult, recentResult] = await Promise.all([
+  const [profileResult, countResult, recentResult, branchesResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('avatar_url, notify_new_releases, notify_cinema_showtimes, display_name')
+      .select('avatar_url, notify_new_releases, notify_cinema_showtimes, subscribed_branch_ids, display_name')
       .eq('id', user.id)
       .single(),
     supabase
@@ -41,10 +43,12 @@ export default async function ProfilePage({
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(4),
+    supabase.from('branches').select('id, name'),
   ]);
 
   const profile = profileResult.data;
   const watchlistCount = countResult.count ?? 0;
+  const orderedBranches = sortBranchesForDisplay(branchesResult.data ?? []);
 
   type RecentMovie = {
     id: string;
@@ -258,6 +262,19 @@ export default async function ProfilePage({
             }}
             updateAlertPreferences={updateAlertPreferences}
           />
+
+          {orderedBranches.length > 0 && (
+            <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
+              <p className="mb-3 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
+                Showtime alerts by cinema
+              </p>
+              <BranchSubscriptionToggles
+                branches={orderedBranches}
+                initialValue={profile?.subscribed_branch_ids ?? null}
+                updateBranchSubscriptions={updateBranchSubscriptions}
+              />
+            </div>
+          )}
 
           <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
             <p className="mb-2 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>

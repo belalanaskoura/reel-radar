@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { MovieCard, type MovieCardData } from '@/components/MovieCard';
 import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
+import { CinemaFilterDropdown, type CinemaOption } from '@/components/CinemaFilterDropdown';
 import { useSearchQuery } from '@/components/SearchProvider';
 
 // Matches each word of the query independently against the start of any
@@ -24,10 +25,12 @@ export function BrowseGrid({
   movies,
   watchedIds,
   isSignedIn,
+  cinemas,
 }: {
   movies: MovieCardData[];
   watchedIds: string[];
   isSignedIn: boolean;
+  cinemas: CinemaOption[];
 }) {
   // Search lives in SearchProvider's context, written by the nav bar's
   // search input (NavSearch), rendered separately, above this component
@@ -36,6 +39,7 @@ export function BrowseGrid({
   // triggering a navigation per keystroke (see SearchProvider).
   const { query } = useSearchQuery();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [cinemaFilter, setCinemaFilter] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const watchedIdSet = useMemo(() => new Set(watchedIds), [watchedIds]);
 
@@ -53,6 +57,10 @@ export function BrowseGrid({
       result = result.filter(
         (m) => m.branches && m.branches.length > 0 && !m.branches.some((b) => b.bookable),
       );
+    }
+
+    if (cinemaFilter) {
+      result = result.filter((m) => m.branches?.some((b) => b.branch_id === cinemaFilter));
     }
 
     if (query.trim()) {
@@ -82,7 +90,7 @@ export function BrowseGrid({
     });
 
     return result;
-  }, [movies, statusFilter, query]);
+  }, [movies, statusFilter, cinemaFilter, query]);
 
   // "Load More" appends in place rather than paging, so how many items
   // are currently visible is local UI state, not something worth
@@ -94,8 +102,8 @@ export function BrowseGrid({
   // during render, is how this component notices without an effect) so
   // switching filters doesn't leave a previous search's worth of extra
   // rows rendered against a possibly much smaller new result set.
-  const [prevFilterKey, setPrevFilterKey] = useState(`${query}:${statusFilter}`);
-  const filterKey = `${query}:${statusFilter}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(`${query}:${statusFilter}:${cinemaFilter}`);
+  const filterKey = `${query}:${statusFilter}:${cinemaFilter}`;
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
     setVisibleCount(PAGE_SIZE);
@@ -123,7 +131,10 @@ export function BrowseGrid({
             <>{filtered.length} movies</>
           )}
         </p>
-        <FilterDropdown value={statusFilter} onChange={updateStatusFilter} />
+        <div className="flex flex-wrap items-center gap-2">
+          <CinemaFilterDropdown cinemas={cinemas} value={cinemaFilter} onChange={setCinemaFilter} />
+          <FilterDropdown value={statusFilter} onChange={updateStatusFilter} />
+        </div>
       </div>
 
       {filtered.length === 0 ? (

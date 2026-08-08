@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { PushOnboarding } from '@/components/PushOnboarding';
+import { updateBranchSubscriptions } from '@/app/account/actions';
+import { sortBranchesForDisplay } from '@/lib/branches';
 
 // Setup for the browser push channel, the only notification channel this
 // app currently sends (skippable when landing here fresh post-signup; a
@@ -23,6 +25,11 @@ export default async function NotificationsPage({
 
   if (!user) redirect('/signin');
 
+  const [{ data: profile }, { data: branches }] = await Promise.all([
+    supabase.from('profiles').select('subscribed_branch_ids').eq('id', user.id).single(),
+    supabase.from('branches').select('id, name'),
+  ]);
+
   return (
     <main className="mx-auto max-w-md px-4 py-8 sm:py-14">
       <div className="mb-6 text-center sm:mb-8">
@@ -34,7 +41,12 @@ export default async function NotificationsPage({
         </p>
       </div>
 
-      <PushOnboarding showSkip={from === 'signup'} />
+      <PushOnboarding
+        showSkip={from === 'signup'}
+        branches={sortBranchesForDisplay(branches ?? [])}
+        initialBranchSubscription={profile?.subscribed_branch_ids ?? null}
+        updateBranchSubscriptions={updateBranchSubscriptions}
+      />
     </main>
   );
 }

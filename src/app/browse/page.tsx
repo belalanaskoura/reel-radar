@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { BrowseGrid } from '@/components/BrowseGrid';
 import { PushBanner } from '@/components/PushBanner';
 import type { MovieCardData } from '@/components/MovieCard';
+import { sortBranchesForDisplay } from '@/lib/branches';
 
 export default async function BrowsePage() {
   const supabase = await createClient();
@@ -28,6 +29,7 @@ export default async function BrowsePage() {
       data: { user },
     },
     { data: movies },
+    { data: branches },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase
@@ -36,6 +38,7 @@ export default async function BrowsePage() {
       .in('match_status', ['matched', 'unmatched', 'ambiguous'])
       .order('release_date', { ascending: true, nullsFirst: false })
       .limit(2000),
+    supabase.from('branches').select('id, name').order('id', { ascending: true }),
   ]);
 
   const visibleMovies = (movies ?? []).filter(
@@ -90,7 +93,12 @@ export default async function BrowsePage() {
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 pb-10 sm:px-6 sm:pb-14">
-        <BrowseGrid movies={movieCards} watchedIds={watchedIds} isSignedIn={!!user} />
+        <BrowseGrid
+          movies={movieCards}
+          watchedIds={watchedIds}
+          isSignedIn={!!user}
+          cinemas={sortBranchesForDisplay(branches ?? []).map((b) => ({ id: b.id, name: b.name }))}
+        />
       </div>
     </main>
   );

@@ -30,6 +30,37 @@ export async function updateAlertPreferences(values: {
   return { error: null };
 }
 
+// null means "every branch" (this project's default -- see /api/poll's
+// notifyWatchers), so selecting every branch in the UI is stored back as
+// null rather than an explicit array listing all of them: a branch added
+// later should be included automatically, not silently excluded because
+// it wasn't on the list at save time.
+export async function updateBranchSubscriptions(
+  branchIds: string[] | null,
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/signin');
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ subscribed_branch_ids: branchIds })
+    .eq('id', user.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/account');
+  revalidatePath('/notifications');
+  return { error: null };
+}
+
 export async function updateDisplayName(formData: FormData) {
   const displayName = (formData.get('display_name') as string).trim();
 
