@@ -1,13 +1,14 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
-import { fetchMovieDetails, fetchCredits } from '@/lib/tmdb';
+import { fetchMovieDetails, fetchCredits, fetchPersonImdbId } from '@/lib/tmdb';
 import { posterUrl, backdropUrl, profileUrl } from '@/lib/tmdb-image';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { filterFutureDates } from '@/lib/scene/dates';
 import { getFallbackCredits, type CreditsCastMember } from '@/lib/matching/credits';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { ShowtimePicker } from '@/components/ShowtimePicker';
+import { MovieDetailTabs } from '@/components/MovieDetailTabs';
 
 export default async function MovieDetailPage({
   params,
@@ -75,19 +76,104 @@ export default async function MovieDetailPage({
         name: c.name,
         character: c.character || null,
         photoUrl: profileUrl(c.profile_path),
+        tmdbPersonId: c.id,
       }))
     : (fallbackCredits?.cast ?? []);
-  const creditsSource = hasTmdbCredits ? null : fallbackCredits?.source;
+  const creditsSource = hasTmdbCredits ? null : (fallbackCredits?.source ?? null);
+
+  // Real IMDb profile links (imdb.com/name/nm...) instead of a name
+  // search, for every person with a TMDB person id -- elCinema/Scene
+  // fallback credits have no id at all and keep using a search link
+  // (built client-side in MovieDetailTabs). Fetched in parallel so the
+  // up-to-13 extra TMDB calls don't add up in wall-clock time; each is
+  // independently best-effort (fetchPersonImdbId never throws), so one
+  // failed/unmatched lookup can't take down the rest of the cast's links.
+  const personIdsToResolve = [
+    ...(tmdbDirector ? [tmdbDirector.id] : []),
+    ...cast.map((c) => c.tmdbPersonId).filter((id): id is number => id != null),
+  ];
+  const imdbIdEntries = await Promise.all(
+    personIdsToResolve.map(async (personId) => [personId, await fetchPersonImdbId(personId)] as const),
+  );
+  const imdbIdByPersonId = new Map(imdbIdEntries);
+  const directorImdbId = tmdbDirector ? (imdbIdByPersonId.get(tmdbDirector.id) ?? null) : null;
+  const castWithImdbIds: CreditsCastMember[] = cast.map((c) => ({
+    ...c,
+    imdbId: c.tmdbPersonId != null ? (imdbIdByPersonId.get(c.tmdbPersonId) ?? null) : null,
+  }));
 
   const backdrop = backdropUrl(details?.backdrop_path ?? null);
   const poster = posterUrl(details?.poster_path ?? movie.poster_path);
   const isBookable = movie.showtimes_cache.some((c) => c.bookable);
   const showWatchlistControl = !!user && (isWatchlisted || !isBookable);
+  const releaseDate = movie.release_date ?? details?.release_date ?? null;
+  const releaseYear = releaseDate ? releaseDate.slice(0, 4) : null;
+
+  const showtimes = (
+    <>
+      {movie.showtimes_cache.length === 0 ? (
+        <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+          Not listed yet.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-4">
+          {movie.showtimes_cache.map((cache) => {
+            const slugRow = movie.movie_branch_slugs.find(
+              (s) => s.branch_id === cache.branch_id,
+            );
+            const branchName = cache.branches?.name ?? cache.branch_id;
+            const futureDates = Array.isArray(cache.raw_showtimes)
+              ? filterFutureDates(cache.raw_showtimes as string[])
+              : [];
+            return (
+              <li
+                key={cache.branch_id}
+                className="rounded-sm border p-3"
+                style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+              >
+                <p className="mb-1 text-sm font-medium" style={{ color: 'var(--ink)' }}>
+                  {branchName}
+                </p>
+                {cache.bookable ? (
+                  slugRow && futureDates.length > 0 ? (
+                    <>
+                      <p className="mb-2 text-xs" style={{ color: 'var(--ok-ink)' }}>
+                        Bookable, pick a day
+                      </p>
+                      <ShowtimePicker
+                        branchId={cache.branch_id}
+                        slug={slugRow.slug}
+                        dates={futureDates}
+                      />
+                    </>
+                  ) : slugRow ? (
+                    <a
+                      href={sceneMovieUrl(cache.branch_id, slugRow.slug)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block rounded-sm px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
+                      style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                    >
+                      Select showtime on Scene &rarr;
+                    </a>
+                  ) : null
+                ) : (
+                  <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
+                    Listed, not bookable yet
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
+  );
 
   return (
     <main>
       <div
-        className="relative aspect-video max-h-[70vh] min-h-56 w-full overflow-hidden sm:min-h-80"
+        className="relative aspect-video max-h-[70vh] min-h-64 w-full overflow-hidden sm:min-h-96"
         style={{ background: 'var(--bg-elevated)' }}
       >
         {backdrop && (
@@ -97,186 +183,83 @@ export default async function MovieDetailPage({
             fill
             priority
             sizes="100vw"
-            className="object-cover object-top opacity-50"
+            className="object-cover object-top opacity-60"
           />
         )}
+        {/* Fixed-dark scrim, independent of the light/dark theme tokens:
+            the title/year/director text sitting on top is always white,
+            so the gradient behind it must always be dark for contrast,
+            even in light mode where var(--bg) is pale and would wash
+            the text out. Only the very bottom sliver blends into the
+            page's real --bg so the transition into the content below
+            still respects the active theme. */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(180deg, transparent 40%, var(--bg) 100%)',
+              'linear-gradient(180deg, transparent 20%, rgba(6,8,8,0.92) 96%), linear-gradient(0deg, var(--bg) 0%, transparent 12%)',
           }}
         />
-      </div>
 
-      <div className="mx-auto max-w-5xl px-4 sm:px-6">
-        <div className="-mt-16 flex flex-col gap-4 sm:-mt-32 sm:flex-row sm:gap-6">
+        <div className="absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-5xl items-end gap-4 px-4 pb-4 sm:gap-6 sm:px-6 sm:pb-6">
           <div
-            className="relative aspect-[2/3] w-28 flex-shrink-0 overflow-hidden rounded-sm shadow-lg sm:w-48"
-            style={{ background: 'var(--listed-bg)' }}
+            className="relative aspect-[2/3] w-20 flex-shrink-0 overflow-hidden rounded-sm shadow-lg sm:w-36"
+            style={{ background: 'var(--listed-bg)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
           >
-            {poster && <Image src={poster} alt={movie.title} fill sizes="200px" className="object-cover" />}
+            {poster && <Image src={poster} alt={movie.title} fill sizes="150px" className="object-cover" />}
           </div>
 
-          <div className="flex flex-1 flex-col justify-end gap-2 pb-2">
-            <h1 className="font-display text-3xl leading-none sm:text-5xl" style={{ color: 'var(--ink)' }}>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5 pb-1">
+            <h1
+              className="font-display text-2xl leading-[0.95] break-words sm:text-5xl"
+              style={{ color: '#fff', textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}
+            >
               {movie.title}
             </h1>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm tabular-nums" style={{ color: 'var(--ink-dim)' }}>
-              <span>
-                {(movie.release_date ?? details?.release_date)
-                  ? `${isBookable ? 'Released on' : 'Release Date'} ${movie.release_date ?? details?.release_date}`
-                  : 'Release date TBA'}
-              </span>
-              {details?.runtime ? <span>{details.runtime} min</span> : null}
-              {details?.genres && details.genres.length > 0 && (
-                <span>{details.genres.map((g) => g.name).join(', ')}</span>
+            <div
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums sm:text-sm"
+              style={{ color: 'rgba(255,255,255,0.8)' }}
+            >
+              {releaseYear && <span>{releaseYear}</span>}
+              {director && (
+                <>
+                  <span aria-hidden="true">&middot;</span>
+                  <span>Directed by {director}</span>
+                </>
               )}
+              {details?.runtime ? (
+                <>
+                  <span aria-hidden="true">&middot;</span>
+                  <span>{details.runtime} min</span>
+                </>
+              ) : null}
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="mt-6 flex flex-col gap-8 pb-16 sm:flex-row">
-          {/* order-2/order-1 puts showtimes above cast & crew on mobile
-              (booking is the primary action here, reading about cast is
-              secondary) without changing which column either renders in
-              at `sm:`, where flex-row makes DOM order irrelevant to
-              visual position anyway. */}
-          <div className="order-2 flex-1 sm:order-1">
-            {details?.tagline && (
-              <p className="mb-3 text-sm italic" style={{ color: 'var(--highlight)' }}>
-                {details.tagline}
-              </p>
-            )}
-            {details?.overview && (
-              <p className="max-w-2xl text-sm leading-relaxed" style={{ color: 'var(--ink)' }}>
-                {details.overview}
-              </p>
-            )}
-
-            {showWatchlistControl && (
-              <div className="mt-6">
-                <WatchlistButton movieId={movie.id} isWatchlisted={isWatchlisted} />
-              </div>
-            )}
-
-            {(director || cast.length > 0) && (
-              <div className="mt-10">
-                <div className="mb-4 flex items-baseline justify-between gap-3">
-                  <h2 className="text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
-                    Cast &amp; crew
-                  </h2>
-                  {creditsSource && (
-                    <span className="text-[11px]" style={{ color: 'var(--ink-dim)' }}>
-                      via {creditsSource === 'elcinema' ? 'elCinema' : 'Scene Cinemas'}
-                    </span>
-                  )}
-                </div>
-                {director && (
-                  <p className="mb-4 text-sm" style={{ color: 'var(--ink)' }}>
-                    <span style={{ color: 'var(--ink-dim)' }}>Director</span>{' '}
-                    <span className="font-medium">{director}</span>
-                  </p>
-                )}
-                {cast.length > 0 && (
-                  <ul className="flex flex-col">
-                    {cast.map((member, i) => {
-                      const photo = member.photoUrl;
-                      return (
-                        <li
-                          key={`${member.name}-${i}`}
-                          className="flex items-center gap-3 border-t py-2.5 first:border-t-0"
-                          style={{ borderColor: 'var(--rule)' }}
-                        >
-                          <div
-                            className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full"
-                            style={{ background: 'var(--listed-bg)' }}
-                          >
-                            {photo && (
-                              <Image src={photo} alt={member.name} fill sizes="40px" className="object-cover" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium" style={{ color: 'var(--ink)' }}>
-                              {member.name}
-                            </p>
-                            {member.character && (
-                              <p className="truncate text-xs" style={{ color: 'var(--ink-dim)' }}>
-                                {member.character}
-                              </p>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="order-1 w-full sm:order-2 sm:w-72 sm:flex-shrink-0">
-            <h2 className="mb-4 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
-              Showtimes
-            </h2>
-            {movie.showtimes_cache.length === 0 ? (
-              <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-                Not listed yet.
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-4">
-                {movie.showtimes_cache.map((cache) => {
-                  const slugRow = movie.movie_branch_slugs.find(
-                    (s) => s.branch_id === cache.branch_id,
-                  );
-                  const branchName = cache.branches?.name ?? cache.branch_id;
-                  const futureDates = Array.isArray(cache.raw_showtimes)
-                    ? filterFutureDates(cache.raw_showtimes as string[])
-                    : [];
-                  return (
-                    <li
-                      key={cache.branch_id}
-                      className="rounded-sm border p-3"
-                      style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
-                    >
-                      <p className="mb-1 text-sm font-medium" style={{ color: 'var(--ink)' }}>
-                        {branchName}
-                      </p>
-                      {cache.bookable ? (
-                        slugRow && futureDates.length > 0 ? (
-                          <>
-                            <p className="mb-2 text-xs" style={{ color: 'var(--ok-ink)' }}>
-                              Bookable, pick a day
-                            </p>
-                            <ShowtimePicker
-                              branchId={cache.branch_id}
-                              slug={slugRow.slug}
-                              dates={futureDates}
-                            />
-                          </>
-                        ) : slugRow ? (
-                          <a
-                            href={sceneMovieUrl(cache.branch_id, slugRow.slug)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-block rounded-sm px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
-                            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
-                          >
-                            Select showtime on Scene &rarr;
-                          </a>
-                        ) : null
-                      ) : (
-                        <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
-                          Listed, not bookable yet
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
+      <div className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">
+        <MovieDetailTabs
+          overview={details?.overview ?? null}
+          tagline={details?.tagline ?? null}
+          cast={castWithImdbIds}
+          creditsSource={creditsSource}
+          showtimes={showtimes}
+          watchlistControl={
+            showWatchlistControl ? (
+              <WatchlistButton movieId={movie.id} isWatchlisted={isWatchlisted} />
+            ) : null
+          }
+          details={{
+            director,
+            directorImdbId,
+            runtime: details?.runtime ?? null,
+            genres: details?.genres?.map((g) => g.name) ?? [],
+            productionCompanies: details?.production_companies?.map((c) => c.name) ?? [],
+            releaseDate,
+            isBookable,
+          }}
+        />
       </div>
     </main>
   );

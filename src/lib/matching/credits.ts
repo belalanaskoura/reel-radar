@@ -7,6 +7,12 @@ export interface CreditsCastMember {
   name: string;
   character: string | null;
   photoUrl: string | null;
+  // Only set for TMDB-sourced cast (used to look up a real IMDb profile
+  // link); elCinema/Scene fallback credits have no TMDB person id at all.
+  tmdbPersonId?: number;
+  // Resolved separately (see movies/[id]/page.tsx) from tmdbPersonId via
+  // one extra TMDB /person/{id} call each; null until/unless resolved.
+  imdbId?: string | null;
 }
 
 export interface CreditsInfo {

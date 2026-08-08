@@ -224,3 +224,22 @@ export async function fetchCredits(tmdbId: number): Promise<TmdbCredits> {
   }
   return res.json();
 }
+
+// Looks up a single person's IMDb ID by their TMDB person ID, so the
+// detail page can link directly to e.g. imdb.com/name/nm0000138 instead
+// of an IMDb name search. TMDB's basic /movie/{id}/credits response
+// (fetchCredits above) only returns a TMDB person id per cast/crew
+// member, not their IMDb id -- this is the one extra per-person call
+// needed to get it. Returns null (not thrown) on any failure so one
+// missing/unmatched person doesn't break the rest of the cast's links.
+export async function fetchPersonImdbId(personId: number): Promise<string | null> {
+  const apiKey = requireApiKey();
+  try {
+    const res = await fetch(`${TMDB_BASE_URL}/person/${personId}?api_key=${apiKey}`);
+    if (!res.ok) return null;
+    const data: { imdb_id: string | null } = await res.json();
+    return data.imdb_id || null;
+  } catch {
+    return null;
+  }
+}
