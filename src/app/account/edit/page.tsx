@@ -1,12 +1,24 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { updateDisplayName, updateEmail, updatePassword } from '../actions';
+import {
+  updateAlertPreferences,
+  updateCinemaAlerts,
+  updateDisplayName,
+  updateEmail,
+  updatePassword,
+} from '../actions';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import { SecurityPanel } from '@/components/SecurityPanel';
-import { ArrowLeftIcon } from '@/components/icons';
+import { SettingsCard } from '@/components/SettingsCard';
+import { CinemaAlertsCard } from '@/components/CinemaAlertsCard';
+import { NewReleaseToggle } from '@/components/NewReleaseToggle';
+import { PushSubscribeButton } from '@/components/PushSubscribeButton';
+import { ThemeSettings } from '@/components/ThemeSettings';
+import { sortBranchesForDisplay } from '@/lib/branches';
+import { ArrowLeftIcon, BellIcon, SunIcon } from '@/components/icons';
 
-export default async function EditProfilePage({
+export default async function SettingsPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; saved?: string; email_pending?: string }>;
@@ -19,14 +31,21 @@ export default async function EditProfilePage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/signin');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('display_name, avatar_url')
-    .eq('id', user.id)
-    .single();
+  const [{ data: profile }, { data: branches }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select(
+        'display_name, avatar_url, notify_new_releases, notify_cinema_showtimes, subscribed_branch_ids',
+      )
+      .eq('id', user.id)
+      .single(),
+    supabase.from('branches').select('id, name'),
+  ]);
+
+  const orderedBranches = sortBranchesForDisplay(branches ?? []);
 
   return (
-    <main className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-12">
+    <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
       <Link
         href="/account"
         className="mb-6 inline-flex items-center gap-1.5 text-sm transition-opacity hover:opacity-70"
@@ -40,7 +59,7 @@ export default async function EditProfilePage({
         className="font-display mb-8 text-4xl leading-none tracking-wide"
         style={{ color: 'var(--ink)' }}
       >
-        EDIT PROFILE
+        SETTINGS
       </h1>
 
       {(error || saved || email_pending) && (
@@ -140,6 +159,58 @@ export default async function EditProfilePage({
               UPDATE EMAIL
             </button>
           </form>
+        </section>
+
+        {/* Notifications */}
+        <section className="flex flex-col gap-4">
+          <h2
+            className="font-display -mb-1 text-2xl leading-none tracking-wide"
+            style={{ color: 'var(--ink)' }}
+          >
+            NOTIFICATIONS
+          </h2>
+
+          <SettingsCard
+            title="New releases"
+            description="Egypt release date confirmed for watchlisted films"
+            icon={<BellIcon size={64} />}
+          >
+            <div className="flex flex-col gap-4">
+              <NewReleaseToggle
+                initialValue={profile?.notify_new_releases ?? true}
+                updateAlertPreferences={updateAlertPreferences}
+              />
+              <div className="flex flex-col gap-2 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
+                  Push notifications
+                </p>
+                <PushSubscribeButton />
+                <Link
+                  href="/notifications"
+                  className="text-xs underline transition-opacity hover:opacity-70"
+                  style={{ color: 'var(--accent-dim)' }}
+                >
+                  Setup guide →
+                </Link>
+              </div>
+            </div>
+          </SettingsCard>
+
+          <SettingsCard title="Cinema alerts" description="Local screenings for saved films">
+            <CinemaAlertsCard
+              branches={orderedBranches}
+              initialEnabled={profile?.notify_cinema_showtimes ?? true}
+              initialBranchIds={profile?.subscribed_branch_ids ?? null}
+              updateCinemaAlerts={updateCinemaAlerts}
+            />
+          </SettingsCard>
+        </section>
+
+        {/* Appearance */}
+        <section>
+          <SettingsCard title="Appearance" icon={<SunIcon size={64} />}>
+            <ThemeSettings />
+          </SettingsCard>
         </section>
 
         {/* Password */}

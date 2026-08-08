@@ -226,3 +226,11 @@ export function InfoIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function CheckIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}

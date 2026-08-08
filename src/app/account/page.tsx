@@ -4,15 +4,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { posterUrl } from '@/lib/tmdb-image';
 import { signout } from '../signin/actions';
-import { updateAlertPreferences, updateBranchSubscriptions, updatePassword } from './actions';
 import { AvatarUpload } from '@/components/AvatarUpload';
-import { AlertToggles } from '@/components/AlertToggles';
-import { BranchSubscriptionToggles } from '@/components/BranchSubscriptionToggles';
-import { SecurityPanel } from '@/components/SecurityPanel';
-import { PushSubscribeButton } from '@/components/PushSubscribeButton';
-import { ThemeSettings } from '@/components/ThemeSettings';
-import { sortBranchesForDisplay } from '@/lib/branches';
-import { ArrowRightIcon, BellIcon, BookmarkIcon, SignOutIcon, FilmIcon } from '@/components/icons';
+import { ArrowRightIcon, BookmarkIcon, SettingsIcon, SignOutIcon, FilmIcon } from '@/components/icons';
 
 export default async function ProfilePage({
   searchParams,
@@ -27,10 +20,10 @@ export default async function ProfilePage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/signin');
 
-  const [profileResult, countResult, recentResult, branchesResult] = await Promise.all([
+  const [profileResult, countResult, recentResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('avatar_url, notify_new_releases, notify_cinema_showtimes, subscribed_branch_ids, display_name')
+      .select('avatar_url, display_name')
       .eq('id', user.id)
       .single(),
     supabase
@@ -43,12 +36,10 @@ export default async function ProfilePage({
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(4),
-    supabase.from('branches').select('id, name'),
   ]);
 
   const profile = profileResult.data;
   const watchlistCount = countResult.count ?? 0;
-  const orderedBranches = sortBranchesForDisplay(branchesResult.data ?? []);
 
   type RecentMovie = {
     id: string;
@@ -111,11 +102,7 @@ export default async function ProfilePage({
       <div className="grid gap-8 lg:grid-cols-[220px_1fr]">
 
         {/* ── Left: Identity + account controls ──────────────────────── */}
-        {/* order-1 on mobile (identity/watchlist first), lg:order-none
-            restores natural DOM order (this is the first grid child either
-            way at desktop width, so order-none is equivalent to order-1
-            there too -- kept explicit for clarity). */}
-        <aside className="order-1 flex flex-col gap-4 lg:order-none">
+        <aside className="flex flex-col gap-4">
           <AvatarUpload
             userId={user.id}
             avatarUrl={profile?.avatar_url ?? null}
@@ -155,20 +142,36 @@ export default async function ProfilePage({
             <ArrowRightIcon size={16} style={{ color: 'var(--accent)' }} />
           </Link>
 
-          {/* Edit Profile */}
+          {/* Settings -- identity fields, notifications, appearance,
+              security all now live on /account/edit rather than being
+              split across this page and that one. */}
           <Link
             href="/account/edit"
-            className="flex items-center justify-center rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
+            className="flex items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
             style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
           >
-            Edit Profile
+            <SettingsIcon size={15} />
+            Settings
           </Link>
+
+          {/* Sign out -- grouped with the other account-level actions in
+              the identity column rather than pinned to the very bottom of
+              a much taller grid, now that Notifications/Appearance no
+              longer push it far down the page on desktop. */}
+          <form action={signout}>
+            <button
+              type="submit"
+              className="flex w-full items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
+              style={{ borderColor: 'var(--rule)', color: 'var(--ink)' }}
+            >
+              <SignOutIcon size={15} />
+              Sign out
+            </button>
+          </form>
         </aside>
 
-        {/* ── Recently added — order-2 on mobile (above Appearance/
-            Settings, below identity), moves into the right column on
-            desktop (lg:order-none, lg:col-start-2) ──────────────────── */}
-        <section className="order-2 lg:order-none lg:col-start-2 lg:row-start-1">
+        {/* ── Recently added ────────────────────────────────────────── */}
+        <section>
           <div className="mb-5 flex items-baseline justify-between">
             <div>
               <h2
@@ -216,94 +219,6 @@ export default async function ProfilePage({
             </div>
           )}
         </section>
-
-        {/* ── Appearance / Settings / Sign out — order-3 on mobile,
-            back into the left sidebar's column on desktop ──────────── */}
-        <div className="order-3 flex flex-col gap-4 lg:order-none lg:col-start-1 lg:row-start-2">
-          {/* Appearance */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
-              Appearance
-            </p>
-            <ThemeSettings />
-          </div>
-
-          {/* Settings (change password) */}
-          <SecurityPanel updatePassword={updatePassword} />
-        </div>
-
-        {/* ── Alert Preferences — order-4 on mobile, right column on
-            desktop ─────────────────────────────────────────────────── */}
-        <section
-          className="relative order-4 overflow-hidden rounded-sm border p-5 lg:order-none lg:col-start-2 lg:row-start-2"
-          style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
-        >
-          <div
-            className="pointer-events-none absolute right-3 top-3 opacity-[0.07]"
-            style={{ color: 'var(--accent)' }}
-          >
-            <BellIcon size={72} />
-          </div>
-
-          <h2
-            className="font-display mb-1 text-xl leading-none tracking-wide"
-            style={{ color: 'var(--ink)' }}
-          >
-            ALERT PREFERENCES
-          </h2>
-          <p className="mb-5 text-xs" style={{ color: 'var(--ink-dim)' }}>
-            Manage your radar signals.
-          </p>
-
-          <AlertToggles
-            initialValues={{
-              notify_new_releases: profile?.notify_new_releases ?? true,
-              notify_cinema_showtimes: profile?.notify_cinema_showtimes ?? true,
-            }}
-            updateAlertPreferences={updateAlertPreferences}
-          />
-
-          {orderedBranches.length > 0 && (
-            <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
-              <p className="mb-3 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
-                Showtime alerts by cinema
-              </p>
-              <BranchSubscriptionToggles
-                branches={orderedBranches}
-                initialValue={profile?.subscribed_branch_ids ?? null}
-                updateBranchSubscriptions={updateBranchSubscriptions}
-              />
-            </div>
-          )}
-
-          <div className="mt-5 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
-            <p className="mb-2 text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
-              Push notifications
-            </p>
-            <PushSubscribeButton />
-            <Link
-              href="/notifications"
-              className="mt-3 inline-block text-xs underline transition-opacity hover:opacity-70"
-              style={{ color: 'var(--accent-dim)' }}
-            >
-              Setup guide →
-            </Link>
-          </div>
-        </section>
-
-        {/* ── Sign out — always last, on mobile and desktop ──────────── */}
-        <div className="order-5 lg:order-none lg:col-start-1 lg:row-start-3">
-          <form action={signout}>
-            <button
-              type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
-              style={{ borderColor: 'var(--rule)', color: 'var(--ink)' }}
-            >
-              <SignOutIcon size={15} />
-              Sign out
-            </button>
-          </form>
-        </div>
       </div>
       </div>
     </main>

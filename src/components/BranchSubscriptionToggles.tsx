@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { ToggleSwitch } from '@/components/ToggleSwitch';
 
 export interface BranchOption {
   id: string;
@@ -63,21 +64,12 @@ export function BranchSubscriptionToggles({
           <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>All branches</p>
           <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>Get notified for every cinema</p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={selected === null}
+        <ToggleSwitch
+          checked={selected === null}
           disabled={isPending}
-          onClick={toggleAll}
-          className="relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 disabled:opacity-60"
-          style={{ background: selected === null ? 'var(--accent)' : 'var(--rule)' }}
-          aria-label="Toggle all branches"
-        >
-          <span
-            className="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200"
-            style={{ transform: selected === null ? 'translateX(20px)' : 'translateX(0)' }}
-          />
-        </button>
+          onChange={toggleAll}
+          label="Toggle all branches"
+        />
       </div>
 
       <div className="flex flex-col gap-2 border-t pt-3" style={{ borderColor: 'var(--rule)' }}>

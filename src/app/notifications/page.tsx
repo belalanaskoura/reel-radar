@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { PushOnboarding } from '@/components/PushOnboarding';
-import { updateBranchSubscriptions } from '@/app/account/actions';
+import { updateCinemaAlertsFromOnboarding } from '@/app/account/actions';
 import { sortBranchesForDisplay } from '@/lib/branches';
 
 // Setup for the browser push channel, the only notification channel this
@@ -45,7 +45,7 @@ export default async function NotificationsPage({
         showSkip={from === 'signup'}
         branches={sortBranchesForDisplay(branches ?? [])}
         initialBranchSubscription={profile?.subscribed_branch_ids ?? null}
-        updateBranchSubscriptions={updateBranchSubscriptions}
+        updateBranchSubscriptions={updateCinemaAlertsFromOnboarding}
       />
     </main>
   );
