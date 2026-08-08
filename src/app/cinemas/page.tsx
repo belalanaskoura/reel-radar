@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { MapPinIcon, ArrowRightIcon } from '@/components/icons';
+import { sortBranchesForDisplay } from '@/lib/branches';
 
 export default async function CinemasPage() {
   const supabase = await createClient();
@@ -34,6 +35,8 @@ export default async function CinemasPage() {
     bookableCountByBranch.set(row.branch_id, (bookableCountByBranch.get(row.branch_id) ?? 0) + 1);
   }
 
+  const orderedBranches = sortBranchesForDisplay(branches ?? []);
+
   return (
     <main className="relative overflow-x-hidden">
       <div
@@ -53,7 +56,7 @@ export default async function CinemasPage() {
 
       <div className="relative mx-auto max-w-5xl px-4 pb-10 sm:px-6 sm:pb-14">
         <div className="flex flex-col gap-6">
-          {(branches ?? []).map((branch) => (
+          {orderedBranches.map((branch) => (
             <div
               key={branch.id}
               className="poster-card group relative flex flex-col overflow-hidden rounded-lg sm:flex-row"

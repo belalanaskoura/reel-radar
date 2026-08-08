@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { BrowseGrid } from '@/components/BrowseGrid';
 import { PushBanner } from '@/components/PushBanner';
 import type { MovieCardData } from '@/components/MovieCard';
+import { sortBranchesForDisplay } from '@/lib/branches';
 
 export default async function BrowsePage() {
   const supabase = await createClient();
@@ -96,7 +97,7 @@ export default async function BrowsePage() {
           movies={movieCards}
           watchedIds={watchedIds}
           isSignedIn={!!user}
-          cinemas={(branches ?? []).map((b) => ({ id: b.id, name: b.name }))}
+          cinemas={sortBranchesForDisplay(branches ?? []).map((b) => ({ id: b.id, name: b.name }))}
         />
       </div>
     </main>

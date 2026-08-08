@@ -151,11 +151,19 @@ async function notifyWatchers(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('email, notify_cinema_showtimes')
+      .select('email, notify_cinema_showtimes, subscribed_branch_ids')
       .eq('id', watcher.user_id)
       .single();
 
     if (!profile?.notify_cinema_showtimes) continue;
+    // null means "every branch" (the default, and what every existing
+    // user effectively had before this column existed) -- only a
+    // non-null array narrows to specific branches. Not logged as
+    // notified: if this user later subscribes to this branch, they
+    // should still be able to see this movie is already bookable here,
+    // not have it permanently marked "already told you" for a
+    // notification they never actually got.
+    if (profile.subscribed_branch_ids && !profile.subscribed_branch_ids.includes(branch)) continue;
     if (!profile.email) continue; // nothing to notify with, skip entirely
 
     const payload = { movieTitle: movie.title, branchName: branchRow.name, bookingUrl };

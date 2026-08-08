@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { fetchMovieDetails, fetchCredits, fetchPersonImdbId } from '@/lib/tmdb';
 import { posterUrl, backdropUrl, profileUrl } from '@/lib/tmdb-image';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
-import { filterFutureDates, filterFutureIsoDates } from '@/lib/scene/dates';
+import { filterFutureDates, filterFutureIsoDates, filterPastVoxShowtimes } from '@/lib/scene/dates';
 import { chainForBranch, voxBranchShowtimesUrl, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { getFallbackCredits, type CreditsCastMember } from '@/lib/matching/credits';
 import { WatchlistButton } from '@/components/WatchlistButton';
@@ -131,13 +131,26 @@ export default async function MovieDetailPage({
                 : [];
             // VOX rows store real per-day showtime detail (see
             // scrape-vox), not a plain date array like Scene -- filter to
-            // future days and keep only the matching detail objects.
+            // future days and keep only the matching detail objects. Then,
+            // for today specifically, drop individual showtimes that have
+            // already passed (scrape-vox only refreshes once a day, so a
+            // morning showing otherwise stays listed all evening) -- not
+            // a sold-out signal, elCinema exposes none, just "this time
+            // already happened." A format with nothing left after that
+            // drops out entirely rather than rendering an empty section.
             const voxDays: VoxDayDetail[] = isVox && Array.isArray(cache.raw_showtimes)
               ? filterFutureIsoDates(
                   (cache.raw_showtimes as VoxDayDetail[]).map((d) => d.date),
                 )
                   .map((date) => (cache.raw_showtimes as VoxDayDetail[]).find((d) => d.date === date))
                   .filter((d): d is VoxDayDetail => !!d)
+                  .map((day) => ({
+                    ...day,
+                    formats: day.formats
+                      .map((f) => ({ ...f, showtimes: filterPastVoxShowtimes(day.date, f.showtimes) }))
+                      .filter((f) => f.showtimes.length > 0),
+                  }))
+                  .filter((day) => day.formats.length > 0)
               : [];
             return (
               <li

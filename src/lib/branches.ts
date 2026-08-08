@@ -44,6 +44,27 @@ export function chainForBranch(branchId: string): Chain {
   return branchId.startsWith('vox-') ? 'vox' : 'scene';
 }
 
+// Display order for every branch-listing UI (the /cinemas page, the
+// browse page's cinema filter). Not alphabetical and not insertion order
+// -- both would put 'vox-alex' before 'vox-almaza' -- this is a specific
+// order requested for the VOX branches; Scene's two branches keep their
+// existing relative order after them. Branches missing from this list
+// (a rare footgun: only if a new branch was added to the DB but not
+// here) sort after every listed one, alphabetically by id among
+// themselves, rather than being silently dropped.
+const BRANCH_DISPLAY_ORDER: BranchId[] = ['cfc', 'district5', 'vox-almaza', 'vox-moe', 'vox-alex'];
+
+export function sortBranchesForDisplay<T extends { id: string }>(branches: T[]): T[] {
+  return [...branches].sort((a, b) => {
+    const rankA = BRANCH_DISPLAY_ORDER.indexOf(a.id as BranchId);
+    const rankB = BRANCH_DISPLAY_ORDER.indexOf(b.id as BranchId);
+    if (rankA !== -1 && rankB !== -1) return rankA - rankB;
+    if (rankA !== -1) return -1;
+    if (rankB !== -1) return 1;
+    return a.id.localeCompare(b.id);
+  });
+}
+
 // The shape stored in showtimes_cache.raw_showtimes for VOX rows -- an
 // array of one entry per bookable day, each with the real per-format
 // showtime detail elCinema returns (see fetchVoxShowtimes). Scene rows
