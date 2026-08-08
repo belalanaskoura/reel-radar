@@ -196,6 +196,20 @@ export async function findByImdbId(imdbId: string): Promise<TmdbMovie | null> {
   return data.movie_results[0] ?? null;
 }
 
+// Looks up a movie directly by its TMDB id, in the same TmdbMovie shape
+// searchMovies()/findByImdbId() return. Used when a tmdb_id is already
+// known from another source (e.g. egypt_releases' elcinema_id mapping)
+// and a fuzzy title search would just risk landing on the wrong entry.
+export async function getMovieById(tmdbId: number): Promise<TmdbMovie | null> {
+  const apiKey = requireApiKey();
+  const res = await fetch(`${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${apiKey}&language=en-US`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`TMDB movie request failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 // Fetches full movie details (overview, tagline, backdrop, runtime,
 // genres) for the detail page. Not stored in the DB: fetched live on
 // page view since detail pages are viewed far less often than the browse

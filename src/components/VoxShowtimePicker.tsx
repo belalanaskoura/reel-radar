@@ -55,7 +55,6 @@ export function VoxShowtimePicker({
                         style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                       >
                         {s.time}
-                        {s.price ? ` · ${s.price}` : ''}
                       </a>
                     </li>
                   ))}

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeTitle } from './normalize';
-import { searchMovies, getEgTheatricalReleaseDate, type TmdbMovie } from '../tmdb';
+import { searchMovies, getEgTheatricalReleaseDate, getMovieById, type TmdbMovie } from '../tmdb';
 import { getEgyptReleaseInfo } from './egypt-release-date';
+import { chainForBranch } from '../branches';
 
 export type MatchOutcome = 'matched' | 'ambiguous' | 'unmatched';
 
@@ -43,6 +44,42 @@ export async function findTmdbMatch(title: string): Promise<TmdbMatch> {
   return disambiguate(candidates);
 }
 
+// VOX's movie_branch_slugs.slug IS the elCinema work id (see
+// scrape-vox/route.ts). egypt_releases already maps elcinema_id -> tmdb_id
+// via the historical backfill or getEgyptReleaseInfo's live fallback --
+// an id-to-id lookup elCinema itself has already vetted, not a fuzzy title
+// guess. Checking this first avoids a real failure mode of text search:
+// elCinema's English-transliterated Arabic title for a VOX listing (e.g.
+// "El Gawahergy") and TMDB's own English title for the same film (e.g.
+// "The Jeweler") share no words, so a plain search can match a completely
+// different TMDB entry -- confirmed for real, producing two separate
+// `movies` rows (one from Scene/TMDB search, one from VOX) for what is
+// the same physical movie.
+async function findTmdbMatchViaElcinemaId(
+  supabase: SupabaseClient,
+  movieId: string,
+): Promise<TmdbMovie | null> {
+  const { data: slugRows } = await supabase
+    .from('movie_branch_slugs')
+    .select('branch_id, slug')
+    .eq('movie_id', movieId);
+
+  const voxSlug = (slugRows ?? []).find((r) => chainForBranch(r.branch_id) === 'vox');
+  if (!voxSlug) return null;
+
+  const elcinemaId = Number(voxSlug.slug);
+  if (!Number.isFinite(elcinemaId)) return null;
+
+  const { data: release } = await supabase
+    .from('egypt_releases')
+    .select('tmdb_id')
+    .eq('elcinema_id', elcinemaId)
+    .maybeSingle();
+
+  if (!release?.tmdb_id) return null;
+  return getMovieById(release.tmdb_id);
+}
+
 async function disambiguate(candidates: TmdbMovie[]): Promise<TmdbMatch> {
   const withEgDates: { movie: TmdbMovie; egDate: string }[] = [];
   for (const movie of candidates) {
@@ -78,7 +115,10 @@ export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<Match
   const results: MatchResult[] = [];
 
   for (const movie of sceneMovies) {
-    const match = await findTmdbMatch(movie.title);
+    const viaElcinemaId = await findTmdbMatchViaElcinemaId(supabase, movie.id);
+    const match: TmdbMatch = viaElcinemaId
+      ? { outcome: 'matched', movie: viaElcinemaId }
+      : await findTmdbMatch(movie.title);
 
     if (match.outcome !== 'matched' || !match.movie) {
       await supabase

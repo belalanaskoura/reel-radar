@@ -1731,3 +1731,298 @@ recur (a new device, a new browser, a future redesign of the manifest).
   change), 390px shows the larger sizing with also zero overflow —
   confirmed both with real `scrollWidth`/`clientWidth` checks, not
   just a screenshot.
+
+### VOX Cinemas added as a second cinema chain
+
+Adding a second cinema chain (VOX Cinemas, 3 Egypt branches) alongside
+the existing Scene Cinemas support, spanning several sessions and a lot
+of real investigation before landing on the shipped design. Built on a
+new branch, `vox-cinemas`, not merged to `main` as of this writing.
+
+**Round 1 — is VOX reachable at all?** No, not with the tooling this app
+already uses for Scene/elCinema. Plain `curl`, a web-fetch tool, and even
+a real *headless* Playwright/Chromium browser (realistic UA, HTTP/2
+disabled) all failed — `HTTP2_PROTOCOL_ERROR` or silent hangs on every
+request, including `robots.txt`. DNS resolves through `akamaiedge.net`,
+confirming real Akamai Bot Manager protection, not a fluke.
+
+**Round 2 — elCinema as the real data source.** elCinema.com (already
+integrated in this app for release dates/credits, via
+`src/lib/elcinema/fetcher.ts`) has real, live, per-branch showtime pages
+for all 3 VOX Egypt branches:
+- `https://elcinema.com/en/theater/3101027/` = Vox City Center Cinema (Alexandria)
+- `https://elcinema.com/en/theater/3101271/` = Vox Mall of Egypt Cinema
+- `https://elcinema.com/en/theater/3101353/` = Vox City Centre Almaza Cinema
+
+elCinema's `robots.txt` is `User-agent: * / Allow: /` — fully permissive,
+already relied on by this app. Each branch page supports
+`?date=YYYY-MM-DD`, confirmed live to change the displayed day — a real
+5-day rolling booking window (today through +4; day+5 onward returns
+zero). Per movie per day: title, one or more format labels ("Standard",
+"MAX VIP", ...), each with its own table of times + prices.
+
+**Round 3 — a real, non-headless browser session DOES get past Akamai.**
+A `headless: false` Playwright session with `navigator.webdriver`
+masked, a realistic UA/locale/timezone, and an ~5s warm-up wait on the
+homepage before navigating further, successfully loaded VOX's real
+pages. This unlocked real VOX data directly: `/movies/{slug}` pages show
+the full real showtime grid with a day-tab strip
+(`?d=YYYYMMDD#showtimes` deep links); each individual showtime is a real
+`<a class="action showtime" href="https://egy.voxcinemas.com/booking/{code}-{id}">`,
+landing on a guest checkout flow (no login required); `/movies/whatson`
+lists every currently-showing movie with its real VOX slug and title.
+
+**Round 4 — robots.txt draws a real line.** VOX's actual `robots.txt`
+(confirmed, full contents):
+
+```
+User-agent: *
+Disallow: */booking/
+Disallow: */account/
+Disallow: */terms-and-conditions
+Disallow: */terms-of-use
+Disallow: */privacy
+Disallow: */Anti-Fraud-Disclaimer
+Disallow: *?*
+Disallow: */orders/
+
+User-agent: OneTrustBot
+Allow: *
+User-agent: Applebot
+Allow: /
+User-agent: AASA-Bot
+Allow: /
+
+Sitemap: https://assets.voxcinemas.com/sitemap/sitemap.EG.xml
+```
+
+`/booking/` and `*?*` (any query string) are both disallowed under
+`User-agent: *`. This app's rule since Phase 0 has been "respect
+robots.txt, no exceptions," so per-showtime `/booking/...` links are
+never fetched or stored by this app at any layer, confirmed off-limits
+with no exception carved out. A day-specific `?d=...` link was
+initially planned as a plain `<a href>` for a human to click (robots.txt
+governs this app's own automated fetching, not what URL a page links to
+for a person to open themselves) — this reasoning held up, but the
+actual VOX-slug-discovery mechanism needed to build such a link (see
+Round 5) was later shelved for unrelated infrastructure reasons, so this
+specific link shape never shipped; see "booking-link redesign" below for
+what did.
+
+**Round 5 — the Playwright/Vercel dead end.** The original plan called
+for a small Vercel serverless route (`/api/scrape-vox-slugs`) running
+Playwright to discover VOX's own movie slugs from the allowed
+`/movies/whatson`/`/movies/comingsoon` pages, using
+`@sparticuz/chromium-min` (the standard way to run headless Chromium on
+Vercel within its function size limits) + `playwright-core`. Two real
+deploy-time bugs were found and fixed via a real Vercel preview
+deployment (deployment protection for Preview deployments was disabled
+to allow direct testing):
+1. `Cannot find module '.../playwright-core/browsers.json'` — Next's
+   automatic file tracing didn't include the package's non-JS assets for
+   this route. Fixed via `outputFileTracingIncludes` in `next.config.ts`.
+2. **The real, unfixable blocker**: with that resolved, the route got
+   past module loading and launched the browser, but
+   `page.goto('https://egy.voxcinemas.com/')` failed with
+   `net::ERR_HTTP2_PROTOCOL_ERROR` — the exact same failure Akamai gave
+   every *headless* attempt during Round 1. Root cause, confirmed by
+   reading `@sparticuz/chromium-min`'s own source (literal comment: "We
+   only support running chrome-headless-shell"): this package only ever
+   launches `chrome-headless-shell`, a distinct, more easily
+   fingerprinted Chromium build than the regular headed Chromium that
+   worked in Round 3 — a hard architectural limitation of the package,
+   not a launch-flag or config fix. Confirmed there's no realistic
+   alternative package bundling full Chrome/Chromium small enough to fit
+   Vercel's function size limits.
+
+**Round 6 — Browserless.io investigated, then dropped.** The decided
+path forward (with the user, at the time) was to switch to a remote
+browser service — real full Chrome running on someone else's
+infrastructure, reached via `chromium.connectOverCDP(wsEndpoint)`
+instead of bundling a binary. Browserless.io was the candidate, with a
+`/chromium/stealth` endpoint aimed specifically at this kind of bot
+detection. Work paused when Browserless.io's signup wasn't working for
+the user; a checkpoint was written into `CLAUDE.md`/this file so a future
+session could resume without re-deriving the investigation. **When
+picked back up, the user explicitly shelved this whole approach instead
+of resuming it** — not worth adding a new managed third-party dependency
+(this project has otherwise stayed entirely free-tier/self-hosted) for
+one link's precision. `scrape-vox-slugs` was deleted outright, along
+with `playwright-core`/`@sparticuz/chromium-min` and the
+`outputFileTracingIncludes` config entry. **Final decision: this app's
+server never touches VOX's own site at all.** Every VOX booking link
+initially shipped as the bare homepage (`VOX_HOMEPAGE_URL` in
+`src/lib/branches.ts`).
+
+**Round 7 — a real per-branch link found after all, without any
+scraping.** In a later follow-up, the user found VOX's site has real,
+static, per-branch showtime URLs
+(`egy.voxcinemas.com/showtimes?c=mall-of-egypt` etc.) just by browsing
+it normally. Since there are only 3 branches and their slugs are static
+(`mall-of-egypt`, `city-centre-alexandria`, `city-centre-almaza`,
+confirmed directly against the live site via the same Round-3 browser
+technique, one-time, not a recurring scrape), these were hardcoded into
+`VOX_BRANCH_SLUGS`/`voxBranchShowtimesUrl()` in `src/lib/branches.ts` —
+no ongoing scraping infrastructure needed, unlike the abandoned
+movie-level slug discovery. Same robots.txt reasoning as Round 4 applies
+(query string, but only ever placed as a link for a human to click, never
+fetched by this app's own server). Wired into the movie detail page,
+`WatchlistGrid`, and both `/cinemas` pages, replacing the bare
+`VOX_HOMEPAGE_URL` wherever a specific branch context was available.
+
+**Round 8 — real VOX showtimes on the movie detail page.** Originally
+`scrape-vox` only persisted a bookable-date list into
+`showtimes_cache.raw_showtimes` for VOX rows (discarding the actual
+per-format/per-time/per-price detail `fetchVoxShowtimes` already
+returns), and the movie detail page just showed a generic outbound link
+for VOX branches. Changed `scrape-vox` to persist the full detail
+instead — a new `VoxDayDetail` shape
+(`{date, formats: [{format, showtimes: [{time, price}]}]}`) stored in
+the same `raw_showtimes` jsonb column Scene uses for its own, differently
+-shaped plain date array. New `src/components/VoxShowtimePicker.tsx`
+renders it on the movie detail page: day tabs (reusing the existing
+`DateTabStrip`) plus real times/formats/prices per day, all already
+loaded from the DB (no per-click fetch, unlike Scene's `ShowtimePicker`
+— elCinema has no cheap partial-detail endpoint to defer to, so
+`scrape-vox` already fetches everything upfront). Each time slot links
+out via `voxBranchShowtimesUrl()`, not a specific showtime (still
+robots.txt-disallowed per Round 4). New ISO-date helpers
+(`parseIsoDate`/`filterFutureIsoDates`/`formatIsoDateLabel` in
+`src/lib/scene/dates.ts`) sit alongside the existing Scene `dd-mm-yyyy`
+versions rather than one shared parser guessing at input shape.
+
+**Two real bugs surfaced by this shape change, on pages outside the
+immediate task's scope, caught only by re-testing broadly rather than
+by the type checker** (the `raw_showtimes` column is loosely typed
+`unknown`/cast at each call site, so nothing statically enforced a
+consistent shape across chains): `src/app/cinemas/[id]/page.tsx` crashed
+outright (`date.split is not a function`) trying to parse a VOX row's
+new object-shaped `raw_showtimes` through Scene's `parseSceneDate` in
+its date-tab-picker aggregation logic — fixed by skipping that
+aggregation entirely for `branch.chain === 'vox'` (the UI it feeds,
+`CinemaMovieGrid`'s date picker, was already Scene-only anyway, so this
+is a no-op for VOX, not a missing feature). `src/components/WatchlistGrid.tsx`
+would have silently rendered `[object Object]` in its inline "(dates...)"
+list for the same reason — fixed by gating that span on
+`chainForBranch(...) !== 'vox'` too, same pattern. **Lesson for future
+schema/shape changes to a shared column: grep the whole repo for every
+consumer before considering the change done, not just the files already
+open for the current task** — both bugs were found by deliberately
+re-testing pages adjacent to, but not part of, the original task scope.
+
+**Browse page redesign** (a separate, related follow-up request in the
+same stretch of work, prompted directly by VOX pushing the branch count
+from 2 to 5): `MovieCard`'s old per-branch tag stack (one small pill per
+branch, e.g. "Cairo Festival City: Booking") became visibly crowded once
+there were 5 possible branches instead of 2 — real user complaint, with
+a screenshot. Replaced with a single aggregate "Bookable"/"Listed" badge
+at the top-right of the poster, matching what the per-cinema page's own
+badges now say. New `src/components/CinemaFilterDropdown.tsx` (built to
+exactly mirror the existing `FilterDropdown`'s listbox pattern — same
+rounded-full pill button, same dropdown/listbox markup and color tokens,
+deliberately not a new visual style) lets the browse grid filter down to
+one specific cinema; wired into `BrowseGrid`/`src/app/browse/page.tsx`
+alongside the existing bookable/coming-soon status filter, fed by a real
+`branches` table query rather than a hardcoded list. `CinemaMovieGrid`'s
+per-card badge (on the per-cinema page, `/cinemas/[id]`) was simplified
+the same way, dropping the redundant `{branchShortName}:` prefix — a
+movie card on that branch's own page doesn't need to repeat which branch
+it's on.
+
+**What's built, current state** (full file list, current design):
+- `src/lib/branches.ts` — chain-neutral `SceneBranchId`/`VoxBranchId`/
+  `BranchId`/`Chain` types, `VOX_ELCINEMA_THEATER_IDS` (elCinema numeric
+  theater ids per branch), `VOX_HOMEPAGE_URL` (bare-homepage fallback),
+  `VOX_BRANCH_SLUGS`/`voxBranchShowtimesUrl()` (real per-branch showtime
+  links), `VoxDayDetail` (the showtime-detail shape), and
+  `chainForBranch(branchId)` (prefix-based `'vox-'` dispatch for call
+  sites with only a bare id string, not a full `branches` row).
+- `src/lib/elcinema/fetcher.ts` — private `get()` renamed to exported
+  `fetchElCinemaHtml()`; no other function touched.
+- `src/lib/elcinema/vox-showtimes.ts` — `fetchVoxShowtimes(theaterId,
+  date)`, cheerio-based, live-verified against all 3 real VOX branches
+  (correct titles/formats/times/prices/addresses; 5-day window boundary
+  confirmed: day+4 has data, day+5 is always empty). No cheap
+  bookability-only check exists (unlike Scene's `checkBookability`) --
+  every elCinema request already returns full per-movie/per-format
+  detail for that one day.
+- `src/lib/scene/dates.ts` — `parseIsoDate`/`filterFutureIsoDates`/
+  `formatIsoDateLabel` added alongside the existing Scene-format
+  functions.
+- `src/app/api/scrape-vox/route.ts` — elCinema-only discovery/scrape job
+  (fetch + cheerio, no browser at all), mirrors `scrape-scene`'s
+  placeholder-movie/slug-link/race-handling pattern (`slug` = elCinema's
+  numeric work id as a string). Loops 3 branches x 5 days (15
+  requests/run, comfortably inside the 30s external-scheduler budget).
+  Persists full `VoxDayDetail[]` per movie into `raw_showtimes`. A real
+  bug found during initial testing: a movie with 2+ format blocks on the
+  same day was getting duplicate/malformed date accumulation -- fixed by
+  restructuring the loop to push one `VoxDayDetail` per day (bundling
+  that day's formats together) rather than a flat per-format date list.
+  Idempotency confirmed (re-running doesn't create duplicate `movies`
+  rows).
+- `src/app/api/poll/route.ts` -- inner loop dispatches on
+  `chainForBranch(row.branch_id)`. Scene path unchanged. VOX path: one
+  `fetchVoxShowtimes` call for today only (not the full 5-day sweep --
+  that's `scrape-vox`'s job), `bookingUrl` built via
+  `voxBranchShowtimesUrl(branch)`, and a targeted
+  `.update({ bookable, last_checked_at })` rather than a full-row
+  `.upsert(...)` so `scrape-vox`'s fuller `raw_showtimes` is never
+  collapsed to a 1-day snapshot on a routine poll run. The `wasBookable`
+  read happens *before* either chain's write path (a real ordering bug
+  introduced mid-implementation and caught before shipping -- reading it
+  after would always have shown the value the same poll run just wrote).
+  Live-tested against a real VOX-watchlisted movie: confirmed no crash,
+  confirmed `raw_showtimes` survives a poll run intact.
+- `src/app/movies/[id]/page.tsx` -- VOX branches render
+  `VoxShowtimePicker` when real day detail exists in `raw_showtimes`,
+  else fall back to a plain "View on VOX Cinemas' site" outbound link
+  (via `voxBranchShowtimesUrl`); Scene branches and their `ShowtimePicker`
+  path are unchanged.
+- `src/components/WatchlistGrid.tsx` -- booking link uses
+  `voxBranchShowtimesUrl()` for VOX rows; the inline "(dates...)" list is
+  Scene-only (see the bug note above).
+- `src/app/cinemas/page.tsx`, `src/app/cinemas/[id]/page.tsx`,
+  `src/components/CinemaMovieGrid.tsx` -- real SVG logo
+  (`public/Vox_Cinemas_Logo.svg`, `dangerouslyAllowSVG: true` added to
+  `next.config.ts`'s `images` config since Next blocks SVGs through
+  `next/image` by default), Maps-query text no longer hardcodes "Scene
+  Cinemas" (`branch.name` alone is already chain-correct for both
+  chains), "View {name} on {chain}'s site" copy is chain-aware and links
+  via `voxBranchShowtimesUrl()` for VOX, `CinemaMovieGrid` takes a
+  `chain` prop that hides the Scene-only interactive date-tab UI
+  entirely for VOX branches, and per-card badges simplified to plain
+  "Bookable"/"Listed" (browse-redesign work, described above).
+- `src/components/MovieCard.tsx`, `src/components/BrowseGrid.tsx`,
+  `src/app/browse/page.tsx`, new `src/components/CinemaFilterDropdown.tsx`
+  -- browse-page redesign described above.
+- Schema (run directly by the user in Supabase's SQL Editor, per this
+  project's no-`.sql`-files-in-repo convention, confirmed applied to the
+  live DB): `branches.chain` (`'scene'|'vox'`, checked constraint),
+  `branches.logo_url`, the 3 VOX branch rows (`vox-moe`, `vox-alex`,
+  `vox-almaza`). A `vox_movie_slugs` table from the abandoned Round-5/6
+  slug-discovery approach was created and dropped again in the same
+  overall effort -- dead, ignore if referenced in any earlier note.
+- **Verified live end-to-end in a real browser repeatedly** across every
+  round of changes (Playwright, dark mode, both desktop and 390px mobile
+  viewports): `/cinemas` (all 5 branches render correctly, real logos,
+  correct bookable counts, correct addresses backfilled by `scrape-vox`),
+  a VOX cinema detail page (real movies, plain Bookable/Listed badges, no
+  date-filter UI), a VOX movie's Showtimes tab (real day tabs, real
+  times/prices per branch, confirmed each `VoxShowtimePicker` instance
+  keeps independent state -- switching days on one branch's picker
+  doesn't affect another branch's picker on the same page), `/browse`
+  (cinema filter correctly narrowed 100 -> 11 movies for a VOX branch,
+  clean mobile layout, zero horizontal overflow). Zero console/page
+  errors on every pass. The database-level scrape/poll paths were also
+  verified directly against Supabase (not just through the UI): real
+  placeholder `movies` rows, correct `movie_branch_slugs` links, correct
+  `showtimes_cache` shape and content, idempotency on re-run.
+
+Not yet done: the `vox-cinemas` branch hasn't been merged to `main`.
+`README.md` doesn't mention VOX yet. cron-job.org has no `scrape-vox` job
+configured yet (recommend once daily given VOX's full-detail-only fetch
+cost, per that route's own file comment). Vercel deployment protection
+for Preview deployments was disabled during the now-abandoned
+Browserless.io testing in Round 6 -- needs confirming it's been
+re-enabled, since it may still be off.

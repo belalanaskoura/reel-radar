@@ -39,11 +39,14 @@ export async function fetchVoxShowtimes(
 
   const movies: VoxMovieListing[] = [];
 
-  // Movie blocks are siblings, each `<div class="row">...</div>`
-  // separated by `<hr />`. Do NOT loop bare `h3` tags: the page also has
-  // an `h3.section-title` for the per-day date heading, which is not a
-  // movie.
-  $('div.row').each((_, rowEl) => {
+  // Movie blocks are `div.row` elements directly under `div.boxed-0`.
+  // Must scope to direct children: `div.boxed-0` itself is also a
+  // `div.row`'s ancestor for the whole page body (nav, ads, everything),
+  // and a naive `div.row` scan picks that outer wrapper up first --
+  // confirmed for real, it matches the page's first movie title via the
+  // same `h3 > a` selector and then vacuums up every `table.showtimes` on
+  // the entire page as if they all belonged to that one movie.
+  $('div.boxed-0 > div.row').each((_, rowEl) => {
     const row = $(rowEl);
     const titleLink = row.find('h3 > a[href^="/en/work/"]').first();
     const href = titleLink.attr('href') ?? '';
@@ -57,7 +60,12 @@ export async function fetchVoxShowtimes(
     const formats: VoxMovieListing['formats'] = [];
     row.find('table.showtimes').each((_, tableEl) => {
       const table = $(tableEl);
-      const format = table.find('h6.section-title strong').first().text().trim() || 'Standard';
+      // The format heading (`h6.section-title`, e.g. "Standard"/"Gold"/
+      // "MAX VIP"/"4DX") is the table's immediately preceding sibling,
+      // not a descendant of it -- confirmed for real, `table.find(...)`
+      // never matched anything here, which is why every format silently
+      // fell back to "Standard" regardless of the table's actual format.
+      const format = table.prevAll('h6.section-title').first().find('strong').text().trim() || 'Standard';
       const showtimes: VoxShowtime[] = [];
 
       table.find('tr').each((_, trEl) => {
