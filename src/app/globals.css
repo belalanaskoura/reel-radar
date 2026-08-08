@@ -284,4 +284,41 @@ body {
       opacity: 0.6;
     }
   }
+
+  /* CinemaAlertsCard's branch grid -- each chip fades/scales in on its
+     own staggered delay (set inline per-button via animationDelay) so
+     the grid reads as a small cascade rather than popping in all at
+     once, on first render only (JS-driven state changes afterward rely
+     on the chip's own transition properties, not this). */
+  .branch-chip-in {
+    animation: branch-chip-in 0.3s ease both;
+  }
+
+  @keyframes branch-chip-in {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* CinemaAlertsCard's "watching" indicator dot -- an indefinitely
+     repeating ping, so it specifically needs this reduced-motion guard
+     rather than Tailwind's plain `animate-ping` utility (which has no
+     such guard built in and would otherwise run forever regardless of
+     the visitor's motion preference). */
+  .signal-ping {
+    animation: signal-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  @keyframes signal-ping {
+    75%,
+    100% {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
 }

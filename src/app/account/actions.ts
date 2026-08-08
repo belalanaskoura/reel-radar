@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function updateAlertPreferences(values: {
   notify_new_releases: boolean;
-  notify_cinema_showtimes: boolean;
 }): Promise<{ error: string | null }> {
   const supabase = await createClient();
   const {
@@ -30,14 +29,22 @@ export async function updateAlertPreferences(values: {
   return { error: null };
 }
 
-// null means "every branch" (this project's default -- see /api/poll's
-// notifyWatchers), so selecting every branch in the UI is stored back as
-// null rather than an explicit array listing all of them: a branch added
-// later should be included automatically, not silently excluded because
-// it wasn't on the list at save time.
-export async function updateBranchSubscriptions(
-  branchIds: string[] | null,
-): Promise<{ error: string | null }> {
+// Cinema showtime alerts and which branches they apply to are saved
+// together (CinemaAlertsCard treats them as one card, one save), rather
+// than as two separate actions the way they were split before -- a
+// branch list edit right after flipping the master switch off shouldn't
+// be able to land as two independent writes that could race or partially
+// fail against each other.
+//
+// null for subscribedBranchIds means "every branch" (this project's
+// default -- see /api/poll's notifyWatchers), so selecting every branch
+// in the UI is stored back as null rather than an explicit array listing
+// all of them: a branch added later should be included automatically,
+// not silently excluded because it wasn't on the list at save time.
+export async function updateCinemaAlerts(values: {
+  notify_cinema_showtimes: boolean;
+  subscribed_branch_ids: string[] | null;
+}): Promise<{ error: string | null }> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -49,7 +56,7 @@ export async function updateBranchSubscriptions(
 
   const { error } = await supabase
     .from('profiles')
-    .update({ subscribed_branch_ids: branchIds })
+    .update(values)
     .eq('id', user.id);
 
   if (error) {
@@ -59,6 +66,21 @@ export async function updateBranchSubscriptions(
   revalidatePath('/account');
   revalidatePath('/notifications');
   return { error: null };
+}
+
+// PushOnboarding's branch picker only ever collects a branch list (no
+// separate master switch there -- picking branches during first-run
+// setup already implies alerts are being turned on), so this adapts that
+// narrower shape onto updateCinemaAlerts. A plain arrow function closing
+// over updateCinemaAlerts would NOT work here despite looking
+// equivalent: only a real 'use server' function (or one bound via
+// .bind(), the pattern used elsewhere in this codebase -- see
+// MovieCard's watchlist actions) can cross the server-to-client
+// component boundary as a passable action reference.
+export async function updateCinemaAlertsFromOnboarding(
+  branchIds: string[] | null,
+): Promise<{ error: string | null }> {
+  return updateCinemaAlerts({ notify_cinema_showtimes: true, subscribed_branch_ids: branchIds });
 }
 
 export async function updateDisplayName(formData: FormData) {
