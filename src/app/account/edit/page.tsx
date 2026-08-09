@@ -16,7 +16,7 @@ import { NewReleaseToggle } from '@/components/NewReleaseToggle';
 import { PushSubscribeButton } from '@/components/PushSubscribeButton';
 import { ThemeSettings } from '@/components/ThemeSettings';
 import { sortBranchesForDisplay } from '@/lib/branches';
-import { ArrowLeftIcon, BellIcon, CinemaIcon, SunIcon, UserIcon } from '@/components/icons';
+import { ArrowLeftIcon, BellIcon, CinemaIcon, SmartphoneIcon, SunIcon, UserIcon } from '@/components/icons';
 
 export default async function SettingsPage({
   searchParams,
@@ -172,29 +172,31 @@ export default async function SettingsPage({
         </SettingsCard>
 
         <SettingsCard
+          title="Push notifications"
+          description="Browser delivery for every alert type below"
+          icon={<SmartphoneIcon size={20} />}
+        >
+          <div className="flex flex-col gap-2">
+            <PushSubscribeButton />
+            <Link
+              href="/notifications"
+              className="text-xs underline transition-opacity hover:opacity-70"
+              style={{ color: 'var(--accent-dim)' }}
+            >
+              Setup guide →
+            </Link>
+          </div>
+        </SettingsCard>
+
+        <SettingsCard
           title="New releases"
           description="Egypt release date confirmed for watchlisted films"
           icon={<BellIcon size={20} />}
         >
-          <div className="flex flex-col gap-4">
-            <NewReleaseToggle
-              initialValue={profile?.notify_new_releases ?? true}
-              updateAlertPreferences={updateAlertPreferences}
-            />
-            <div className="flex flex-col gap-2 border-t pt-4" style={{ borderColor: 'var(--rule)' }}>
-              <p className="text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
-                Push notifications
-              </p>
-              <PushSubscribeButton />
-              <Link
-                href="/notifications"
-                className="text-xs underline transition-opacity hover:opacity-70"
-                style={{ color: 'var(--accent-dim)' }}
-              >
-                Setup guide →
-              </Link>
-            </div>
-          </div>
+          <NewReleaseToggle
+            initialValue={profile?.notify_new_releases ?? true}
+            updateAlertPreferences={updateAlertPreferences}
+          />
         </SettingsCard>
 
         <SettingsCard
