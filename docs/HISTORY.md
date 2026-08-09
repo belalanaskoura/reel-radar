@@ -2026,3 +2026,85 @@ cost, per that route's own file comment). Vercel deployment protection
 for Preview deployments was disabled during the now-abandoned
 Browserless.io testing in Round 6 -- needs confirming it's been
 re-enabled, since it may still be off.
+
+## Notification end-to-end test on real users, custom domain purchased
+
+Two things happened in this session: a real notification test against
+live watchers, and the start of a custom-domain migration meant to
+finally unblock the long-standing Resend email limitation.
+
+**Notification test (two attempts, both reverted cleanly)**. The user
+wanted to see the actual notify flow fire for real, not a mocked test --
+specifically wanted "The End of Oak Street" forced bookable at District 5
+with its booking link swapped for an arbitrary YouTube URL, to visually
+confirm what a real notification looks like end to end. Real production
+data was involved (the movie has two genuine watchers:
+`belalhamada489@gmail.com` and `dommawalid@gmail.com`), so the approach
+was explicitly discussed with the user first rather than assumed --
+offered a "me-only, no real DB writes" script as the safer default, but
+the user chose the real path (flip real `showtimes_cache` state, run the
+actual `/api/poll` route, notify real watchers) both times it was run.
+Mechanism used, twice, identically: a narrowly-scoped temporary override
+block added directly in `src/app/api/poll/route.ts`'s Scene branch (`if
+(row.movie_id === '<the-end-of-oak-street-id>' && branch === 'district5')
+{ bookable = true; bookingUrl = '<youtube-url>' }`), placed after the real
+`checkBookability()` call so it overrides the live (false) result rather
+than skipping the real scrape -- run via `curl -X POST /api/poll` against
+a local `npm run dev` instance -- then fully reverted immediately after
+confirming: the code block removed, `showtimes_cache.bookable` reset back
+to `false` for that movie/branch, and the `notification_log` rows the
+test created deleted, each time confirmed via direct Supabase queries
+(service-role client, ad hoc `node -e` scripts since no test-fixture
+scripts exist for this) rather than assumed. `git status` confirmed clean
+after each revert.
+
+**Real finding, not a bug in this app**: only `belalhamada489@gmail.com`
+(the Resend account's own signup address) actually received the email
+both times; `dommawalid@gmail.com` did not. Root-caused directly via a
+raw call to Resend's `/emails` API (bypassing this app's own
+try/catch-swallowed error handling, which is why the failure was
+invisible in the poll route's own logs) -- Resend returned a `403
+validation_error`: *"You can only send testing emails to your own email
+address... verify a domain... and change the `from` address."* This is
+exactly the pre-existing, already-tracked "email delivery is NOT live for
+real users" gap, now confirmed with a concrete reproduction rather than
+just a general awareness that it was unverified. Retrying the send
+against the same recipient (at the user's request, to double-check it
+wasn't transient) reproduced the identical 403 -- confirmed this is a
+permanent account-level sandbox restriction, not a flaky send.
+
+**Custom domain purchased to resolve this**: user bought
+`reelradar.online` from Hostinger. Two independent DNS setups needed on
+the same domain, explained as separate tracks since they're easy to
+conflate: (1) pointing the domain at Vercel for web hosting (A record
+`@` -> Vercel's apex IP, optionally `www` via CNAME to
+`cname.vercel-dns.com`), and (2) verifying the domain with Resend for
+email sending (TXT/CNAME/MX records Resend's dashboard generates per-
+domain, added in the same Hostinger DNS Zone Editor alongside the Vercel
+records -- different record types/names, so they coexist without
+conflict). **Vercel side confirmed live** by direct check (not just
+assumed from the user saying "done"): `nslookup reelradar.online`
+resolves to a real Vercel edge IP, `curl -I https://reelradar.online`
+returns `200` with `Server: Vercel` and a valid HSTS header: the app is
+genuinely being served there. **Resend side is still pending** -- the
+user had said "done" but on follow-up clarified DNS records are still
+outstanding on Resend's side (a real case of "done" meaning one of two
+bundled steps, not both -- worth explicitly re-confirming rather than
+assuming "done" covers everything asked). Attempted to verify Resend's
+domain status via its `/domains` API endpoint directly rather than take
+the user's word for it, but the API key in `.env.local` is
+send-permission-only (`restricted_api_key`, 401) -- can't check
+programmatically with the current key, so this remains user-reported
+until either the key's permissions change or the user confirms via
+Resend's own dashboard.
+
+**Explicit decision deferred, not yet made**: whether `reelradar.online`
+becomes the sole production URL (requiring `NEXT_PUBLIC_SITE_URL` and any
+other hardcoded references to `reel-radar-ebon.vercel.app` to be swept
+and updated) or the Vercel subdomain stays as a live alias alongside it.
+Nothing in the codebase has been changed for the domain migration yet --
+deliberately held back until Resend's verification actually completes,
+since flipping `RESEND_FROM_EMAIL` to a `reelradar.online` address before
+that domain shows "Verified" in Resend would break the one email channel
+that currently works (delivery to the account's own address) for zero
+gain.
