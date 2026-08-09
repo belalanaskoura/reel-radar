@@ -3,6 +3,60 @@ import { formatCheckedTimestamp, type BookableNotification, type NewReleaseNotif
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const REQUEST_TIMEOUT_MS = 15_000;
 
+export interface FeedbackNotification {
+  fromEmail: string;
+  message: string;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export async function notifyFeedbackByEmail(notification: FeedbackNotification): Promise<void> {
+  const adminEmail = process.env.FEEDBACK_TO_EMAIL;
+  if (!adminEmail) return;
+
+  const text = `From: ${notification.fromEmail}\n\n${notification.message}`;
+  const html = `
+    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
+      <h1 style="font-size: 20px; color: #14201d;">New feedback</h1>
+      <p style="font-size: 13px; color: #8ea19b;">From ${escapeHtml(notification.fromEmail)}</p>
+      <p style="font-size: 15px; color: #14201d; white-space: pre-wrap;">${escapeHtml(notification.message)}</p>
+    </div>
+  `;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: adminEmail,
+        replyTo: notification.fromEmail,
+        subject: 'ReelRadar feedback',
+        html,
+        text,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Resend request failed: ${res.status}`);
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function notifyBookableByEmail(
   toEmail: string,
   notification: BookableNotification,

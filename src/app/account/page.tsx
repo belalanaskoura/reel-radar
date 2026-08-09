@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { posterUrl } from '@/lib/tmdb-image';
 import { signout } from '../signin/actions';
 import { AvatarUpload } from '@/components/AvatarUpload';
-import { ArrowRightIcon, BookmarkIcon, SettingsIcon, SignOutIcon, FilmIcon } from '@/components/icons';
+import { ArrowRightIcon, BookmarkIcon, SettingsIcon, SignOutIcon, FilmIcon, MessageIcon } from '@/components/icons';
 
 export default async function ProfilePage({
   searchParams,
@@ -152,6 +152,15 @@ export default async function ProfilePage({
           >
             <SettingsIcon size={15} />
             Settings
+          </Link>
+
+          <Link
+            href="/feedback"
+            className="flex items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
+            style={{ borderColor: 'var(--rule)', color: 'var(--ink)' }}
+          >
+            <MessageIcon size={15} />
+            Send feedback
           </Link>
 
           {/* Sign out -- grouped with the other account-level actions in
