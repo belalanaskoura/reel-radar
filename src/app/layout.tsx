@@ -5,6 +5,8 @@ import { NavBar } from "@/components/NavBar";
 import { SearchProvider } from "@/components/SearchProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { PageTransition } from "@/components/PageTransition";
+import { PushPrompt } from "@/components/PushPrompt";
+import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 
 // Runs before first paint (a plain <script>, not a React effect) so the
@@ -47,7 +49,24 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Only worth checking push state for a signed-in user -- an anonymous
+  // visitor has nowhere to save a subscription against anyway.
+  let showPushPrompt = false;
+  if (user) {
+    const { data: subscriptions } = await supabase
+      .from('push_subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1);
+    showPushPrompt = !subscriptions || subscriptions.length === 0;
+  }
+
   return (
     <html lang="en" className={`${bebasNeue.variable} ${inter.variable}`} suppressHydrationWarning>
       <head>
@@ -60,6 +79,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <SearchProvider>
             <NavBar />
             <PageTransition>{children}</PageTransition>
+            {showPushPrompt && <PushPrompt />}
           </SearchProvider>
         </ThemeProvider>
       </body>
