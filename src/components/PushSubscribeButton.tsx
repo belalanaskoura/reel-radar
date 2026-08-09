@@ -9,7 +9,7 @@ type Status = 'checking' | 'unsupported' | 'needs-install' | 'denied' | 'subscri
 // display mode) -- a plain Safari tab has serviceWorker/PushManager
 // present but subscribe() fails there, so this has to be checked before
 // ever attempting to subscribe, not caught as a generic error afterward.
-function isIosSafariNotInstalled(): boolean {
+export function isIosSafariNotInstalled(): boolean {
   const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
   if (!isIos) return false;
   const isStandalone =
