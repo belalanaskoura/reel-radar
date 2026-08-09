@@ -1,46 +1,61 @@
 # ReelRadar
 
-A watchlist app for [Scene Cinemas](https://cfc.scenecinemas.com) (Cairo
-Festival City and District 5): browse everything bookable now or coming
-soon, watchlist a title before it's even listed, and get notified by email
-(and optionally push) the moment tickets go on sale — with a link straight
-to booking.
+A watchlist app for Egypt cinemas: browse everything bookable now or
+coming soon across **Scene Cinemas** (Cairo Festival City, District 5)
+and **VOX Cinemas** (Mall of Egypt, City Center Alexandria, City Centre
+Almaza), watchlist a title before it's even listed, and get notified the
+moment tickets go on sale — by email and/or browser push — with a link
+straight to booking.
 
 Live at: _https://reelradar.online_
 
 ## Why this exists
 
-Cinemas doesn't notify you when booking opens for a movie you're
-waiting on. This app polls on your behalf and pushes a
-notification the instant a watchlisted title becomes bookable, so you
-stop manually refreshing their site.
+Cinemas don't notify you when booking opens for a movie you're waiting
+on. This app polls on your behalf and notifies you the instant a
+watchlisted title becomes bookable, so you stop manually refreshing
+their site. It started as a personal script that checked one cinema
+branch for one movie; this is the general version.
 
 ## How it works
 
-- **Movie catalog** comes from [TMDB](https://www.themoviedb.org/), filtered
-  to titles a real Egypt-based distributor has actually released before (or
-  that clear a popularity safety net) — see
+- **Movie catalog** comes from [TMDB](https://www.themoviedb.org/),
+  filtered to titles a real Egypt-based distributor has actually
+  released before (or that clear a popularity safety net) — see
   [`src/lib/matching/egypt-distributor-filter.ts`](src/lib/matching/egypt-distributor-filter.ts).
-- **Release dates and posters** prefer [elCinema](https://elcinema.com) over
-  TMDB when elCinema has a record of the movie — TMDB's own release date can
-  land on an unrelated country's date when it has no Egypt entry. Scene
-  Cinemas' own page is a further poster fallback for movies neither TMDB nor
-  elCinema has an image for.
-- **Showtimes** are scraped directly from Scene's own site
+  Movies whose release date has long passed with no real listing
+  anywhere are cleaned up automatically
+  ([`src/lib/matching/remove-unreleasable.ts`](src/lib/matching/remove-unreleasable.ts)).
+- **Release dates and posters** prefer [elCinema](https://elcinema.com)
+  over TMDB when elCinema has a record of the movie — TMDB's own release
+  date can land on an unrelated country's date when it has no Egypt
+  entry. Each cinema's own site is a further poster fallback for movies
+  neither TMDB nor elCinema has an image for.
+- **Scene showtimes** are scraped directly from Scene's own site
   ([`src/lib/scene/fetcher.ts`](src/lib/scene/fetcher.ts)), grouped by
   format (Standard, Premiere, IMAX, etc.) per branch.
-- **Title matching** links Scene's own listings to the right TMDB entry:
-  English search first, Arabic fallback on zero results, disambiguation via
-  a confirmed Egypt theatrical release date when a title collides with
-  another movie of the same name. Anything that can't be resolved
-  confidently is left `unmatched`/`ambiguous`, never auto-picked.
+- **VOX showtimes** come from elCinema instead of VOX's own site, which
+  sits behind bot protection that blocks direct scraping —
+  [`src/lib/elcinema/vox-showtimes.ts`](src/lib/elcinema/vox-showtimes.ts)
+  pulls real per-day format/time/price detail for all three VOX
+  branches. Booking links point at VOX's real per-branch showtime pages,
+  not just its homepage.
+- **Title matching** links each cinema's own listings to the right TMDB
+  entry: English search first, Arabic fallback on zero results,
+  disambiguation via a confirmed Egypt theatrical release date when a
+  title collides with another movie of the same name. Anything that
+  can't be resolved confidently is left `unmatched`/`ambiguous`, never
+  auto-picked.
 - **Polling scales with watchlist size, not user count** — the poll job
-  only re-checks (movie, branch) pairs that at least one user is watching,
-  so cost stays flat as the user base grows.
+  only re-checks (movie, branch) pairs that at least one user is
+  watching, so cost stays flat as the user base grows.
 - **Notifications** go out over two independent channels: email (via
-  [Resend](https://resend.com), automatic for every account, no setup) and
-  browser push (Web Push API, opt-in, one subscription per device). Either
-  channel failing doesn't block the other.
+  [Resend](https://resend.com)) and browser push (Web Push API, opt-in,
+  one subscription per device). Either channel failing doesn't block the
+  other. A movie notifies once per bookable "episode" — if it goes
+  not-bookable and later reopens, watchers are notified again.
+- **In-app feedback** (`/feedback`) — saved to the database and emailed
+  directly to the maintainer.
 
 ## Stack
 
@@ -48,11 +63,12 @@ stop manually refreshing their site.
 - **Supabase** — Postgres, Auth (email/password and Google OAuth), Row
   Level Security
 - **TMDB API** — movie catalog, cast/crew, release dates
-- **elCinema** and **Scene Cinemas** — scraped directly (see
-  [`src/lib/elcinema/`](src/lib/elcinema/) and [`src/lib/scene/`](src/lib/scene/))
-- **Resend** — transactional email for the always-on notification channel
-- **web-push** (Web Push API + VAPID) — optional browser push notifications,
-  no third-party push service or app install required
+- **elCinema**, **Scene Cinemas** — scraped directly (see
+  [`src/lib/elcinema/`](src/lib/elcinema/) and
+  [`src/lib/scene/`](src/lib/scene/))
+- **Resend** — transactional email for notifications and feedback
+- **web-push** (Web Push API + VAPID) — browser push notifications, no
+  third-party push service or app install required
 - **cheerio** for HTML parsing, **Playwright** for browser-driven
   verification during development
 
@@ -64,11 +80,13 @@ cp .env.example .env.local   # fill in real values, see below
 npm run dev
 ```
 
-The app expects a Supabase project with the schema described in
-`CLAUDE.md`'s phase notes (not tracked as migration files in this repo —
-schema changes are applied directly via Supabase's SQL Editor and recorded
-in prose). If you're standing up a fresh project, you'll need to create the
-tables described there before the app will run against it.
+The app expects a Supabase project with a matching schema. Schema
+changes aren't tracked as migration files in this repo — they're applied
+directly via Supabase's SQL Editor. If you're standing up a fresh
+project, you'll need to create the core tables yourself: `movies`,
+`branches`, `movie_branch_slugs`, `showtimes_cache`, `watchlist`,
+`notification_log`, `profiles`, `push_subscriptions`, `feedback`,
+`egypt_releases`, `egypt_distributors`.
 
 ### Environment variables
 
@@ -79,32 +97,37 @@ tables described there before the app will run against it.
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only, bypasses RLS — used by the scheduled jobs and sync scripts. Never expose to the client. |
 | `TMDB_API_KEY` | [TMDB API](https://www.themoviedb.org/settings/api) key |
 | `SYNC_SECRET` | Shared secret required (via `x-sync-secret` header) to call the scheduled job routes below |
-| `RESEND_API_KEY` | [Resend API](https://resend.com/api-keys) key, used to send the always-on email notification |
-| `RESEND_FROM_EMAIL` | Verified sending address for Resend (needs a domain-verified sender in production) |
+| `RESEND_API_KEY` | [Resend API](https://resend.com/api-keys) key, used to send email notifications and feedback |
+| `RESEND_FROM_EMAIL` | Verified sending address for Resend (needs a domain-verified sender in production — see Known limitations) |
+| `FEEDBACK_TO_EMAIL` | Address that receives submissions from `/feedback` |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | VAPID public key (public), used by the browser to subscribe to push |
 | `VAPID_PRIVATE_KEY` | VAPID private key, server-only — used to sign push messages. Generate a pair with `npx web-push generate-vapid-keys`. Never expose to the client. |
 
-Google sign-in is configured entirely in the Supabase dashboard (Authentication → Providers → Google) and the corresponding Google Cloud OAuth client — no additional env vars in this repo.
+Google sign-in is configured entirely in the Supabase dashboard
+(Authentication → Providers → Google) and the corresponding Google Cloud
+OAuth client — no additional env vars in this repo.
 
 ## Scheduled jobs
 
-These are plain API routes, not Vercel Cron — Vercel's Hobby tier caps cron
-at once/day with up to ±59 min jitter, too coarse for this app's polling
-needs. Instead, each route is secret-header-protected and meant to be
-called on a real interval by an external scheduler (e.g.
+These are plain API routes, not Vercel Cron — Vercel's Hobby tier caps
+cron at once/day with up to ±59 min jitter, too coarse for this app's
+polling needs. Instead, each route is secret-header-protected and meant
+to be called on a real interval by an external scheduler (e.g.
 [cron-job.org](https://cron-job.org)):
 
 | Route | Purpose | Suggested interval |
 |---|---|---|
 | `POST /api/sync-movies` | Pulls upcoming movies from TMDB into the catalog | Daily |
-| `POST /api/scrape-scene` | Scrapes both Scene branches' listings and bookability | Every 15–30 min |
-| `POST /api/match-movies` | Matches new Scene listings to TMDB entries | After each scrape-scene run |
+| `POST /api/scrape-scene?branch=<id>` | Scrapes a Scene branch's listings and bookability | Every 15–30 min per branch |
+| `POST /api/scrape-vox` | Scrapes VOX showtimes (via elCinema) for all 3 branches | Daily (full-detail fetch, more expensive per run) |
+| `POST /api/scrape-formats` | Records which showtime formats (Standard, IMAX, etc.) are available per Scene branch, for `/cinemas` | Every 30 min |
+| `POST /api/match-movies` | Matches new listings to TMDB entries | After each scrape run |
 | `POST /api/poll` | Checks bookability for watched (movie, branch) pairs and notifies | Every 15–30 min |
 
 Each requires an `x-sync-secret: <SYNC_SECRET>` header. Example:
 
 ```bash
-curl -X POST https://your-deployment.vercel.app/api/poll \
+curl -X POST https://reelradar.online/api/poll \
   -H "x-sync-secret: $SYNC_SECRET"
 ```
 
@@ -119,39 +142,48 @@ backfills / corrections, not part of the regular scheduled-job loop:
 - `backfill-movie-release-dates.ts` — re-checks existing movies against
   elCinema and corrects release dates that predate the elCinema-preferred
   pipeline.
-- `backfill-movie-posters.ts` / `backfill-movie-posters-scene.ts` —
-  fills in missing posters from elCinema, then Scene Cinemas, for existing
+- `backfill-movie-posters.ts` / `backfill-movie-posters-scene.ts` — fills
+  in missing posters from elCinema, then Scene Cinemas, for existing
   movies that have neither a TMDB nor (in the first script's case) an
   elCinema poster.
+- `cleanup-distributor-filter.ts` — retroactively re-checks the catalog
+  against a tightened distributor allowlist.
 
 ## Known limitations
 
-- **Arabic-title matching gap**: Scene sometimes lists a movie only under
-  an English transliteration of its Arabic title (e.g. "Khali Balak Min
-  Nafsik"), and elCinema may use a different transliteration for the same
-  film (e.g. "Khally Balak Min Nafsak"). Title matching requires an exact
-  normalized match as a safety guard against wrong matches, so these can
-  land as `unmatched` even when both sources have the movie.
+- **Email requires a verified sending domain**: Resend's sandbox sender
+  only delivers to the Resend account's own signup address, so real
+  email notifications need `RESEND_FROM_EMAIL` on a domain that's passed
+  Resend's DNS verification. A custom domain (`reelradar.online`) has
+  been purchased for this; DNS verification is in progress but not yet
+  complete, so email notifications currently only reach the maintainer's
+  own inbox.
+- **VOX isn't scraped directly**: VOX's own site sits behind bot
+  protection that blocks direct fetching and headless-browser scraping
+  alike. Showtimes instead come from elCinema, which has real per-branch
+  listings for all 3 VOX branches — a reliable substitute, not a
+  workaround with reduced accuracy.
+- **Arabic-title matching gap**: a cinema sometimes lists a movie only
+  under an English transliteration of its Arabic title, and elCinema may
+  use a different transliteration for the same film. Title matching
+  requires an exact normalized match as a safety guard against wrong
+  matches, so these can land as `unmatched` even when both sources have
+  the movie.
 - **Distributor allowlist is strict, not permissive**: a movie with no
   popularity signal and no matched distributor history is excluded from
   the catalog outright, not shown with a lower-confidence label. This
   trades some false negatives (a genuinely Egypt-bound release from a
   brand-new distributor) for a cleaner catalog.
-- **Scraping is best-effort**: both elCinema and Scene Cinemas are scraped
-  directly from their public HTML, not an official API. Markup changes on
-  either site can break parsing until the relevant selector is updated.
-- **Email requires a verified sending domain**: Resend's test sender only
-  delivers to the Resend account's own signup address, so real email
-  notifications need `RESEND_FROM_EMAIL` on a domain that's passed Resend's
-  DNS verification (SPF/DKIM/MX). Until that's set up, email notifications
-  won't reach real users' inboxes. A custom domain has been purchased for
-  this purpose; verification is in progress but not yet complete.
+- **Scraping is best-effort**: both elCinema and Scene Cinemas are
+  scraped directly from their public HTML, not an official API. Markup
+  changes on either site can break parsing until the relevant selector
+  is updated.
 
 ## Development notes
 
 `CLAUDE.md` (gitignored, local-only) holds the full phase-by-phase build
 history and working agreement for this project — architecture decisions,
 what was tried, what broke, and why. It isn't tracked in this repo since
-it's local project memory rather than project documentation, but if you're
-picking up this codebase fresh, ask whoever has been working on it for the
-context it contains.
+it's local project memory rather than project documentation, but if
+you're picking up this codebase fresh, ask whoever has been working on
+it for the context it contains.
