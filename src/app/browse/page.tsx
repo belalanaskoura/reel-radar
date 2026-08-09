@@ -34,16 +34,49 @@ export default async function BrowsePage() {
     supabase.auth.getUser(),
     supabase
       .from('movies')
-      .select('id, title, release_date, poster_path, match_status, showtimes_cache(branch_id, bookable, raw_showtimes, branches(name))')
+      .select('id, title, release_date, poster_path, match_status, showtimes_cache(branch_id, bookable, was_ever_bookable, raw_showtimes, branches(name))')
       .in('match_status', ['matched', 'unmatched', 'ambiguous'])
       .order('release_date', { ascending: true, nullsFirst: false })
       .limit(2000),
     supabase.from('branches').select('id, name').order('id', { ascending: true }),
   ]);
 
-  const visibleMovies = (movies ?? []).filter(
-    (m) => m.match_status !== 'ambiguous' || (m.showtimes_cache ?? []).length > 0,
-  );
+  // Past this many days after release_date, a movie that's never had a
+  // single bookable date on any branch almost certainly isn't getting
+  // one -- Scene occasionally lags a few days behind the official
+  // release date before posting real showtimes, so this is a grace
+  // window, not "hide the instant release_date passes."
+  const STALE_LISTING_GRACE_DAYS = 7;
+  const staleCutoff = new Date();
+  staleCutoff.setDate(staleCutoff.getDate() - STALE_LISTING_GRACE_DAYS);
+  const staleCutoffStr = staleCutoff.toISOString().slice(0, 10);
+
+  const visibleMovies = (movies ?? []).filter((m) => {
+    const branches = m.showtimes_cache ?? [];
+
+    // A movie whose run has ended everywhere it was ever bookable (rather
+    // than one that's simply not bookable yet, e.g. still upcoming) has
+    // served its purpose on this page -- it's neither "bookable now" nor
+    // "coming soon," so it's excluded rather than shown as if it still
+    // were. was_ever_bookable is a one-way flag (set by a DB trigger the
+    // moment bookable is ever written true, never reset), so this only
+    // fires for a real past run, never a movie that just hasn't opened yet.
+    const hasEndedEverywhere = branches.some((s) => s.was_ever_bookable) && !branches.some((s) => s.bookable);
+
+    // Separately: a movie that's never been bookable ANYWHERE, listed at
+    // Scene with an empty schedule, whose release_date is well in the
+    // past -- Scene created a page for it but never posted real
+    // showtimes, so it's effectively a dead listing rather than "coming
+    // soon" (which is expected to show zero dates for a while before its
+    // real release). No release_date at all is left alone: that's the
+    // Arabic-title-matching gap (Phase 5's known limitation) or a title
+    // TMDB hasn't confirmed a date for yet, not evidence of a dead entry.
+    const neverBookableAnywhere = branches.length > 0 && !branches.some((s) => s.was_ever_bookable);
+    const isStaleListing =
+      neverBookableAnywhere && !!m.release_date && m.release_date < staleCutoffStr;
+
+    return (m.match_status !== 'ambiguous' || branches.length > 0) && !hasEndedEverywhere && !isStaleListing;
+  });
 
   let watchedIds: string[] = [];
   let showPushBanner = false;
