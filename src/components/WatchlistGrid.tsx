@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { posterUrl } from '@/lib/tmdb-image';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { chainForBranch, voxBranchShowtimesUrl, type VoxBranchId } from '@/lib/branches';
-import { TicketIcon, TrashIcon } from '@/components/icons';
+import { SearchIcon, TicketIcon, TrashIcon } from '@/components/icons';
+import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
 import { SortToggle, type SortDirection } from '@/components/SortToggle';
 import { removeFromWatchlist } from '@/app/watchlist/actions';
 
@@ -28,8 +29,53 @@ function sceneMovieUrl(branchId: string, slug: string): string {
   return `${BRANCH_BASE_URLS[branchId as BranchId] ?? ''}/movie-details/${slug}.html`;
 }
 
+// Same word-start matching as /browse's search (BrowseGrid.matchesSearch)
+// -- kept as a separate local copy rather than a shared import since this
+// page's search is local component state, not SearchProvider's context
+// (that context is specifically for NavSearch <-> BrowseGrid, siblings
+// with no direct prop connection; the watchlist page has no such need).
+function matchesSearch(title: string, query: string): boolean {
+  const queryWords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (queryWords.length === 0) return true;
+  const titleWords = title.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return queryWords.every((qWord) => titleWords.some((tWord) => tWord.startsWith(qWord)));
+}
+
+// Single primary booking link for the card's main action button: the
+// first bookable branch's link, Scene or VOX. A movie bookable at
+// several branches still only gets one button here (the full branch-by-
+// branch breakdown is a tap away on the movie detail page) -- this card
+// is a scannable list, not the place to reproduce that detail.
+function primaryBookingUrl(movie: WatchedMovie): string | null {
+  const bookableCache = movie.showtimes_cache.find((c) => c.bookable);
+  if (!bookableCache) return null;
+  if (chainForBranch(bookableCache.branch_id) === 'vox') {
+    return voxBranchShowtimesUrl(bookableCache.branch_id as VoxBranchId);
+  }
+  const slugRow = movie.movie_branch_slugs.find((s) => s.branch_id === bookableCache.branch_id);
+  return slugRow ? sceneMovieUrl(bookableCache.branch_id, slugRow.slug) : null;
+}
+
 export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  const filteredMovies = useMemo(() => {
+    let result = movies;
+
+    if (statusFilter === 'bookable') {
+      result = result.filter((m) => m.showtimes_cache.some((c) => c.bookable));
+    } else if (statusFilter === 'coming_soon') {
+      result = result.filter((m) => !m.showtimes_cache.some((c) => c.bookable));
+    }
+
+    if (query.trim()) {
+      result = result.filter((m) => matchesSearch(m.title, query));
+    }
+
+    return result;
+  }, [movies, statusFilter, query]);
 
   // Movies with no known release date (the Arabic-title matching gap
   // flagged elsewhere in the app) don't have a meaningful "soonest" or
@@ -37,14 +83,14 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
   // rather than landing at one extreme or the other by accident of how
   // string comparison treats null.
   const sortedMovies = useMemo(() => {
-    const withDate = movies.filter((m) => m.release_date);
-    const withoutDate = movies.filter((m) => !m.release_date);
+    const withDate = filteredMovies.filter((m) => m.release_date);
+    const withoutDate = filteredMovies.filter((m) => !m.release_date);
     withDate.sort((a, b) => {
       const cmp = a.release_date!.localeCompare(b.release_date!);
       return sortDirection === 'asc' ? cmp : -cmp;
     });
     return [...withDate, ...withoutDate];
-  }, [movies, sortDirection]);
+  }, [filteredMovies, sortDirection]);
 
   if (movies.length === 0) {
     return (
@@ -74,129 +120,136 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <SortToggle value={sortDirection} onChange={setSortDirection} />
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 sm:max-w-xs">
+          <SearchIcon
+            size={16}
+            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2"
+            style={{ color: 'var(--ink-dim)' }}
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search watchlist..."
+            className="min-h-11 w-full rounded-sm border py-2 pr-3 pl-9 text-sm focus:outline-none focus-visible:ring-2"
+            style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <FilterDropdown value={statusFilter} onChange={setStatusFilter} />
+          <SortToggle value={sortDirection} onChange={setSortDirection} />
+        </div>
       </div>
 
-      <ul className="flex flex-col gap-4">
-        {sortedMovies.map((movie) => {
-          const isBookable = movie.showtimes_cache.some((c) => c.bookable);
-          return (
-          <li
-            key={movie.id}
-            className="poster-card flex gap-4 rounded-sm border p-4"
-            style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
-          >
-            <Link
-              href={`/movies/${movie.id}`}
-              className="relative h-36 w-24 flex-shrink-0 overflow-hidden rounded-sm"
-              style={{ background: 'var(--listed-bg)' }}
-            >
-              {posterUrl(movie.poster_path) ? (
-                <Image
-                  src={posterUrl(movie.poster_path)!}
-                  alt={movie.title}
-                  fill
-                  sizes="96px"
-                  className="object-cover"
-                />
-              ) : null}
-            </Link>
+      {sortedMovies.length === 0 ? (
+        <p className="py-10 text-center text-sm" style={{ color: 'var(--ink-dim)' }}>
+          No movies match this filter.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {sortedMovies.map((movie) => {
+            const isBookable = movie.showtimes_cache.some((c) => c.bookable);
+            const bookingUrl = isBookable ? primaryBookingUrl(movie) : null;
 
-            <div className="flex flex-1 flex-col gap-2">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
-                    <h2 className="font-display text-2xl leading-tight" style={{ color: 'var(--ink)' }}>
-                      {movie.title}
-                    </h2>
-                  </Link>
-                  <p className="text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
-                    {movie.release_date
-                      ? `${isBookable ? 'Released on' : 'Release Date'} ${movie.release_date}`
-                      : 'Release date TBA'}
-                  </p>
-                </div>
-                <form action={removeFromWatchlist.bind(null, movie.id)}>
-                  <button
-                    type="submit"
-                    aria-label="Remove from watchlist"
-                    title="Remove from watchlist"
-                    className="rounded-sm border p-1.5 transition-opacity hover:opacity-70"
-                    style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
+            return (
+              <div
+                key={movie.id}
+                className="poster-card flex flex-col overflow-hidden rounded-lg"
+                style={{ background: 'var(--surface)', boxShadow: '0 0 0 1px var(--rule)' }}
+              >
+                <div className="relative">
+                  <Link
+                    href={`/movies/${movie.id}`}
+                    className="relative block aspect-[2/3] w-full overflow-hidden"
+                    style={{ background: 'var(--listed-bg)' }}
                   >
-                    <TrashIcon />
-                  </button>
-                </form>
-              </div>
+                    {posterUrl(movie.poster_path) ? (
+                      <Image
+                        src={posterUrl(movie.poster_path)!}
+                        alt={movie.title}
+                        fill
+                        sizes="(max-width: 640px) 50vw, 220px"
+                        className="object-cover"
+                      />
+                    ) : null}
+                  </Link>
+                  <form action={removeFromWatchlist.bind(null, movie.id)} className="absolute top-2 right-2">
+                    <button
+                      type="submit"
+                      aria-label="Remove from watchlist"
+                      title="Remove from watchlist"
+                      className="flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-sm transition-opacity hover:opacity-80"
+                      style={{ background: 'color-mix(in srgb, var(--bg) 65%, transparent)', color: 'var(--ink)' }}
+                    >
+                      <TrashIcon size={15} />
+                    </button>
+                  </form>
+                </div>
 
-              {movie.showtimes_cache.length === 0 ? (
-                <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
-                  Not listed yet
-                </p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {movie.showtimes_cache.map((cache) => {
-                    const slugRow = movie.movie_branch_slugs.find(
-                      (s) => s.branch_id === cache.branch_id,
-                    );
-                    const branchName = cache.branches?.name ?? cache.branch_id;
-                    return (
-                      <li key={cache.branch_id} className="text-xs">
-                        <span className="font-medium" style={{ color: 'var(--ink)' }}>
-                          {branchName}:
-                        </span>{' '}
-                        {cache.bookable ? (
-                          <>
-                            <span style={{ color: 'var(--ok-ink)' }}>Bookable</span>
-                            {/* VOX rows store real per-day showtime detail objects
-                                here, not a plain date string[] like Scene -- this
-                                inline date list only makes sense for Scene. */}
-                            {chainForBranch(cache.branch_id) !== 'vox' &&
-                              Array.isArray(cache.raw_showtimes) &&
-                              cache.raw_showtimes.length > 0 && (
-                                <span className="tabular-nums" style={{ color: 'var(--ink-dim)' }}>
-                                  {' '}
-                                  ({(cache.raw_showtimes as string[]).join(', ')})
-                                </span>
-                              )}
-                            {chainForBranch(cache.branch_id) === 'vox' ? (
-                              <a
-                                href={voxBranchShowtimesUrl(cache.branch_id as VoxBranchId)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="ml-2 underline"
-                                style={{ color: 'var(--accent)' }}
-                              >
-                                Book now
-                              </a>
-                            ) : (
-                              slugRow && (
-                                <a
-                                  href={sceneMovieUrl(cache.branch_id, slugRow.slug)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="ml-2 underline"
-                                  style={{ color: 'var(--accent)' }}
-                                >
-                                  Book now
-                                </a>
-                              )
-                            )}
-                          </>
-                        ) : (
-                          <span style={{ color: 'var(--ink-dim)' }}>Listed, not bookable yet</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </li>
-          );
-        })}
-      </ul>
+                <div className="flex flex-1 flex-col gap-2 p-3">
+                  <div>
+                    <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
+                      <h2
+                        className="font-display line-clamp-2 text-lg leading-tight uppercase"
+                        style={{ color: 'var(--ink)' }}
+                      >
+                        {movie.title}
+                      </h2>
+                    </Link>
+                    <p className="mt-1 text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
+                      {movie.release_date
+                        ? `${isBookable ? 'Released' : 'Release'}: ${movie.release_date}`
+                        : 'Release date TBA'}
+                    </p>
+                  </div>
+
+                  <p
+                    className="flex items-center gap-1.5 text-xs font-medium"
+                    style={{ color: isBookable ? 'var(--accent)' : 'var(--ink-dim)' }}
+                  >
+                    <TicketIcon size={13} />
+                    {isBookable ? 'Book Now' : 'Coming Soon'}
+                  </p>
+
+                  <div className="mt-auto pt-1">
+                    {isBookable ? (
+                      bookingUrl ? (
+                        <a
+                          href={bookingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block w-full rounded-sm px-3 py-2 text-center text-xs font-semibold transition-opacity hover:opacity-90"
+                          style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                        >
+                          View Showtimes
+                        </a>
+                      ) : (
+                        <Link
+                          href={`/movies/${movie.id}`}
+                          className="block w-full rounded-sm px-3 py-2 text-center text-xs font-semibold transition-opacity hover:opacity-90"
+                          style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                        >
+                          View Showtimes
+                        </Link>
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="w-full cursor-not-allowed rounded-sm px-3 py-2 text-xs font-semibold"
+                        style={{ background: 'var(--listed-bg)', color: 'var(--listed-ink)' }}
+                      >
+                        Coming Soon
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
