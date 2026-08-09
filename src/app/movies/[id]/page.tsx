@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { fetchMovieDetails, fetchCredits, fetchPersonImdbId } from '@/lib/tmdb';
 import { posterUrl, backdropUrl, profileUrl } from '@/lib/tmdb-image';
@@ -14,10 +15,13 @@ import { MovieDetailTabs } from '@/components/MovieDetailTabs';
 
 export default async function MovieDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
   const supabase = await createClient();
 
   // Independent of each other (the movie lookup doesn't need `user`), so
@@ -111,15 +115,38 @@ export default async function MovieDetailPage({
   const releaseDate = movie.release_date ?? details?.release_date ?? null;
   const releaseYear = releaseDate ? releaseDate.slice(0, 4) : null;
 
+  // Reached from a specific cinema's page (?from=<branchId>) -- narrow to
+  // just that branch's showtimes rather than every branch this movie is
+  // listed at. Falls back to showing everything if `from` doesn't match
+  // any branch this movie actually has a cache row for (a stale link,
+  // e.g. copied before a branch was pulled), rather than rendering an
+  // empty list.
+  const fromBranch = from && movie.showtimes_cache.some((c) => c.branch_id === from) ? from : null;
+  const visibleShowtimesCache = fromBranch
+    ? movie.showtimes_cache.filter((c) => c.branch_id === fromBranch)
+    : movie.showtimes_cache;
+  const fromBranchName =
+    fromBranch != null
+      ? (movie.showtimes_cache.find((c) => c.branch_id === fromBranch)?.branches?.name ?? fromBranch)
+      : null;
+
   const showtimes = (
     <>
-      {movie.showtimes_cache.length === 0 ? (
+      {fromBranchName && (
+        <p className="mb-3 text-xs" style={{ color: 'var(--ink-dim)' }}>
+          Showing {fromBranchName} only &middot;{' '}
+          <Link href={`/movies/${movie.id}`} className="underline" style={{ color: 'var(--accent-dim)' }}>
+            View all cinemas
+          </Link>
+        </p>
+      )}
+      {visibleShowtimesCache.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
           Not listed yet.
         </p>
       ) : (
         <ul className="flex flex-col gap-4">
-          {movie.showtimes_cache.map((cache) => {
+          {visibleShowtimesCache.map((cache) => {
             const slugRow = movie.movie_branch_slugs.find(
               (s) => s.branch_id === cache.branch_id,
             );
