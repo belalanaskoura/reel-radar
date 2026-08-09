@@ -2108,3 +2108,154 @@ since flipping `RESEND_FROM_EMAIL` to a `reelradar.online` address before
 that domain shows "Verified" in Resend would break the one email channel
 that currently works (delivery to the account's own address) for zero
 gain.
+
+## In-app feedback, push-notification prompt, browse cleanup, cinema-scoped showtimes
+
+Four separate features shipped this session, each its own commit, none
+blocked on the still-pending Resend domain verification above.
+
+**In-app feedback form** (`cf526bd`). New `/feedback` page + `src/app/
+feedback/actions.ts`'s `submitFeedback` server action: saves to a new
+`feedback` table (`id`, `user_id` FK to `auth.users`, `email`, `message`,
+`created_at`; RLS: insert-only by the owning user via `auth.uid() =
+user_id`, no select/update/delete policy at all -- mirrors
+`notification_log`'s write-only pattern, so a user can submit but never
+read anyone else's feedback back, including their own) and, best-effort,
+emails it to the admin via a new `notifyFeedbackByEmail` in `src/lib/
+email.ts` (new `FEEDBACK_TO_EMAIL` env var, same raw-fetch-to-Resend
+shape as the two existing notification emails, with the feedback
+message/sender correctly passed through a new `escapeHtml()` helper
+before interpolating into the HTML body -- the one real injection point
+in this feature, closed). Initially built as a plain `redirect()`-based
+form matching `account/edit`'s pattern, then **rebuilt from a user-
+supplied reference design** (a full HTML/Tailwind mockup) into a client
+component (`src/components/FeedbackForm.tsx`) using `useTransition` + an
+in-place success-state swap instead of a full-page reload -- the
+mockup's own dark palette turned out very close to ReelRadar's existing
+real dark-mode tokens already in `globals.css`, so it was adapted onto
+the real `--accent`/`--ink`/etc. custom properties rather than importing
+a second, parallel color system; two new icons (`MailIcon`, `SendIcon`)
+added to the existing feather-style `icons.tsx` set rather than pulling
+in Material Symbols from the mockup. A dedicated `code-review`-style
+security pass (2 sub-agent-verified false-positive filters run against
+the diff) found no reportable vulnerabilities -- XSS correctly closed by
+`escapeHtml`, no IDOR (insert always keyed on the session's own
+`user.id`, RLS-backed), length capped both client- and server-side; a
+theoretical no-rate-limiting concern was evaluated and explicitly
+excluded (small trusted user base, no attack path, no existing rate-
+limiting convention anywhere else in this codebase either).
+
+**Global push-notification prompt** (`4dcea3a`, `4f3b472`). New
+`src/components/PushPrompt.tsx`: a real centered modal (no prior Modal/
+Dialog component existed in this codebase -- built from scratch, reusing
+the `dropdown-menu-in` fade/scale keyframe already in `globals.css`),
+mounted globally in `src/app/layout.tsx` (now an async server component
+that fetches the signed-in user and does a one-row `push_subscriptions`
+existence check, same query shape as `browse/page.tsx`'s existing
+`PushBanner` gate), shown once per browser session (`sessionStorage` key
+`reelradar:push-prompt-dismissed`, separate key from `PushBanner`'s own
+so the two nudges don't suppress each other) to any signed-in user with
+no active push subscription. Explicitly kept **alongside**, not instead
+of, the pre-existing `/browse`-only `PushBanner` (the user's own choice
+when asked). Reuses `isIosSafariNotInstalled()` from
+`PushSubscribeButton.tsx` (exported for this purpose, its third real
+call site -- `PushOnboarding.tsx` has its own separate, looser
+`useIsIos()` that doesn't check standalone-display-mode, kept as-is
+rather than consolidated) to show adapted "add to Home Screen first"
+copy instead of a dead-end "enable" button on iOS Safari not installed
+as a PWA; skips rendering entirely if the browser is unsupported or
+`Notification.permission === 'denied'`, matching `PushSubscribeButton`'s
+own state logic exactly rather than a fourth reimplementation.
+
+A real live-testing gap surfaced immediately: the popup didn't appear on
+first manual test because the test account already had a real, live
+`push_subscriptions` row from a previous session (2026-08-07) -- the
+prompt was correctly deciding not to show, not broken. Verified by
+directly querying Supabase rather than guessing from server logs (which
+had briefly shown a stale, self-resolved Turbopack "module not found"
+compile race from the moment the new file was created, unrelated to the
+actual issue). Tested end-to-end by temporarily deleting the real
+subscription row (service-role client, ad hoc script), confirming the
+popup appeared, then leaving restoration to the user via the real
+`/account/edit` toggle rather than restoring the DB row directly (the
+browser's own `PushManager` subscription object was untouched throughout
+-- only the DB row was ever touched -- so a plain toggle-off/on cleanly
+resyncs both sides).
+
+**Settings page restructure** (`4f3b472`), prompted directly by user
+confusion over a UI screenshot: `/account/edit`'s "New releases" card
+had `PushSubscribeButton` (a global, all-notification-types delivery
+control) nested underneath a `notify_new_releases`-only toggle, both
+under one card titled/described as being specifically about new-release
+alerts -- genuinely confusing, not just a style nitpick, since the card's
+own title said one thing while half its content controlled something
+else entirely. Fixed by pulling push into its own top-level
+`SettingsCard` ("Push notifications", placed first since it's the
+prerequisite delivery mechanism the other two alert-type cards actually
+depend on), leaving "New releases" as just its toggle with nothing
+nested under it.
+
+**Browse-page cleanup, two separate filters** (`32919b2`). First filter,
+"run ended": a movie that was bookable at some branch and has since gone
+quiet everywhere should read as done, not "coming soon" -- but no
+existing column captured *history*, only current `bookable` state, so a
+new `showtimes_cache.was_ever_bookable` boolean column was added (raw
+SQL handed to the user per this project's no-migration-files
+convention), set permanently the moment `bookable` is ever written
+`true` by a Postgres trigger (`BEFORE INSERT OR UPDATE ... set
+new.was_ever_bookable := true`) rather than by threading the logic
+through all 4 places that write `bookable` (`poll` x2 branches,
+`scrape-scene`'s main upsert + its delisted-cleanup path, `scrape-vox`)
+-- deliberately chosen so a future 5th write site can't forget to set it.
+Browse now excludes a movie once every branch it was ever bookable at
+has since gone not-bookable (aggregate "any branch still bookable keeps
+it visible" logic, matching `MovieCard`'s existing `isBookable` check).
+End-to-end verified by temporarily flipping a real single-branch movie's
+`bookable` to `false` (leaving the one-way `was_ever_bookable` flag
+untouched, confirming the trigger really is one-way), watching it
+disappear from `/browse`'s server-rendered HTML, then reverting and
+confirming it reappeared.
+
+Second filter, "stale listing," added in the same follow-up after the
+user reported "Evil Dead Burn" -- a movie that was **never** bookable at
+all, `was_ever_bookable: false` -- was still showing on browse despite
+having zero showtimes. This is a genuinely different case from "run
+ended" (that filter only fires on a past-true-now-false transition, and
+correctly left this alone), so a second, independent condition was
+added: a movie listed at a branch, never bookable there, with a real
+`release_date` more than 7 days in the past (`STALE_LISTING_GRACE_DAYS`)
+is now also excluded -- a movie whose official release came and went
+with Scene never posting real showtimes is a dead listing, not "coming
+soon." Movies with a future or **null** `release_date` are deliberately
+exempted regardless of how long they've sat with zero showtimes (a null
+date is Phase 5's known Arabic-title-matching gap or an unconfirmed TMDB
+date, not evidence of a dead entry) -- checked against real production
+data first (a live query surfaced several real candidates: "Evil Dead
+Burn" released over a month prior with zero showtimes ever, versus "The
+End of Oak Street"/"The Rivals of Amziah King" with real future dates,
+correctly still visible) rather than picking an arbitrary day-count
+timer with no grounding, which was the user's own first suggestion
+before the release-date signal was proposed as the more precise
+alternative. This filter is deliberately narrower in scope than the
+existing `removeUnreleasableMovies()` cleanup job (which deletes a movie
+outright, but only if it has zero `movie_branch_slugs` rows on any
+branch at all) -- this new logic only hides from the browse *display*,
+never deletes anything, and applies even when a real slug link exists,
+which is exactly the case `removeUnreleasableMovies()` deliberately
+leaves alone as "real evidence it's still expected."
+
+**Cinema-scoped movie showtimes** (`3ed48f4`). Clicking a movie from a
+specific cinema's page (`/cinemas/[id]`, via `CinemaMovieGrid`) used to
+land on the movie's detail page showing every branch's showtimes, with
+no memory of which cinema the click came from. Fixed via a plain query
+param, not new state/context: `CinemaMovieGrid`'s movie links now carry
+`?from=<branchId>`; `src/app/movies/[id]/page.tsx` reads it server-side
+and filters `showtimes_cache` down to just that branch, showing a
+"Showing {branch name} only · View all cinemas" line above the list
+(the clear-filter link points at the plain unparameterized URL). Falls
+back to showing every branch if `from` doesn't match any branch this
+particular movie actually has a cache row for, rather than rendering an
+empty list -- covers a stale/copied link surviving past a branch being
+delisted for that movie. Verified directly via `curl` against the dev
+server for both the filtered and fallback cases before the user
+confirmed it visually in the browser.
