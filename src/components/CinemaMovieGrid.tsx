@@ -137,7 +137,7 @@ export function CinemaMovieGrid({
           {filtered.map((movie) => {
             const poster = posterUrl(movie.poster_path);
             return (
-              <Link key={movie.id} href={`/movies/${movie.id}`} className="group flex flex-col gap-2">
+              <Link key={movie.id} href={`/movies/${movie.id}?from=${branchId}`} className="group flex flex-col gap-2">
                 <div
                   className="relative aspect-[2/3] w-full overflow-hidden rounded-lg transition-transform duration-300 group-hover:scale-[1.02]"
                   style={{ background: 'var(--listed-bg)' }}
