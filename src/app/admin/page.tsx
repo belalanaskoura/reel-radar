@@ -2,6 +2,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
 import { StatTile } from '@/components/admin/StatTile';
 import { RunJobButton } from '@/components/admin/RunJobButton';
+import { RunAllJobsButton, type JobTarget } from '@/components/admin/RunAllJobsButton';
 
 // A movie/branch pair not re-checked in roughly 2 poll cycles is worth
 // flagging -- the external scheduler runs poll every 15-30 min, so 90 min
@@ -138,6 +139,20 @@ export default async function AdminOverviewPage() {
           </p>
           {staleBranches.size > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
+              {staleBranches.size > 1 && (
+                <RunAllJobsButton
+                  targets={[...staleBranches.entries()].map(
+                    ([branchId, branch]): JobTarget => ({
+                      job: branch.chain === 'vox' ? 'scrape-vox' : 'scrape-scene',
+                      branch: branchId,
+                      label: branch.name,
+                    }),
+                  )}
+                  size="sm"
+                  label={`Re-scrape all (${staleBranches.size})`}
+                  confirmText={`Re-run the scrape for all ${staleBranches.size} stale cinemas now? This runs one after another, not all at once.`}
+                />
+              )}
               {[...staleBranches.entries()].map(([branchId, branch]) => (
                 <RunJobButton
                   key={branchId}
