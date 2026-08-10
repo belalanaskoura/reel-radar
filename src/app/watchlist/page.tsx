@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { TicketIcon } from '@/components/icons';
 import { WatchlistGrid, type WatchedMovie } from '@/components/WatchlistGrid';
+import { logPageView } from '@/lib/analytics';
 
 export default async function WatchlistPage() {
   const supabase = await createClient();
@@ -10,6 +11,8 @@ export default async function WatchlistPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect('/signin');
+
+  logPageView('/watchlist');
 
   const { data: watchlistRows } = await supabase
     .from('watchlist')

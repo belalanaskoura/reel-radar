@@ -1,0 +1,43 @@
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
+
+type AnalyticsEvent =
+  | { type: 'page_view'; payload: { path: string; movie_id?: string; branch_id?: string } }
+  | { type: 'signup'; payload: { user_id: string } }
+  | { type: 'watchlist_add'; payload: { user_id: string; movie_id: string } }
+  | {
+      type: 'scrape_run';
+      payload: {
+        source: 'scene' | 'vox';
+        branch: string;
+        listed: number;
+        bookable: number;
+        delisted: number;
+        duration_ms: number;
+        error: string | null;
+      };
+    }
+  | {
+      type: 'poll_run';
+      payload: { checked: number; notified: number; pair_errors: number; duration_ms: number };
+    }
+  | {
+      type: 'match_run';
+      payload: { matched: number; ambiguous: number; unmatched: number; merged: number; duration_ms: number };
+    }
+  | { type: 'sync_run'; payload: { accepted: number; rejected: number; duration_ms: number } };
+
+// Fire-and-forget: analytics must never fail or slow down the request
+// it's instrumenting, so errors are swallowed rather than surfaced.
+export function logEvent(event: AnalyticsEvent) {
+  createServiceRoleClient()
+    .from('analytics_events')
+    .insert({ event_type: event.type, payload: event.payload })
+    .then(
+      () => {},
+      () => {},
+    );
+}
+
+export function logPageView(path: string, extra?: { movie_id?: string; branch_id?: string }) {
+  logEvent({ type: 'page_view', payload: { path, ...extra } });
+}

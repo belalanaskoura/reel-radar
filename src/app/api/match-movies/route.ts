@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { mergeSceneDuplicates } from '@/lib/matching/merge-scene-duplicates';
 import { matchScenesToTmdb } from '@/lib/matching/match-to-tmdb';
+import { logEvent } from '@/lib/analytics';
 
 // Reconciles Scene-sourced placeholder movies (created by Phase 4's
 // scraper, tmdb_id null) against TMDB. Two steps: first merge duplicate
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const supabase = createServiceRoleClient();
 
   const mergeResult = await mergeSceneDuplicates(supabase);
@@ -24,6 +26,11 @@ export async function POST(request: Request) {
     ambiguous: matchResults.filter((r) => r.outcome === 'ambiguous').length,
     unmatched: matchResults.filter((r) => r.outcome === 'unmatched').length,
   };
+
+  logEvent({
+    type: 'match_run',
+    payload: { ...summary, merged: mergeResult.groupsMerged, duration_ms: Date.now() - startedAt },
+  });
 
   return NextResponse.json({ merge: mergeResult, match: summary });
 }
