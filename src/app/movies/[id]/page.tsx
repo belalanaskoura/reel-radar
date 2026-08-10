@@ -129,6 +129,16 @@ export default async function MovieDetailPage({
     fromBranch != null
       ? (movie.showtimes_cache.find((c) => c.branch_id === fromBranch)?.branches?.name ?? fromBranch)
       : null;
+  // Arriving from a specific cinema's page means the user already knows
+  // what the movie is -- what they came for is to book it, so jump
+  // straight to the Showtimes tab. Only when that cinema's own row is
+  // actually bookable, though; otherwise "Showtimes" would just show
+  // "Listed, not bookable yet", worse than landing on Overview. Browse
+  // page links carry no `from`, so they're unaffected and keep opening
+  // on Overview as before.
+  const fromBranchBookable =
+    fromBranch != null &&
+    (movie.showtimes_cache.find((c) => c.branch_id === fromBranch)?.bookable ?? false);
 
   const showtimes = (
     <>
@@ -311,6 +321,7 @@ export default async function MovieDetailPage({
 
       <div className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">
         <MovieDetailTabs
+          initialTab={fromBranchBookable ? 'showtimes' : 'overview'}
           overview={details?.overview ?? null}
           tagline={details?.tagline ?? null}
           cast={castWithImdbIds}
