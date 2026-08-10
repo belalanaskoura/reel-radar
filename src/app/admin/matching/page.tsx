@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
 import { StatTile } from '@/components/admin/StatTile';
+import { RunJobButton } from '@/components/admin/RunJobButton';
 
 type MatchRunPayload = { matched: number; ambiguous: number; unmatched: number; merged: number; duration_ms: number };
 type SyncRunPayload = { accepted: number; rejected: number; duration_ms: number };
@@ -36,9 +37,17 @@ export default async function AdminMatchingPage() {
   return (
     <AdminPageShell title="Matching">
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Latest match run
-        </h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
+            Latest match run
+          </h2>
+          <RunJobButton
+            job="match-movies"
+            size="sm"
+            label="Re-run matching"
+            confirmText="Re-run the matching job now? This tries to resolve the current unmatched/ambiguous backlog."
+          />
+        </div>
         {latestMatch ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <StatTile label="Matched" value={latestMatch.matched} tone="ok" />

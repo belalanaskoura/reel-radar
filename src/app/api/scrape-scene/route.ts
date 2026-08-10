@@ -172,6 +172,20 @@ export async function POST(request: Request) {
         .in('movie_id', delistedMovieIds)
         .select('movie_id');
       delistedCount = cleared?.length ?? 0;
+
+      // A delisted movie that was already bookable: false is skipped by
+      // the update above (the .eq('bookable', true) filter), so its
+      // last_checked_at never gets touched even though this run just
+      // re-confirmed it's still absent -- it would otherwise look stale
+      // forever on the admin dashboard despite the scrape genuinely
+      // covering it every time. Refresh the timestamp unconditionally
+      // for every delisted row, independent of the bookable reset above.
+      await supabase
+        .from('showtimes_cache')
+        .update({ last_checked_at: new Date().toISOString() })
+        .eq('branch_id', branch)
+        .eq('bookable', false)
+        .in('movie_id', delistedMovieIds);
     }
 
     results[branch] = { listed: listings.length, bookable: bookableCount, delisted: delistedCount };
