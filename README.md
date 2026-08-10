@@ -102,6 +102,7 @@ project, you'll need to create the core tables yourself: `movies`,
 | `FEEDBACK_TO_EMAIL` | Address that receives submissions from `/feedback` |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | VAPID public key (public), used by the browser to subscribe to push |
 | `VAPID_PRIVATE_KEY` | VAPID private key, server-only — used to sign push messages. Generate a pair with `npx web-push generate-vapid-keys`. Never expose to the client. |
+| `ADMIN_EMAILS` | Comma-separated allowlist of emails permitted to view `/admin` |
 
 Google sign-in is configured entirely in the Supabase dashboard
 (Authentication → Providers → Google) and the corresponding Google Cloud

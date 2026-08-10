@@ -6,7 +6,8 @@ import { createClient } from '@/lib/supabase/server';
 import { NavSearch } from '@/components/NavSearch';
 import { RadarLogo } from '@/components/RadarLogo';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { BellIcon, CinemaIcon, FilmIcon, UserIcon } from '@/components/icons';
+import { BellIcon, CinemaIcon, FilmIcon, SettingsIcon, UserIcon } from '@/components/icons';
+import { isAdminEmail } from '@/lib/admin';
 
 export async function NavBar() {
   const supabase = await createClient();
@@ -71,6 +72,9 @@ export async function NavBar() {
             />
           )}
           <NavLink href="/cinemas" iconSize={16} label="Cinemas" icon={CinemaIcon} />
+          {isAdminEmail(user?.email) && (
+            <NavLink href="/admin" iconSize={16} label="Admin" icon={SettingsIcon} />
+          )}
         </div>
 
         {/* Theme + Auth */}
