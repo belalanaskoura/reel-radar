@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchVoxShowtimes } from '@/lib/elcinema/vox-showtimes';
 import { sleep, REQUEST_DELAY_MS } from '@/lib/elcinema/fetcher';
 import { VOX_ELCINEMA_THEATER_IDS, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
+import { logEvent } from '@/lib/analytics';
 
 const VOX_BRANCHES = Object.keys(VOX_ELCINEMA_THEATER_IDS) as VoxBranchId[];
 const DAYS_AHEAD = 5; // confirmed rolling window: today through +4 have real showtimes, +5 is always empty
@@ -36,6 +37,8 @@ export async function POST(request: Request) {
   const results: Record<string, { movies: number; bookable: number }> = {};
 
   for (const branch of branchesToScrape) {
+    const branchStartedAt = Date.now();
+    try {
     const theaterId = VOX_ELCINEMA_THEATER_IDS[branch];
 
     const titleByElcinemaId = new Map<number, string>();
@@ -141,6 +144,35 @@ export async function POST(request: Request) {
     }
 
     results[branch] = { movies: titleByElcinemaId.size, bookable: bookableCount };
+
+    logEvent({
+      type: 'scrape_run',
+      payload: {
+        source: 'vox',
+        branch,
+        listed: titleByElcinemaId.size,
+        bookable: bookableCount,
+        delisted: 0,
+        duration_ms: Date.now() - branchStartedAt,
+        error: null,
+      },
+    });
+    } catch (err) {
+      results[branch] = { movies: 0, bookable: 0 };
+      logEvent({
+        type: 'scrape_run',
+        payload: {
+          source: 'vox',
+          branch,
+          listed: 0,
+          bookable: 0,
+          delisted: 0,
+          duration_ms: Date.now() - branchStartedAt,
+          error: String(err).slice(0, 500),
+        },
+      });
+      // One branch's failure shouldn't take down a combined-branches call.
+    }
   }
 
   return NextResponse.json(results);

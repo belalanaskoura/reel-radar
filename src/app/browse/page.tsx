@@ -3,8 +3,11 @@ import { BrowseGrid } from '@/components/BrowseGrid';
 import { PushBanner } from '@/components/PushBanner';
 import type { MovieCardData } from '@/components/MovieCard';
 import { sortBranchesForDisplay } from '@/lib/branches';
+import { logPageView } from '@/lib/analytics';
 
 export default async function BrowsePage() {
+  logPageView('/browse');
+
   const supabase = await createClient();
 
   // Fetches every browsable movie once: search, the status filter, and

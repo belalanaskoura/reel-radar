@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchAllListings, checkBookability, sleep, REQUEST_DELAY_MS } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
+import { logEvent } from '@/lib/analytics';
 
 const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 
@@ -37,6 +38,8 @@ export async function POST(request: Request) {
   const results: Record<string, { listed: number; bookable: number; delisted: number }> = {};
 
   for (const branch of branchesToScrape) {
+    const branchStartedAt = Date.now();
+    try {
     const listings = await fetchAllListings(branch);
     let bookableCount = 0;
     let delistedCount = 0;
@@ -172,6 +175,37 @@ export async function POST(request: Request) {
     }
 
     results[branch] = { listed: listings.length, bookable: bookableCount, delisted: delistedCount };
+
+    logEvent({
+      type: 'scrape_run',
+      payload: {
+        source: 'scene',
+        branch,
+        listed: listings.length,
+        bookable: bookableCount,
+        delisted: delistedCount,
+        duration_ms: Date.now() - branchStartedAt,
+        error: null,
+      },
+    });
+    } catch (err) {
+      results[branch] = { listed: 0, bookable: 0, delisted: 0 };
+      logEvent({
+        type: 'scrape_run',
+        payload: {
+          source: 'scene',
+          branch,
+          listed: 0,
+          bookable: 0,
+          delisted: 0,
+          duration_ms: Date.now() - branchStartedAt,
+          error: String(err).slice(0, 500),
+        },
+      });
+      // One branch's failure shouldn't take down a combined-branches call
+      // (the ?branch-omitted path scrapes both sequentially) -- move on
+      // to the next branch instead of aborting the whole request.
+    }
   }
 
   return NextResponse.json(results);

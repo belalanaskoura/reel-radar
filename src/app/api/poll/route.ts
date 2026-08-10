@@ -8,6 +8,7 @@ import { BRANCH_BASE_URLS } from '@/lib/scene/types';
 import { chainForBranch, VOX_ELCINEMA_THEATER_IDS, voxBranchShowtimesUrl, type VoxBranchId } from '@/lib/branches';
 import { fetchVoxShowtimes } from '@/lib/elcinema/vox-showtimes';
 import { sleep as elcinemaSleep, REQUEST_DELAY_MS as ELCINEMA_DELAY_MS } from '@/lib/elcinema/fetcher';
+import { logEvent } from '@/lib/analytics';
 
 // The centralized poll job: checks bookability for every (movie, branch)
 // pair that at least one user is watching, never per-user (per the
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const supabase = createServiceRoleClient();
 
   // Only (movie, branch) pairs with a watcher AND a known Scene slug are
@@ -31,6 +33,10 @@ export async function POST(request: Request) {
   const distinctMovieIds = [...new Set((watchedMovieIds ?? []).map((r) => r.movie_id))];
 
   if (distinctMovieIds.length === 0) {
+    logEvent({
+      type: 'poll_run',
+      payload: { checked: 0, notified: 0, pair_errors: 0, duration_ms: Date.now() - startedAt },
+    });
     return NextResponse.json({ checked: 0, notified: 0 });
   }
 
@@ -41,84 +47,97 @@ export async function POST(request: Request) {
 
   let checked = 0;
   let notified = 0;
+  let pairErrors = 0;
 
   for (const row of slugRows ?? []) {
     const branch = row.branch_id;
-    const chain = chainForBranch(branch);
 
-    // Read the previous state before writing the new one, so wasBookable
-    // reflects last poll's result, not this one.
-    const { data: existingCache } = await supabase
-      .from('showtimes_cache')
-      .select('bookable')
-      .eq('movie_id', row.movie_id)
-      .eq('branch_id', branch)
-      .maybeSingle();
-    const wasBookable = existingCache?.bookable ?? false;
+    try {
+      const chain = chainForBranch(branch);
 
-    let bookable: boolean;
-    let bookingUrl: string;
-
-    if (chain === 'scene') {
-      const sceneBranch = branch as SceneBranchId;
-      const movieDetailsUrl = `${BRANCH_BASE_URLS[sceneBranch]}/movie-details/${row.slug}.html`;
-      const bookability = await checkBookability(movieDetailsUrl);
-      bookable = bookability.bookable;
-      bookingUrl = movieDetailsUrl;
-
-      await supabase.from('showtimes_cache').upsert(
-        {
-          movie_id: row.movie_id,
-          branch_id: branch,
-          bookable,
-          last_checked_at: new Date().toISOString(),
-          raw_showtimes: bookability.availableDates,
-        },
-        { onConflict: 'movie_id,branch_id' },
-      );
-    } else {
-      // VOX has no cheap bookability-only check (every elCinema request
-      // returns full showtime detail) and no per-movie/per-showtime
-      // booking link -- every VOX branch just links to VOX's homepage.
-      // Only today is checked here (1 request); the fuller 5-day
-      // raw_showtimes list is scrape-vox's job, so this deliberately
-      // updates bookable/last_checked_at only and leaves raw_showtimes
-      // alone rather than overwriting it with a 1-day snapshot.
-      const theaterId = VOX_ELCINEMA_THEATER_IDS[branch as VoxBranchId];
-      const today = new Date().toISOString().slice(0, 10);
-      await elcinemaSleep(ELCINEMA_DELAY_MS);
-      const day = await fetchVoxShowtimes(theaterId, today);
-      const movie = day.movies.find((m) => String(m.elcinemaId) === row.slug);
-      bookable = !!movie && movie.formats.some((f) => f.showtimes.length > 0);
-      bookingUrl = voxBranchShowtimesUrl(branch as VoxBranchId);
-
-      await supabase
+      // Read the previous state before writing the new one, so wasBookable
+      // reflects last poll's result, not this one.
+      const { data: existingCache } = await supabase
         .from('showtimes_cache')
-        .update({ bookable, last_checked_at: new Date().toISOString() })
+        .select('bookable')
         .eq('movie_id', row.movie_id)
-        .eq('branch_id', branch);
-    }
+        .eq('branch_id', branch)
+        .maybeSingle();
+      const wasBookable = existingCache?.bookable ?? false;
 
-    checked += 1;
+      let bookable: boolean;
+      let bookingUrl: string;
 
-    if (!bookable) {
-      if (wasBookable) {
-        // Transitioned back to not-bookable: clear the log so a future
-        // re-opening (added showtimes, re-release) notifies again.
+      if (chain === 'scene') {
+        const sceneBranch = branch as SceneBranchId;
+        const movieDetailsUrl = `${BRANCH_BASE_URLS[sceneBranch]}/movie-details/${row.slug}.html`;
+        const bookability = await checkBookability(movieDetailsUrl);
+        bookable = bookability.bookable;
+        bookingUrl = movieDetailsUrl;
+
+        await supabase.from('showtimes_cache').upsert(
+          {
+            movie_id: row.movie_id,
+            branch_id: branch,
+            bookable,
+            last_checked_at: new Date().toISOString(),
+            raw_showtimes: bookability.availableDates,
+          },
+          { onConflict: 'movie_id,branch_id' },
+        );
+      } else {
+        // VOX has no cheap bookability-only check (every elCinema request
+        // returns full showtime detail) and no per-movie/per-showtime
+        // booking link -- every VOX branch just links to VOX's homepage.
+        // Only today is checked here (1 request); the fuller 5-day
+        // raw_showtimes list is scrape-vox's job, so this deliberately
+        // updates bookable/last_checked_at only and leaves raw_showtimes
+        // alone rather than overwriting it with a 1-day snapshot.
+        const theaterId = VOX_ELCINEMA_THEATER_IDS[branch as VoxBranchId];
+        const today = new Date().toISOString().slice(0, 10);
+        await elcinemaSleep(ELCINEMA_DELAY_MS);
+        const day = await fetchVoxShowtimes(theaterId, today);
+        const movie = day.movies.find((m) => String(m.elcinemaId) === row.slug);
+        bookable = !!movie && movie.formats.some((f) => f.showtimes.length > 0);
+        bookingUrl = voxBranchShowtimesUrl(branch as VoxBranchId);
+
         await supabase
-          .from('notification_log')
-          .delete()
+          .from('showtimes_cache')
+          .update({ bookable, last_checked_at: new Date().toISOString() })
           .eq('movie_id', row.movie_id)
-          .eq('branch_id', branch)
-          .eq('kind', 'showtime');
+          .eq('branch_id', branch);
       }
-      continue;
+
+      checked += 1;
+
+      if (!bookable) {
+        if (wasBookable) {
+          // Transitioned back to not-bookable: clear the log so a future
+          // re-opening (added showtimes, re-release) notifies again.
+          await supabase
+            .from('notification_log')
+            .delete()
+            .eq('movie_id', row.movie_id)
+            .eq('branch_id', branch)
+            .eq('kind', 'showtime');
+        }
+        continue;
+      }
+
+      if (wasBookable) continue; // already bookable last poll, nothing new
+
+      notified += await notifyWatchers(supabase, row.movie_id, branch, bookingUrl);
+    } catch {
+      // One bad pair (a scraper hiccup, a transient Supabase error) must
+      // not abort every pair after it in this run.
+      pairErrors += 1;
     }
-
-    if (wasBookable) continue; // already bookable last poll, nothing new
-
-    notified += await notifyWatchers(supabase, row.movie_id, branch, bookingUrl);
   }
+
+  logEvent({
+    type: 'poll_run',
+    payload: { checked, notified, pair_errors: pairErrors, duration_ms: Date.now() - startedAt },
+  });
 
   return NextResponse.json({ checked, notified });
 }
@@ -174,14 +193,42 @@ async function notifyWatchers(
     // killed every notification after it in the same poll run).
     try {
       await notifyBookableByEmail(profile.email, payload);
-    } catch {
-      // best-effort, swallow and continue
+      await supabase.from('notification_deliveries').insert({
+        user_id: watcher.user_id,
+        movie_id: movieId,
+        branch_id: branch,
+        channel: 'email',
+        success: true,
+      });
+    } catch (err) {
+      await supabase.from('notification_deliveries').insert({
+        user_id: watcher.user_id,
+        movie_id: movieId,
+        branch_id: branch,
+        channel: 'email',
+        success: false,
+        error: String(err).slice(0, 500),
+      });
     }
 
     try {
       await notifyBookablePush(supabase, watcher.user_id, payload);
-    } catch {
-      // best-effort, swallow and continue
+      await supabase.from('notification_deliveries').insert({
+        user_id: watcher.user_id,
+        movie_id: movieId,
+        branch_id: branch,
+        channel: 'push',
+        success: true,
+      });
+    } catch (err) {
+      await supabase.from('notification_deliveries').insert({
+        user_id: watcher.user_id,
+        movie_id: movieId,
+        branch_id: branch,
+        channel: 'push',
+        success: false,
+        error: String(err).slice(0, 500),
+      });
     }
 
     // Logged once an email attempt was made, regardless of outcome: this

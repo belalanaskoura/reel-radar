@@ -4,12 +4,15 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { posterUrl } from '@/lib/tmdb-image';
 import { RadarLogo } from '@/components/RadarLogo';
+import { logPageView } from '@/lib/analytics';
 
 export default async function LandingPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  logPageView('/');
 
   if (user) redirect('/browse');
 

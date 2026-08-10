@@ -6,6 +6,7 @@ import { getEgyptReleaseInfo } from '@/lib/matching/egypt-release-date';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
 import { notifyNewReleases } from '@/lib/matching/notify-new-releases';
+import { logEvent } from '@/lib/analytics';
 
 // Runs an array of async tasks with at most `size` in flight at once,
 // preserving input order in the returned results. Used below to keep
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const today = new Date();
   // End-of-2029 cutoff, per the browse page's "browse through everything
   // coming out till 2029" goal: TMDB has very little confirmed data
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
     isLikelyEgyptRelease(supabase, movie),
   );
   const movies = candidates.filter((_, i) => eligibility[i]);
+  const rejectedCount = candidates.length - movies.length;
 
   // elCinema is the source of truth for a movie's Egypt release date and
   // (as a fallback when TMDB has none) its poster; see
@@ -166,6 +169,11 @@ export async function POST(request: Request) {
   // see src/lib/matching/remove-unreleasable.ts for why that's a safe
   // permanent removal rather than just hiding it.
   const { removed } = await removeUnreleasableMovies(supabase);
+
+  logEvent({
+    type: 'sync_run',
+    payload: { accepted: movies.length, rejected: rejectedCount, duration_ms: Date.now() - startedAt },
+  });
 
   return NextResponse.json({
     synced: dedupedRows.length,
