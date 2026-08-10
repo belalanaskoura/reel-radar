@@ -5,6 +5,7 @@ import { ArrowLeftIcon, MapPinIcon } from '@/components/icons';
 import { CinemaMovieGrid, type CinemaMovie, type CinemaDate } from '@/components/CinemaMovieGrid';
 import { parseSceneDate, filterFutureDates, formatSceneDateLabel } from '@/lib/scene/dates';
 import { voxBranchShowtimesUrl, type VoxBranchId } from '@/lib/branches';
+import { logPageView } from '@/lib/analytics';
 
 export default async function CinemaDetailPage({
   params,
@@ -35,6 +36,8 @@ export default async function CinemaDetailPage({
   ]);
 
   if (!branch) notFound();
+
+  logPageView(`/cinemas/${id}`, { branch_id: id });
 
   const cacheByMovieId = new Map((cacheRows ?? []).map((c) => [c.movie_id, c]));
 

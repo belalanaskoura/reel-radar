@@ -12,6 +12,7 @@ import { WatchlistButton } from '@/components/WatchlistButton';
 import { ShowtimePicker } from '@/components/ShowtimePicker';
 import { VoxShowtimePicker } from '@/components/VoxShowtimePicker';
 import { MovieDetailTabs } from '@/components/MovieDetailTabs';
+import { logPageView } from '@/lib/analytics';
 
 export default async function MovieDetailPage({
   params,
@@ -46,6 +47,8 @@ export default async function MovieDetailPage({
 
   if (!movieRow) notFound();
   const movie = movieRow as unknown as MovieRow;
+
+  logPageView(`/movies/${id}`, { movie_id: id });
 
   let isWatchlisted = false;
   if (user) {

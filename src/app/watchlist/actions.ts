@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { logEvent } from '@/lib/analytics';
 
 async function requireUserId() {
   const supabase = await createClient();
@@ -19,6 +20,9 @@ export async function addToWatchlist(movieId: string) {
   if (error && error.code !== '23505') {
     // 23505 = already on the watchlist, not a real error for this action.
     throw new Error(error.message);
+  }
+  if (!error) {
+    logEvent({ type: 'watchlist_add', payload: { user_id: userId, movie_id: movieId } });
   }
   revalidatePath('/watchlist');
   revalidatePath('/browse');
