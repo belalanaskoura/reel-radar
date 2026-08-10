@@ -1,6 +1,7 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
 import { StatTile } from '@/components/admin/StatTile';
+import { RunJobButton } from '@/components/admin/RunJobButton';
 
 // A movie/branch pair not re-checked in roughly 2 poll cycles is worth
 // flagging -- the external scheduler runs poll every 15-30 min, so 90 min
@@ -31,7 +32,7 @@ export default async function AdminOverviewPage() {
   ] = await Promise.all([
     supabase
       .from('showtimes_cache')
-      .select('movie_id, branch_id, last_checked_at, movies(title), branches(name)')
+      .select('movie_id, branch_id, last_checked_at, movies(title), branches(name, chain)')
       .lt('last_checked_at', staleCutoff)
       .order('last_checked_at', { ascending: true })
       .limit(10),
@@ -94,6 +95,14 @@ export default async function AdminOverviewPage() {
     if (!latestByKey.has(key)) latestByKey.set(key, row);
   }
 
+  // Distinct stale branches, so the fix-it row offers one button per
+  // affected branch rather than one per stale movie row.
+  const staleBranches = new Map<string, { name: string; chain: string }>();
+  for (const row of staleRows ?? []) {
+    const branch = row.branches as unknown as { name: string; chain: string } | null;
+    if (branch) staleBranches.set(row.branch_id, branch);
+  }
+
   const eventDauUserIds = new Set<string>();
   for (const row of signupEvents ?? []) {
     const uid = (row.payload as { user_id?: string }).user_id;
@@ -127,6 +136,20 @@ export default async function AdminOverviewPage() {
           <p className="mt-1 text-xs" style={{ color: 'var(--ink-dim)' }}>
             Not re-checked in over {STALE_THRESHOLD_HOURS} hours
           </p>
+          {staleBranches.size > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[...staleBranches.entries()].map(([branchId, branch]) => (
+                <RunJobButton
+                  key={branchId}
+                  job={branch.chain === 'vox' ? 'scrape-vox' : 'scrape-scene'}
+                  branch={branchId}
+                  size="sm"
+                  label={`Re-scrape ${branch.name}`}
+                  confirmText={`Re-run the scrape for ${branch.name} now?`}
+                />
+              ))}
+            </div>
+          )}
           {staleRows && staleRows.length > 0 && (
             <ul className="mt-3 flex flex-col gap-1.5 text-sm" style={{ color: 'var(--ink)' }}>
               {staleRows.map((row) => {
@@ -240,9 +263,21 @@ function RunStatusRow({ row, now }: { row: EventRow; now: Date }) {
         ? 'Poll'
         : 'Match';
 
+  const runJobProps: { job: 'scrape-scene' | 'scrape-vox' | 'poll' | 'match-movies'; branch?: string } | null =
+    row.event_type === 'scrape_run'
+      ? {
+          job: row.payload.source === 'vox' ? 'scrape-vox' : 'scrape-scene',
+          branch: row.payload.branch as string,
+        }
+      : row.event_type === 'poll_run'
+        ? { job: 'poll' }
+        : row.event_type === 'match_run'
+          ? { job: 'match-movies' }
+          : null;
+
   return (
     <div
-      className="flex items-center justify-between rounded-sm border px-4 py-2.5"
+      className="flex flex-wrap items-center justify-between gap-2 rounded-sm border px-4 py-2.5"
       style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
     >
       <div className="flex items-center gap-2">
@@ -254,10 +289,18 @@ function RunStatusRow({ row, now }: { row: EventRow; now: Date }) {
         <span className="text-sm font-medium" style={{ color: 'var(--ink)' }}>
           {label}
         </span>
+        <span className="text-xs" style={{ color: 'var(--ink-dim)' }}>
+          {timeSince}
+        </span>
       </div>
-      <span className="text-xs" style={{ color: 'var(--ink-dim)' }}>
-        {timeSince}
-      </span>
+      {runJobProps && (
+        <RunJobButton
+          {...runJobProps}
+          size="sm"
+          label="Run now"
+          confirmText={`Manually re-run ${label} now?`}
+        />
+      )}
     </div>
   );
 }
