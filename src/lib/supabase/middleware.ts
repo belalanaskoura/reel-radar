@@ -30,7 +30,9 @@ export async function updateSession(request: NextRequest) {
 
   // Must call getUser() (not getSession()): it revalidates the token
   // against Supabase's servers rather than trusting the cookie as-is.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return response;
+  return { response, user };
 }
