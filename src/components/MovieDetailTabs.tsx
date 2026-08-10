@@ -70,6 +70,7 @@ function CastCard({ member }: { member: CreditsCastMember }) {
 }
 
 export function MovieDetailTabs({
+  initialTab = 'overview',
   overview,
   tagline,
   cast,
@@ -78,6 +79,7 @@ export function MovieDetailTabs({
   details,
   watchlistControl,
 }: {
+  initialTab?: TabId;
   overview: string | null;
   tagline: string | null;
   cast: CreditsCastMember[];
@@ -86,7 +88,7 @@ export function MovieDetailTabs({
   details: DetailsInfo;
   watchlistControl: ReactNode;
 }) {
-  const [tab, setTab] = useState<TabId>('overview');
+  const [tab, setTab] = useState<TabId>(initialTab);
 
   const tabs: { id: TabId; label: string }[] = [
     { id: 'overview', label: 'Overview' },
