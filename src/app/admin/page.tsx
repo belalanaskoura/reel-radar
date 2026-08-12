@@ -10,15 +10,28 @@ import { findCheapDataQualityIssues } from '@/lib/matching/data-quality';
 // flagging -- the external scheduler runs poll every 15-30 min, so 90 min
 // gives real slack for a slow run without staying silent through a
 // genuine outage (the kind that produced the ~16.5-hour stale-cache gap
-// this dashboard exists to catch next time).
-const STALE_THRESHOLD_HOURS = 1.5;
+// this dashboard exists to catch next time). VOX branches are scraped
+// once daily, not on Scene's ~30 min cadence (see scrape-vox's own file
+// comment on why -- elCinema has no cheap bookability-only check, so
+// it's a full-detail fetch every run, too expensive to run as often as
+// Scene) -- flagging them stale on the same 1.5h threshold as Scene
+// would mark every VOX branch stale for most of every day, which isn't
+// a real problem, just noise from applying the wrong cadence.
+const STALE_THRESHOLD_HOURS: Record<'scene' | 'vox', number> = {
+  scene: 1.5,
+  vox: 24,
+};
+const WIDEST_STALE_THRESHOLD_HOURS = Math.max(...Object.values(STALE_THRESHOLD_HOURS));
 
 type EventRow = { event_type: string; occurred_at: string; payload: Record<string, unknown> };
 
 export default async function AdminOverviewPage() {
   const supabase = createServiceRoleClient();
   const now = new Date();
-  const staleCutoff = new Date(now.getTime() - STALE_THRESHOLD_HOURS * 60 * 60 * 1000).toISOString();
+  // Widest threshold in the query itself (VOX's 24h), then each row is
+  // checked against its own chain's real threshold below -- a single
+  // fixed cutoff can't apply two different thresholds by chain.
+  const staleCutoff = new Date(now.getTime() - WIDEST_STALE_THRESHOLD_HOURS * 60 * 60 * 1000).toISOString();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -34,12 +47,17 @@ export default async function AdminOverviewPage() {
     { count: recentSignIns },
     dataQualityIssues,
   ] = await Promise.all([
+    // No DB-side .limit() here: the query window is widened to the
+    // largest per-chain threshold (VOX's 24h), so a hard limit here
+    // could fill up on rows that are stale-for-Scene's-threshold but
+    // not actually stale yet, crowding out real staleness elsewhere.
+    // Filtered down to each row's real chain-specific threshold and
+    // capped for display after the query, below.
     supabase
       .from('showtimes_cache')
       .select('movie_id, branch_id, last_checked_at, movies(title), branches(name, chain)')
       .lt('last_checked_at', staleCutoff)
-      .order('last_checked_at', { ascending: true })
-      .limit(10),
+      .order('last_checked_at', { ascending: true }),
     supabase
       .from('movies')
       .select('id', { count: 'exact', head: true })
@@ -86,6 +104,20 @@ export default async function AdminOverviewPage() {
     findCheapDataQualityIssues(supabase),
   ]);
 
+  // Each row checked against its own chain's real threshold (the query
+  // above only narrowed to the widest one). actuallyStaleRows is the
+  // full filtered set (used for the re-scrape buttons below, so every
+  // genuinely stale branch gets one, not just whichever made the
+  // display cap); staleRowsToShow caps it to 10 for the list, oldest
+  // (most stale) first, the same cap the old DB-side .limit() gave.
+  const actuallyStaleRows = (staleRows ?? []).filter((row) => {
+    const branch = row.branches as unknown as { chain: string } | null;
+    const chain = branch?.chain === 'vox' ? 'vox' : 'scene';
+    const cutoff = now.getTime() - STALE_THRESHOLD_HOURS[chain] * 60 * 60 * 1000;
+    return new Date(row.last_checked_at).getTime() < cutoff;
+  });
+  const staleRowsToShow = actuallyStaleRows.slice(0, 10);
+
   const deliveryStats = (['email', 'push'] as const).map((channel) => {
     const rows = (deliveries24h ?? []).filter((d) => d.channel === channel);
     const successCount = rows.filter((d) => d.success).length;
@@ -107,7 +139,7 @@ export default async function AdminOverviewPage() {
   // Distinct stale branches, so the fix-it row offers one button per
   // affected branch rather than one per stale movie row.
   const staleBranches = new Map<string, { name: string; chain: string }>();
-  for (const row of staleRows ?? []) {
+  for (const row of actuallyStaleRows) {
     const branch = row.branches as unknown as { name: string; chain: string } | null;
     if (branch) staleBranches.set(row.branch_id, branch);
   }
@@ -131,19 +163,19 @@ export default async function AdminOverviewPage() {
         <div
           className="rounded-sm border p-4"
           style={
-            staleRows && staleRows.length > 0
+            actuallyStaleRows.length > 0
               ? { borderColor: 'var(--error-ink)', background: 'var(--error-bg)' }
               : { borderColor: 'var(--rule)', background: 'var(--surface)' }
           }
         >
           <p
             className="font-display text-2xl leading-none"
-            style={{ color: staleRows && staleRows.length > 0 ? 'var(--error-ink)' : 'var(--ok-ink)' }}
+            style={{ color: actuallyStaleRows.length > 0 ? 'var(--error-ink)' : 'var(--ok-ink)' }}
           >
-            {staleRows?.length ?? 0} stale {staleRows?.length === 1 ? 'row' : 'rows'}
+            {actuallyStaleRows.length} stale {actuallyStaleRows.length === 1 ? 'row' : 'rows'}
           </p>
           <p className="mt-1 text-xs" style={{ color: 'var(--ink-dim)' }}>
-            Not re-checked in over {STALE_THRESHOLD_HOURS} hours
+            Not re-checked in over {STALE_THRESHOLD_HOURS.scene}h (Scene) or {STALE_THRESHOLD_HOURS.vox}h (VOX)
           </p>
           {staleBranches.size > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
@@ -173,9 +205,9 @@ export default async function AdminOverviewPage() {
               ))}
             </div>
           )}
-          {staleRows && staleRows.length > 0 && (
+          {staleRowsToShow.length > 0 && (
             <ul className="mt-3 flex flex-col gap-1.5 text-sm" style={{ color: 'var(--ink)' }}>
-              {staleRows.map((row) => {
+              {staleRowsToShow.map((row) => {
                 const movie = row.movies as unknown as { title: string } | null;
                 const branch = row.branches as unknown as { name: string } | null;
                 const hoursStale = Math.round(
