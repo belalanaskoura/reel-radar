@@ -46,8 +46,15 @@ function ReviewCard({ review }: { review: TmdbReview }) {
   const [isClamped, setIsClamped] = useState(false);
   const textRef = useRef<HTMLParagraphElement>(null);
 
+  const isGated = review.hasSpoilers && !spoilersRevealed;
+
+  // Depends on isGated too: the <p> below doesn't exist in the DOM at all
+  // while a spoiler-flagged review is still gated (textRef.current is
+  // null, this bails out early), so nothing re-measures it once "Show
+  // anyway" mounts it for the first time unless that transition is also
+  // a dependency here.
   useEffect(() => {
-    if (expanded) return;
+    if (expanded || isGated) return;
     const el = textRef.current;
     if (!el) return;
 
@@ -57,9 +64,7 @@ function ReviewCard({ review }: { review: TmdbReview }) {
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [expanded, review.content]);
-
-  const isGated = review.hasSpoilers && !spoilersRevealed;
+  }, [expanded, isGated, review.content]);
 
   return (
     <li
