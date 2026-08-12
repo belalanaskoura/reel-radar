@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchAllListings, checkBookability, sleep, REQUEST_DELAY_MS } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { logEvent } from '@/lib/analytics';
+import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 
 const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 
@@ -69,51 +70,81 @@ export async function POST(request: Request) {
           .maybeSingle();
         currentPosterPath = movieRow?.poster_path ?? null;
       } else {
-        const { data: newMovie, error: insertError } = await supabase
-          .from('movies')
-          .insert({ title: listing.title, match_status: 'unmatched' })
-          .select('id')
-          .single();
+        // Before creating a fresh placeholder, check whether a movie with
+        // this title already exists anywhere in the table (matched,
+        // ambiguous, or another branch's unmatched placeholder) -- this is
+        // a new slug, but not necessarily a new movie. Without this check,
+        // every new (branch, slug) pairing for an already-known title (a
+        // re-scrape after a matched movie later gets listed on a second
+        // branch, or a movie discovered via VOX/elCinema first) spawns a
+        // disconnected duplicate row that mergeSceneDuplicates/
+        // matchScenesToTmdb can never reconcile, since both only ever
+        // operate on tmdb_id IS NULL rows -- confirmed for real, producing
+        // "The End of Oak Street" as three separate movies rows.
+        const existingByTitle = await findExistingMovieByTitle(supabase, listing.title);
 
-        if (insertError || !newMovie) {
-          throw new Error(`Failed to insert placeholder movie: ${insertError?.message}`);
-        }
-        movieId = newMovie.id;
+        if (existingByTitle) {
+          movieId = existingByTitle;
+          const { data: movieRow } = await supabase
+            .from('movies')
+            .select('poster_path')
+            .eq('id', movieId)
+            .maybeSingle();
+          currentPosterPath = movieRow?.poster_path ?? null;
 
-        const { error: slugInsertError } = await supabase
-          .from('movie_branch_slugs')
-          .insert({ movie_id: movieId, branch_id: branch, slug: listing.slug });
+          const { error: linkError } = await supabase
+            .from('movie_branch_slugs')
+            .insert({ movie_id: movieId, branch_id: branch, slug: listing.slug });
+          if (linkError && linkError.code !== '23505') {
+            throw new Error(`Failed to insert movie_branch_slugs: ${linkError.message}`);
+          }
+        } else {
+          const { data: newMovie, error: insertError } = await supabase
+            .from('movies')
+            .insert({ title: listing.title, match_status: 'unmatched' })
+            .select('id')
+            .single();
 
-        if (slugInsertError) {
-          // 23505 = unique violation on (branch_id, slug): a concurrent
-          // scrape run (now that the external scheduler runs this every
-          // 30 min, overlapping runs are real, not hypothetical -- this
-          // exact race produced 4 duplicate "Toy Story 5 DUB" placeholder
-          // rows before the unique constraint existed) won the insert
-          // first. Use its link instead of ours, and delete the orphaned
-          // `movies` row this run just created for it, since nothing
-          // points at it and it would otherwise sit as a duplicate.
-          if (slugInsertError.code === '23505') {
-            const { data: winningLink } = await supabase
-              .from('movie_branch_slugs')
-              .select('movie_id, movies(poster_path)')
-              .eq('branch_id', branch)
-              .eq('slug', listing.slug)
-              .single();
+          if (insertError || !newMovie) {
+            throw new Error(`Failed to insert placeholder movie: ${insertError?.message}`);
+          }
+          movieId = newMovie.id;
 
-            await supabase.from('movies').delete().eq('id', movieId);
+          const { error: slugInsertError } = await supabase
+            .from('movie_branch_slugs')
+            .insert({ movie_id: movieId, branch_id: branch, slug: listing.slug });
 
-            if (!winningLink) {
-              throw new Error(
-                `Lost the slug-insert race for ${branch}/${listing.slug} but couldn't find the winning link`,
-              );
+          if (slugInsertError) {
+            // 23505 = unique violation on (branch_id, slug): a concurrent
+            // scrape run (now that the external scheduler runs this every
+            // 30 min, overlapping runs are real, not hypothetical -- this
+            // exact race produced 4 duplicate "Toy Story 5 DUB" placeholder
+            // rows before the unique constraint existed) won the insert
+            // first. Use its link instead of ours, and delete the orphaned
+            // `movies` row this run just created for it, since nothing
+            // points at it and it would otherwise sit as a duplicate.
+            if (slugInsertError.code === '23505') {
+              const { data: winningLink } = await supabase
+                .from('movie_branch_slugs')
+                .select('movie_id, movies(poster_path)')
+                .eq('branch_id', branch)
+                .eq('slug', listing.slug)
+                .single();
+
+              await supabase.from('movies').delete().eq('id', movieId);
+
+              if (!winningLink) {
+                throw new Error(
+                  `Lost the slug-insert race for ${branch}/${listing.slug} but couldn't find the winning link`,
+                );
+              }
+              movieId = winningLink.movie_id;
+              currentPosterPath =
+                (winningLink.movies as unknown as { poster_path: string | null } | null)
+                  ?.poster_path ?? null;
+            } else {
+              throw new Error(`Failed to insert movie_branch_slugs: ${slugInsertError.message}`);
             }
-            movieId = winningLink.movie_id;
-            currentPosterPath =
-              (winningLink.movies as unknown as { poster_path: string | null } | null)
-                ?.poster_path ?? null;
-          } else {
-            throw new Error(`Failed to insert movie_branch_slugs: ${slugInsertError.message}`);
           }
         }
       }

@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     matched: matchResults.filter((r) => r.outcome === 'matched').length,
     ambiguous: matchResults.filter((r) => r.outcome === 'ambiguous').length,
     unmatched: matchResults.filter((r) => r.outcome === 'unmatched').length,
+    errored: matchResults.filter((r) => r.outcome === 'error').length,
   };
 
   logEvent({

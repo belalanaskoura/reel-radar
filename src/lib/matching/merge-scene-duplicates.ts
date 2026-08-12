@@ -33,6 +33,18 @@ type Placeholder = { id: string; title: string; created_at: string };
 // first and separately because it's a stronger, cheaper signal (O(n) via
 // a hash key vs O(n^2) pairwise comparison) -- no reason to pay the fuzzy
 // pass's cost for pairs the cheap pass already resolves.
+//
+// A third pass reconciles whatever's still left against movies that
+// already have a tmdb_id (matched via TMDB search, or synced straight
+// from TMDB by sync-movies). The two passes above only ever compare
+// placeholders against each other, never against an already-`tmdb_id`-
+// having row -- so a placeholder created after its real movie was already
+// matched (a re-scrape, a second branch/chain listing it for the first
+// time) sits permanently unmerged next to the row it duplicates.
+// Confirmed for real: "The End of Oak Street" existed as a matched-via-
+// TMDB row plus two separate unmatched Scene/VOX placeholders, none of
+// which the two passes above could ever bring together, since none of
+// them shares the `tmdb_id IS NULL` scope those passes require.
 export async function mergeSceneDuplicates(
   supabase: SupabaseClient,
 ): Promise<{ groupsMerged: number; rowsDeleted: number }> {
@@ -71,13 +83,69 @@ export async function mergeSceneDuplicates(
   }
 
   const fuzzyGroups = groupByFuzzyTitle(survivors);
+  const fuzzyGroupedIds = new Set<string>();
   for (const group of fuzzyGroups) {
     await mergeGroup(supabase, group);
     groupsMerged += 1;
     rowsDeleted += group.length - 1;
+    for (const movie of group) fuzzyGroupedIds.add(movie.id);
   }
 
+  const stillUnmatched = survivors.filter((m) => !fuzzyGroupedIds.has(m.id));
+  const reconciled = await reconcileAgainstMatchedMovies(supabase, stillUnmatched);
+  rowsDeleted += reconciled;
+
   return { groupsMerged, rowsDeleted };
+}
+
+// Compares each remaining placeholder's title against every movie that
+// already has a tmdb_id, exact match first then fuzzy, and folds the
+// placeholder into that row if found -- the same merge machinery
+// mergeGroup already uses, just with the "canonical" row picked by
+// tmdb_id presence rather than earliest created_at.
+async function reconcileAgainstMatchedMovies(
+  supabase: SupabaseClient,
+  placeholders: Placeholder[],
+): Promise<number> {
+  if (placeholders.length === 0) return 0;
+
+  const { data: matchedMovies, error } = await supabase
+    .from('movies')
+    .select('id, title, created_at')
+    .not('tmdb_id', 'is', null);
+
+  if (error) throw new Error(`Failed to load matched movies: ${error.message}`);
+  if (!matchedMovies || matchedMovies.length === 0) return 0;
+
+  const matchedByKey = new Map<string, Placeholder>();
+  for (const movie of matchedMovies) {
+    matchedByKey.set(normalizeTitle(movie.title), movie);
+  }
+
+  let rowsDeleted = 0;
+
+  for (const placeholder of placeholders) {
+    const key = normalizeTitle(placeholder.title);
+    let target = matchedByKey.get(key);
+
+    if (!target) {
+      for (const movie of matchedMovies) {
+        if (titleSimilarity(key, normalizeTitle(movie.title)) >= FUZZY_MERGE_THRESHOLD) {
+          target = movie;
+          break;
+        }
+      }
+    }
+
+    if (!target) continue;
+
+    // mergeGroup deletes every row after the first, so pass [target,
+    // placeholder] to keep the matched row and drop the placeholder.
+    await mergeGroup(supabase, [target, placeholder]);
+    rowsDeleted += 1;
+  }
+
+  return rowsDeleted;
 }
 
 // Greedy clustering: each not-yet-grouped movie starts a new cluster and
