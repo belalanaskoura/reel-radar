@@ -1,8 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeTitle } from './normalize';
-import { searchMovies, getEgTheatricalReleaseDate, getMovieById, type TmdbMovie } from '../tmdb';
+import { titleSimilarity } from './title-similarity';
+import { searchMovies, getEgTheatricalReleaseDate, getMovieById, findByImdbId, type TmdbMovie } from '../tmdb';
 import { getEgyptReleaseInfo } from './egypt-release-date';
+import { searchElCinema, fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '../elcinema/fetcher';
 import { chainForBranch } from '../branches';
+
+const FUZZY_MATCH_THRESHOLD = 0.8;
 
 export type MatchOutcome = 'matched' | 'ambiguous' | 'unmatched';
 
@@ -35,6 +39,8 @@ export async function findTmdbMatch(title: string): Promise<TmdbMatch> {
   }
 
   if (candidates.length === 0) {
+    const viaImdb = await findTmdbMatchViaImdb(query);
+    if (viaImdb) return { outcome: 'matched', movie: viaImdb };
     return { outcome: 'unmatched' };
   }
   if (candidates.length === 1) {
@@ -42,6 +48,57 @@ export async function findTmdbMatch(title: string): Promise<TmdbMatch> {
   }
 
   return disambiguate(candidates, query);
+}
+
+// Both of TMDB's own search modes (English, Arabic) can come back empty
+// for an Egyptian film -- TMDB's catalog coverage for local releases is
+// genuinely thinner than a title-search retry can fix. elCinema is the
+// stronger source for exactly this case (its whole reason for being in
+// this codebase is Egypt release coverage) and its work pages expose a
+// real IMDb id per movie -- IMDb itself has near-total coverage of
+// Egyptian cinema releases, so cross-referencing through it resolves
+// titles TMDB's own search simply doesn't have indexed under any
+// spelling. This is an exact id-to-id lookup once the IMDb id is in
+// hand (findByImdbId), not a fuzzy guess -- the only fuzziness is
+// picking which elCinema search result is the right movie.
+//
+// Uses titleSimilarity (fuzzy, transliteration-tolerant), not a plain
+// normalizeTitle equality check: elCinema and Scene independently
+// transliterate the same Arabic title into different English spellings
+// (confirmed for real on the very titles this fallback targets --
+// elCinema's own search returns "Khally Balak Min Nafsak" for a query of
+// "Khali Balak Min Nafsik", "Shamshon w Dalilah" for "Shamshon w
+// Delilah" -- an exact-string check rejects every one of these). Same
+// 0.8 threshold and best-candidate-wins selection as
+// mergeSceneDuplicates' fuzzy pass, since this is solving the identical
+// problem: find the one elCinema search result that's actually the same
+// movie under transliteration drift, without also matching a genuinely
+// different title elCinema's search returned alongside it.
+async function findTmdbMatchViaImdb(query: string): Promise<TmdbMovie | null> {
+  try {
+    const results = await searchElCinema(query);
+    await sleep(REQUEST_DELAY_MS);
+
+    let best: { elcinemaId: number; score: number } | null = null;
+    for (const r of results) {
+      const score = titleSimilarity(query, normalizeTitle(r.title));
+      if (score >= FUZZY_MATCH_THRESHOLD && (!best || score > best.score)) {
+        best = { elcinemaId: r.elcinemaId, score };
+      }
+    }
+    if (!best) return null;
+
+    const details = await fetchWorkDetails(best.elcinemaId);
+    await sleep(REQUEST_DELAY_MS);
+    if (!details.imdbId) return null;
+
+    return await findByImdbId(details.imdbId);
+  } catch {
+    // elCinema/TMDB unreachable or unexpected markup for this one
+    // fallback attempt -- fall through to unmatched rather than failing
+    // the whole match run over a secondary lookup.
+    return null;
+  }
 }
 
 // VOX's movie_branch_slugs.slug IS the elCinema work id (see
@@ -164,38 +221,8 @@ export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<Match
         continue;
       }
 
-      const tmdbMovie = match.movie;
-      const { data: existingTmdbRow } = await supabase
-        .from('movies')
-        .select('id')
-        .eq('tmdb_id', tmdbMovie.id)
-        .maybeSingle();
-
-      if (existingTmdbRow && existingTmdbRow.id !== movie.id) {
-        await mergeIntoExistingRow(supabase, movie.id, existingTmdbRow.id);
-      } else {
-        // No existing TMDB-sourced row for this tmdb_id, so this Scene row
-        // is becoming the canonical one: backfill the same fields
-        // Phase 2's sync would have set, replacing Scene's format-suffixed
-        // title (e.g. "Spider-Man: Brand New Day (2D)") with TMDB's clean one.
-        // elCinema is preferred over TMDB's release_date, and used as a
-        // poster fallback when TMDB has none (see egypt-release-date.ts).
-        const egyptInfo = await getEgyptReleaseInfo(supabase, tmdbMovie.id, tmdbMovie.title);
-        await supabase
-          .from('movies')
-          .update({
-            tmdb_id: tmdbMovie.id,
-            title: tmdbMovie.title,
-            original_title: tmdbMovie.original_title,
-            poster_path: tmdbMovie.poster_path || egyptInfo.posterUrl || null,
-            release_date: egyptInfo.releaseDate || tmdbMovie.release_date || null,
-            popularity: tmdbMovie.popularity,
-            match_status: 'matched',
-          })
-          .eq('id', movie.id);
-      }
-
-      results.push({ sceneMovieId: movie.id, outcome: 'matched', tmdbId: tmdbMovie.id });
+      await applyTmdbMatch(supabase, movie.id, match.movie);
+      results.push({ sceneMovieId: movie.id, outcome: 'matched', tmdbId: match.movie.id });
     } catch (err) {
       // One movie's failure (a flaky TMDB/elCinema request, an unexpected
       // response shape) shouldn't starve every movie queued after it in
@@ -213,6 +240,56 @@ export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<Match
   }
 
   return results;
+}
+
+// Applies a resolved TMDB match to a Scene/VOX row: adopts it as the
+// canonical row if no other `movies` row already has this tmdb_id, or
+// merges its slugs/cache into the existing tmdb_id row otherwise. Shared
+// between the automated matchScenesToTmdb loop above and the admin
+// dashboard's manual "resolve this ambiguous movie" action -- both need
+// the exact same adopt-vs-merge decision, not two independent
+// implementations that could silently drift apart.
+export async function applyTmdbMatch(
+  supabase: SupabaseClient,
+  movieId: string,
+  tmdbMovie: TmdbMovie,
+): Promise<void> {
+  const { data: existingTmdbRow } = await supabase
+    .from('movies')
+    .select('id')
+    .eq('tmdb_id', tmdbMovie.id)
+    .maybeSingle();
+
+  if (existingTmdbRow && existingTmdbRow.id !== movieId) {
+    await mergeIntoExistingRow(supabase, movieId, existingTmdbRow.id);
+    return;
+  }
+
+  // No existing TMDB-sourced row for this tmdb_id, so this Scene row is
+  // becoming the canonical one: backfill the same fields Phase 2's sync
+  // would have set, replacing Scene's format-suffixed title (e.g.
+  // "Spider-Man: Brand New Day (2D)") with TMDB's clean one. elCinema is
+  // preferred over TMDB's release_date, and used as a poster fallback
+  // when TMDB has none (see egypt-release-date.ts).
+  const egyptInfo = await getEgyptReleaseInfo(supabase, tmdbMovie.id, tmdbMovie.title);
+  await supabase
+    .from('movies')
+    .update({
+      tmdb_id: tmdbMovie.id,
+      title: tmdbMovie.title,
+      original_title: tmdbMovie.original_title,
+      poster_path: tmdbMovie.poster_path || egyptInfo.posterUrl || null,
+      release_date: egyptInfo.releaseDate || tmdbMovie.release_date || null,
+      popularity: tmdbMovie.popularity,
+      match_status: 'matched',
+      // Distinct from created_at (when the placeholder was first
+      // scraped, which can be long before it's actually matched) --
+      // lets the admin digest scope its "matched but no synopsis" check
+      // to movies matched since the last run instead of re-checking the
+      // whole catalog's TMDB overview on every run forever.
+      matched_at: new Date().toISOString(),
+    })
+    .eq('id', movieId);
 }
 
 async function mergeIntoExistingRow(

@@ -24,7 +24,11 @@ type AnalyticsEvent =
       type: 'match_run';
       payload: { matched: number; ambiguous: number; unmatched: number; merged: number; duration_ms: number };
     }
-  | { type: 'sync_run'; payload: { accepted: number; rejected: number; duration_ms: number } };
+  | { type: 'sync_run'; payload: { accepted: number; rejected: number; duration_ms: number } }
+  | {
+      type: 'admin_digest_run';
+      payload: { issues: number; emailSent: boolean; pushSent: number; duration_ms: number };
+    };
 
 // Fire-and-forget: analytics must never fail or slow down the request
 // it's instrumenting, so errors are swallowed rather than surfaced.
