@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import type { CreditsCastMember } from '@/lib/matching/credits';
+import type { OmdbRatings } from '@/lib/omdb';
+import type { TmdbReview } from '@/lib/tmdb';
 
-type TabId = 'overview' | 'cast' | 'showtimes' | 'details';
+type TabId = 'overview' | 'cast' | 'showtimes' | 'reviews';
 
 // TMDB-sourced people are resolved to a real IMDb id server-side (see
 // movies/[id]/page.tsx, one extra /person/{id} call each) and link
@@ -25,6 +27,130 @@ interface DetailsInfo {
   productionCompanies: string[];
   releaseDate: string | null;
   isBookable: boolean;
+}
+
+function ReviewCard({ review }: { review: TmdbReview }) {
+  const [expanded, setExpanded] = useState(false);
+  // Spoiler gate defaults closed independent of the length-clamp state --
+  // a spoiler-flagged review starts both un-revealed AND (once revealed)
+  // still subject to the normal Read more/Show less clamp below, rather
+  // than dumping the full text the instant someone opts in.
+  const [spoilersRevealed, setSpoilersRevealed] = useState(false);
+  // Whether the clamp is actually cutting text off, measured from the
+  // real DOM element rather than guessed from character count -- a fixed
+  // character threshold doesn't track visual line count at all (depends
+  // on container width, font size, and where words happen to wrap), so
+  // it was showing "Read more" on reviews that weren't actually clamped
+  // and hiding it on shorter ones (e.g. with manual line breaks) that
+  // were. Re-measured on window resize since the clamp is width-dependent.
+  const [isClamped, setIsClamped] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (expanded) return;
+    const el = textRef.current;
+    if (!el) return;
+
+    function measure() {
+      if (el) setIsClamped(el.scrollHeight > el.clientHeight + 1);
+    }
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [expanded, review.content]);
+
+  const isGated = review.hasSpoilers && !spoilersRevealed;
+
+  return (
+    <li
+      className="rounded-sm border p-4"
+      style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <a
+            href={review.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="truncate text-sm font-semibold underline decoration-transparent underline-offset-2 transition-colors hover:decoration-current"
+            style={{ color: 'var(--ink)' }}
+          >
+            {review.author}
+          </a>
+          <span
+            className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase"
+            style={{ background: 'var(--listed-bg)', color: 'var(--listed-ink)' }}
+          >
+            TMDB
+          </span>
+          {review.hasSpoilers && (
+            <span
+              className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase"
+              style={{ background: 'color-mix(in srgb, var(--error-ink) 15%, transparent)', color: 'var(--error-ink)' }}
+            >
+              Spoilers
+            </span>
+          )}
+        </div>
+        {review.authorRating != null && (
+          <span
+            className="flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
+            style={{ background: 'var(--listed-bg)', color: 'var(--listed-ink)' }}
+          >
+            {review.authorRating}/10
+          </span>
+        )}
+      </div>
+
+      {isGated ? (
+        <div
+          className="flex flex-col items-start gap-2 rounded-sm border border-dashed p-3"
+          style={{ borderColor: 'var(--rule)' }}
+        >
+          <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
+            This review may contain spoilers.
+          </p>
+          <button
+            type="button"
+            onClick={() => setSpoilersRevealed(true)}
+            className="cursor-pointer rounded-sm border px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80"
+            style={{ borderColor: 'var(--rule)', color: 'var(--ink)' }}
+          >
+            Show anyway
+          </button>
+        </div>
+      ) : (
+        <>
+          <p
+            ref={textRef}
+            className={`text-sm leading-relaxed whitespace-pre-line ${expanded ? '' : 'line-clamp-6'}`}
+            style={{ color: 'var(--ink-dim)' }}
+          >
+            {review.content}
+          </p>
+          {(isClamped || expanded) && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-2 cursor-pointer text-xs font-semibold transition-opacity hover:opacity-80"
+              style={{ color: 'var(--highlight)' }}
+            >
+              {expanded ? 'Show less' : 'Read more'}
+            </button>
+          )}
+          <a
+            href={review.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 block text-xs underline decoration-transparent underline-offset-2 transition-colors hover:decoration-current"
+            style={{ color: 'var(--accent-dim)' }}
+          >
+            View full review on TMDB &rarr;
+          </a>
+        </>
+      )}
+    </li>
+  );
 }
 
 function CastCard({ member }: { member: CreditsCastMember }) {
@@ -76,6 +202,8 @@ export function MovieDetailTabs({
   cast,
   creditsSource,
   showtimes,
+  ratings,
+  reviews,
   details,
   watchlistControl,
 }: {
@@ -85,6 +213,8 @@ export function MovieDetailTabs({
   cast: CreditsCastMember[];
   creditsSource: 'elcinema' | 'scene' | null;
   showtimes: ReactNode;
+  ratings: OmdbRatings | null;
+  reviews: TmdbReview[];
   details: DetailsInfo;
   watchlistControl: ReactNode;
 }) {
@@ -94,7 +224,7 @@ export function MovieDetailTabs({
     { id: 'overview', label: 'Overview' },
     { id: 'cast', label: 'Cast' },
     { id: 'showtimes', label: 'Showtimes' },
-    { id: 'details', label: 'Details' },
+    { id: 'reviews', label: 'Reviews' },
   ];
 
   return (
@@ -259,41 +389,76 @@ export function MovieDetailTabs({
 
         {tab === 'showtimes' && <div>{showtimes}</div>}
 
-        {tab === 'details' && (
-          <dl className="flex flex-col gap-4 text-sm">
-            <div>
-              <dt className="mb-1 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
-                {details.isBookable ? 'Released on' : 'Release date'}
-              </dt>
-              <dd style={{ color: 'var(--ink)' }}>{details.releaseDate ?? 'TBA'}</dd>
-            </div>
-            {details.genres.length > 0 && (
-              <div>
-                <dt className="mb-1 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
-                  Genres
-                </dt>
-                <dd className="flex flex-wrap gap-2">
-                  {details.genres.map((g) => (
-                    <span
-                      key={g}
-                      className="rounded-full px-2.5 py-1 text-xs"
-                      style={{ background: 'var(--listed-bg)', color: 'var(--listed-ink)' }}
-                    >
-                      {g}
+        {tab === 'reviews' && (
+          <div className="flex flex-col gap-6">
+            {ratings && (ratings.imdbRating || ratings.metascore || ratings.rottenTomatoes) && (
+              <div className="flex flex-wrap gap-3">
+                {ratings.imdbRating && (
+                  <a
+                    href={`https://www.imdb.com/title/${ratings.imdbId}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-sm border px-3 py-2 transition-opacity hover:opacity-80"
+                    style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+                  >
+                    <span className="text-xs font-bold tracking-wide" style={{ color: '#f5c518' }}>
+                      IMDb
                     </span>
-                  ))}
-                </dd>
+                    <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+                      {ratings.imdbRating}/10
+                    </span>
+                    {ratings.imdbVotes && (
+                      <span className="text-xs" style={{ color: 'var(--ink-dim)' }}>
+                        ({ratings.imdbVotes} votes)
+                      </span>
+                    )}
+                  </a>
+                )}
+                {ratings.metascore && (
+                  <div
+                    className="flex items-center gap-2 rounded-sm border px-3 py-2"
+                    style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+                  >
+                    <span className="text-xs font-bold tracking-wide" style={{ color: 'var(--ink-dim)' }}>
+                      Metacritic
+                    </span>
+                    <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+                      {ratings.metascore}/100
+                    </span>
+                  </div>
+                )}
+                {ratings.rottenTomatoes && (
+                  <div
+                    className="flex items-center gap-2 rounded-sm border px-3 py-2"
+                    style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+                  >
+                    <span className="text-xs font-bold tracking-wide" style={{ color: '#fa320a' }}>
+                      Rotten Tomatoes
+                    </span>
+                    <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+                      {ratings.rottenTomatoes}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
-            {details.productionCompanies.length > 0 && (
-              <div>
-                <dt className="mb-1 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
-                  Production
-                </dt>
-                <dd style={{ color: 'var(--ink)' }}>{details.productionCompanies.join(', ')}</dd>
-              </div>
+
+            {reviews.length > 0 ? (
+              <ul className="flex flex-col gap-4">
+                {reviews.map((review) => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+              </ul>
+            ) : !ratings?.imdbRating && !ratings?.metascore && !ratings?.rottenTomatoes ? (
+              <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+                No ratings or reviews available yet.
+              </p>
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+                No written reviews yet.
+              </p>
             )}
-          </dl>
+          </div>
         )}
       </div>
     </div>

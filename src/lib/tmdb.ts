@@ -1,3 +1,5 @@
+import { containsSpoilers } from '@/lib/spoiler-detection';
+
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 export interface TmdbMovie {
@@ -237,6 +239,70 @@ export async function fetchCredits(tmdbId: number): Promise<TmdbCredits> {
     throw new Error(`TMDB credits request failed: ${res.status}`);
   }
   return res.json();
+}
+
+// Looks up a movie's own IMDb id (distinct from fetchPersonImdbId, which
+// resolves a cast/crew member's id) -- needed to key the OMDb ratings
+// lookup (src/lib/omdb.ts), since OMDb has no TMDB-id lookup mode of its
+// own. Returns null (not thrown) on any failure so a ratings-fetch
+// failure never blocks the rest of the detail page.
+export async function fetchMovieImdbId(tmdbId: number): Promise<string | null> {
+  const apiKey = requireApiKey();
+  try {
+    const res = await fetch(`${TMDB_BASE_URL}/movie/${tmdbId}/external_ids?api_key=${apiKey}`);
+    if (!res.ok) return null;
+    const data: { imdb_id: string | null } = await res.json();
+    return data.imdb_id || null;
+  } catch {
+    return null;
+  }
+}
+
+export interface TmdbReview {
+  id: string;
+  author: string;
+  content: string;
+  url: string;
+  created_at: string;
+  authorRating: number | null;
+  hasSpoilers: boolean;
+}
+
+interface TmdbReviewsResponse {
+  results: Array<{
+    id: string;
+    author: string;
+    content: string;
+    url: string;
+    created_at: string;
+    author_details: { rating: number | null };
+  }>;
+}
+
+// Fetches user-submitted reviews for the detail page's Reviews tab.
+// TMDB's own reviews, not scraped from anywhere -- same ToS-compliant
+// source as every other call in this file. No "most helpful"/like-count
+// signal exists in this endpoint (confirmed against TMDB's docs), so
+// callers sort by author_details.rating (when a reviewer left one) as
+// the closest available proxy rather than the API's fixed return order.
+export async function fetchMovieReviews(tmdbId: number): Promise<TmdbReview[]> {
+  const apiKey = requireApiKey();
+  const res = await fetch(
+    `${TMDB_BASE_URL}/movie/${tmdbId}/reviews?api_key=${apiKey}&language=en-US`,
+  );
+  if (!res.ok) {
+    throw new Error(`TMDB reviews request failed: ${res.status}`);
+  }
+  const data: TmdbReviewsResponse = await res.json();
+  return data.results.map((r) => ({
+    id: r.id,
+    author: r.author,
+    content: r.content,
+    url: r.url,
+    created_at: r.created_at,
+    authorRating: r.author_details.rating,
+    hasSpoilers: containsSpoilers(r.content),
+  }));
 }
 
 // Looks up a single person's IMDb ID by their TMDB person ID, so the

@@ -2,7 +2,14 @@ import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { fetchMovieDetails, fetchCredits, fetchPersonImdbId } from '@/lib/tmdb';
+import {
+  fetchMovieDetails,
+  fetchCredits,
+  fetchPersonImdbId,
+  fetchMovieImdbId,
+  fetchMovieReviews,
+} from '@/lib/tmdb';
+import { fetchOmdbRatings } from '@/lib/omdb';
 import { posterUrl, backdropUrl, profileUrl } from '@/lib/tmdb-image';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { filterFutureDates, filterFutureIsoDates, filterPastVoxShowtimes } from '@/lib/scene/dates';
@@ -61,12 +68,29 @@ export default async function MovieDetailPage({
     isWatchlisted = !!watchlistRow;
   }
 
-  const [details, tmdbCredits] = movie.tmdb_id
+  const [details, tmdbCredits, movieImdbId, reviews] = movie.tmdb_id
     ? await Promise.all([
         fetchMovieDetails(movie.tmdb_id).catch(() => null),
         fetchCredits(movie.tmdb_id).catch(() => null),
+        fetchMovieImdbId(movie.tmdb_id),
+        fetchMovieReviews(movie.tmdb_id).catch(() => []),
       ])
-    : [null, null];
+    : [null, null, null, []];
+
+  // Chained off movieImdbId rather than folded into the Promise.all above
+  // since OMDb can only be queried once the IMDb id is in hand.
+  const omdbRatings = movieImdbId ? await fetchOmdbRatings(movieImdbId) : null;
+
+  // No real "most liked" signal exists in TMDB's reviews API (confirmed
+  // in advance, not guessed) -- sort reviews with a numeric author rating
+  // first (highest rating first) as the closest available proxy, then
+  // fall back to whatever order the API returned unrated ones in.
+  const sortedReviews = [...reviews].sort((a, b) => {
+    if (a.authorRating != null && b.authorRating != null) return b.authorRating - a.authorRating;
+    if (a.authorRating != null) return -1;
+    if (b.authorRating != null) return 1;
+    return 0;
+  });
 
   const tmdbDirector = tmdbCredits?.crew.find((c) => c.job === 'Director');
   const hasTmdbCredits = !!tmdbDirector || (tmdbCredits?.cast.length ?? 0) > 0;
@@ -330,6 +354,8 @@ export default async function MovieDetailPage({
           cast={castWithImdbIds}
           creditsSource={creditsSource}
           showtimes={showtimes}
+          ratings={omdbRatings}
+          reviews={sortedReviews}
           watchlistControl={
             showWatchlistControl ? (
               <WatchlistButton movieId={movie.id} isWatchlisted={isWatchlisted} />
