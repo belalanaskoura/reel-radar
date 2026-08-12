@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { MapPinIcon, ArrowRightIcon } from '@/components/icons';
-import { sortBranchesForDisplay } from '@/lib/branches';
+import { sortBranchesForDisplay, type VoxDayDetail } from '@/lib/branches';
 
 export default async function CinemasPage() {
   const supabase = await createClient();
@@ -25,17 +25,40 @@ export default async function CinemasPage() {
       .from('branches')
       .select('id, name, base_url, address, formats, chain, logo_url')
       .order('id', { ascending: true }),
-    supabase.from('showtimes_cache').select('branch_id, movies(match_status)').eq('bookable', true),
+    supabase
+      .from('showtimes_cache')
+      .select('branch_id, raw_showtimes, movies(match_status)')
+      .eq('bookable', true),
   ]);
 
   const bookableCountByBranch = new Map<string, number>();
+  // Scene's format tags come from branches.formats, populated by the
+  // dedicated scrape-formats cron job -- but that job only ever calls
+  // Scene's own fetchDayShowtimes, so VOX branches always had formats: [].
+  // VOX's real per-format detail already lives in showtimes_cache.raw_showtimes
+  // (scrape-vox's VoxDayDetail shape, see src/lib/branches.ts), so derive
+  // VOX's tags from there at read time instead of scraping anything new.
+  const voxFormatsByBranch = new Map<string, Set<string>>();
   for (const row of bookableRows ?? []) {
     const matchStatus = (row.movies as unknown as { match_status: string } | null)?.match_status;
     if (!['matched', 'unmatched', 'ambiguous'].includes(matchStatus ?? '')) continue;
     bookableCountByBranch.set(row.branch_id, (bookableCountByBranch.get(row.branch_id) ?? 0) + 1);
+
+    if (Array.isArray(row.raw_showtimes)) {
+      const days = row.raw_showtimes as unknown as VoxDayDetail[];
+      const set = voxFormatsByBranch.get(row.branch_id) ?? new Set<string>();
+      for (const day of days) {
+        for (const f of day.formats ?? []) set.add(f.format);
+      }
+      if (set.size > 0) voxFormatsByBranch.set(row.branch_id, set);
+    }
   }
 
-  const orderedBranches = sortBranchesForDisplay(branches ?? []);
+  const orderedBranches = sortBranchesForDisplay(branches ?? []).map((branch) => {
+    const voxFormats = voxFormatsByBranch.get(branch.id);
+    if (!voxFormats) return branch;
+    return { ...branch, formats: [...voxFormats].sort() };
+  });
 
   return (
     <main className="relative overflow-x-hidden">
