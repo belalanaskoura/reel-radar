@@ -180,11 +180,3 @@ backfills / corrections, not part of the regular scheduled-job loop:
   changes on either site can break parsing until the relevant selector
   is updated.
 
-## Development notes
-
-`CLAUDE.md` (gitignored, local-only) holds the full phase-by-phase build
-history and working agreement for this project — architecture decisions,
-what was tried, what broke, and why. It isn't tracked in this repo since
-it's local project memory rather than project documentation, but if
-you're picking up this codebase fresh, ask whoever has been working on
-it for the context it contains.

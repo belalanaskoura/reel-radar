@@ -14,6 +14,13 @@ type AnalyticsEvent =
         delisted: number;
         duration_ms: number;
         error: string | null;
+        // Only set for scene, which is now batched by offset (see
+        // scrape-scene/route.ts) -- `listed` is the branch's FULL
+        // listing count, `batchSize`/`offset` describe what this
+        // specific run actually covered. Absent for vox (unbatched, one
+        // run always covers the whole branch).
+        batchSize?: number;
+        offset?: number;
       };
     }
   | {
@@ -28,6 +35,10 @@ type AnalyticsEvent =
   | {
       type: 'admin_digest_run';
       payload: { issues: number; emailSent: boolean; pushSent: number; duration_ms: number };
+    }
+  | {
+      type: 'scrape_delist_run';
+      payload: { branch: string; listed: number; delisted: number; duration_ms: number; error: string | null };
     };
 
 // Fire-and-forget: analytics must never fail or slow down the request
