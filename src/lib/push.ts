@@ -87,3 +87,20 @@ export async function notifyNewReleasePush(
     url: notification.movieUrl,
   });
 }
+
+// Admin data-quality digest push -- same push_subscriptions/user_id
+// mechanism as any watchlist notification, just to whichever admin
+// user(s) the caller resolves (see admin-digest/route.ts, which looks
+// up every ADMIN_EMAILS address's auth.users id), not a watcher.
+export async function notifyAdminDigestPush(
+  supabase: SupabaseClient,
+  userId: string,
+  issueCount: number,
+): Promise<number> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  return sendToUser(supabase, userId, {
+    title: `${issueCount} data quality issue${issueCount === 1 ? '' : 's'} found`,
+    body: 'Missing posters, unresolved matches, or movies with no synopsis.',
+    url: `${siteUrl}/admin/matching`,
+  });
+}
