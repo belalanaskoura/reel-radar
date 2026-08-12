@@ -8,7 +8,7 @@ export type MatchOutcome = 'matched' | 'ambiguous' | 'unmatched';
 
 interface MatchResult {
   sceneMovieId: string;
-  outcome: MatchOutcome;
+  outcome: MatchOutcome | 'error';
   tmdbId?: number;
 }
 
@@ -41,7 +41,7 @@ export async function findTmdbMatch(title: string): Promise<TmdbMatch> {
     return { outcome: 'matched', movie: candidates[0] };
   }
 
-  return disambiguate(candidates);
+  return disambiguate(candidates, query);
 }
 
 // VOX's movie_branch_slugs.slug IS the elCinema work id (see
@@ -80,10 +80,23 @@ async function findTmdbMatchViaElcinemaId(
   return getMovieById(release.tmdb_id);
 }
 
-async function disambiguate(candidates: TmdbMovie[]): Promise<TmdbMatch> {
+async function disambiguate(candidates: TmdbMovie[], query: string): Promise<TmdbMatch> {
   const withEgDates: { movie: TmdbMovie; egDate: string }[] = [];
   for (const movie of candidates) {
-    const egDate = await getEgTheatricalReleaseDate(movie.id);
+    // A single candidate's release_dates lookup failing (404 for a stale/
+    // removed id, a transient TMDB error) shouldn't abort matching every
+    // other movie in the batch -- confirmed for real: one bad candidate
+    // among "Above & Below"'s ~20 noisy search results threw here and
+    // silently starved every movie queued after it in the same run,
+    // including one ("Pinocchio: Unstrung") that had an unambiguous
+    // single-result match and no reason to ever fail. Treat a failed
+    // lookup the same as "no EG date for this candidate" and keep going.
+    let egDate: string | null;
+    try {
+      egDate = await getEgTheatricalReleaseDate(movie.id);
+    } catch {
+      egDate = null;
+    }
     if (egDate) withEgDates.push({ movie, egDate });
   }
 
@@ -91,9 +104,30 @@ async function disambiguate(candidates: TmdbMovie[]): Promise<TmdbMatch> {
     return { outcome: 'matched', movie: withEgDates[0].movie };
   }
 
-  // Zero or 2+ candidates with an EG release date is genuinely ambiguous:
-  // per Phase 5 sign-off, popularity alone isn't a strong enough
-  // signal to auto-pick here.
+  // Zero candidates with an EG date doesn't necessarily mean genuinely
+  // ambiguous -- it can just mean TMDB hasn't tagged Egypt distribution
+  // for this movie yet (confirmed for real: "Above & Below", a real 2026
+  // release, has zero EG release_dates entries at all, same as every
+  // other candidate TMDB's loose title search returned alongside it).
+  // Fall back to an exact normalized-title match: only trusted when
+  // exactly one candidate's own title is an exact match to the search
+  // query, never on a looser signal -- a candidate that merely contains
+  // or resembles the query is exactly the kind of noise TMDB's search
+  // returns by the dozen (confirmed: this query alone returned ~20
+  // candidates, only one an exact title match). Two candidates sharing an
+  // exact normalized title is a real, separate risk (a genuine title
+  // collision, per Phase 0's "The Odyssey" finding) and correctly falls
+  // through to ambiguous rather than guessing between them.
+  if (withEgDates.length === 0) {
+    const exactTitleMatches = candidates.filter((c) => normalizeTitle(c.title) === query);
+    if (exactTitleMatches.length === 1) {
+      return { outcome: 'matched', movie: exactTitleMatches[0] };
+    }
+  }
+
+  // Zero (with no exact-title fallback available) or 2+ candidates with
+  // an EG release date is genuinely ambiguous: per Phase 5 sign-off,
+  // popularity alone isn't a strong enough signal to auto-pick here.
   return { outcome: 'ambiguous' };
 }
 
@@ -115,52 +149,67 @@ export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<Match
   const results: MatchResult[] = [];
 
   for (const movie of sceneMovies) {
-    const viaElcinemaId = await findTmdbMatchViaElcinemaId(supabase, movie.id);
-    const match: TmdbMatch = viaElcinemaId
-      ? { outcome: 'matched', movie: viaElcinemaId }
-      : await findTmdbMatch(movie.title);
+    try {
+      const viaElcinemaId = await findTmdbMatchViaElcinemaId(supabase, movie.id);
+      const match: TmdbMatch = viaElcinemaId
+        ? { outcome: 'matched', movie: viaElcinemaId }
+        : await findTmdbMatch(movie.title);
 
-    if (match.outcome !== 'matched' || !match.movie) {
-      await supabase
+      if (match.outcome !== 'matched' || !match.movie) {
+        await supabase
+          .from('movies')
+          .update({ match_status: match.outcome })
+          .eq('id', movie.id);
+        results.push({ sceneMovieId: movie.id, outcome: match.outcome });
+        continue;
+      }
+
+      const tmdbMovie = match.movie;
+      const { data: existingTmdbRow } = await supabase
         .from('movies')
-        .update({ match_status: match.outcome })
-        .eq('id', movie.id);
-      results.push({ sceneMovieId: movie.id, outcome: match.outcome });
-      continue;
+        .select('id')
+        .eq('tmdb_id', tmdbMovie.id)
+        .maybeSingle();
+
+      if (existingTmdbRow && existingTmdbRow.id !== movie.id) {
+        await mergeIntoExistingRow(supabase, movie.id, existingTmdbRow.id);
+      } else {
+        // No existing TMDB-sourced row for this tmdb_id, so this Scene row
+        // is becoming the canonical one: backfill the same fields
+        // Phase 2's sync would have set, replacing Scene's format-suffixed
+        // title (e.g. "Spider-Man: Brand New Day (2D)") with TMDB's clean one.
+        // elCinema is preferred over TMDB's release_date, and used as a
+        // poster fallback when TMDB has none (see egypt-release-date.ts).
+        const egyptInfo = await getEgyptReleaseInfo(supabase, tmdbMovie.id, tmdbMovie.title);
+        await supabase
+          .from('movies')
+          .update({
+            tmdb_id: tmdbMovie.id,
+            title: tmdbMovie.title,
+            original_title: tmdbMovie.original_title,
+            poster_path: tmdbMovie.poster_path || egyptInfo.posterUrl || null,
+            release_date: egyptInfo.releaseDate || tmdbMovie.release_date || null,
+            popularity: tmdbMovie.popularity,
+            match_status: 'matched',
+          })
+          .eq('id', movie.id);
+      }
+
+      results.push({ sceneMovieId: movie.id, outcome: 'matched', tmdbId: tmdbMovie.id });
+    } catch (err) {
+      // One movie's failure (a flaky TMDB/elCinema request, an unexpected
+      // response shape) shouldn't starve every movie queued after it in
+      // the same run -- confirmed for real: a single candidate's
+      // release_dates 404 during "Above & Below"'s disambiguation aborted
+      // the whole batch, leaving "Pinocchio: Unstrung" (queued right
+      // after it, with an unambiguous single-result match of its own)
+      // permanently unmatched despite having no problem of its own. Leave
+      // match_status untouched on error, not 'unmatched'/'ambiguous' --
+      // those are resolved outcomes, this is a transient failure the next
+      // run should just retry from scratch.
+      console.error(`matchScenesToTmdb: failed for movie ${movie.id} ("${movie.title}")`, err);
+      results.push({ sceneMovieId: movie.id, outcome: 'error' });
     }
-
-    const tmdbMovie = match.movie;
-    const { data: existingTmdbRow } = await supabase
-      .from('movies')
-      .select('id')
-      .eq('tmdb_id', tmdbMovie.id)
-      .maybeSingle();
-
-    if (existingTmdbRow && existingTmdbRow.id !== movie.id) {
-      await mergeIntoExistingRow(supabase, movie.id, existingTmdbRow.id);
-    } else {
-      // No existing TMDB-sourced row for this tmdb_id, so this Scene row
-      // is becoming the canonical one: backfill the same fields
-      // Phase 2's sync would have set, replacing Scene's format-suffixed
-      // title (e.g. "Spider-Man: Brand New Day (2D)") with TMDB's clean one.
-      // elCinema is preferred over TMDB's release_date, and used as a
-      // poster fallback when TMDB has none (see egypt-release-date.ts).
-      const egyptInfo = await getEgyptReleaseInfo(supabase, tmdbMovie.id, tmdbMovie.title);
-      await supabase
-        .from('movies')
-        .update({
-          tmdb_id: tmdbMovie.id,
-          title: tmdbMovie.title,
-          original_title: tmdbMovie.original_title,
-          poster_path: tmdbMovie.poster_path || egyptInfo.posterUrl || null,
-          release_date: egyptInfo.releaseDate || tmdbMovie.release_date || null,
-          popularity: tmdbMovie.popularity,
-          match_status: 'matched',
-        })
-        .eq('id', movie.id);
-    }
-
-    results.push({ sceneMovieId: movie.id, outcome: 'matched', tmdbId: tmdbMovie.id });
   }
 
   return results;

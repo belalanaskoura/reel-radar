@@ -6,6 +6,7 @@ import { getEgyptReleaseInfo } from '@/lib/matching/egypt-release-date';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
 import { notifyNewReleases } from '@/lib/matching/notify-new-releases';
+import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 import { logEvent } from '@/lib/analytics';
 
 // Runs an array of async tasks with at most `size` in flight at once,
@@ -78,17 +79,62 @@ export async function POST(request: Request) {
   // src/lib/matching/egypt-release-date.ts. TMDB remains the fallback
   // for movies elCinema has no record of, for both fields. Batched
   // concurrently for the same reason as above.
-  const rows = await mapWithConcurrency(movies, SYNC_CONCURRENCY, async (m) => {
+  // Before treating a candidate as new, check whether it already exists as
+  // a tmdb_id-less Scene/VOX placeholder (this movie was scraped as a
+  // listing before TMDB sync ever ran, or before this candidate cleared
+  // the Egypt-distributor filter). If so, target that row's id directly so
+  // the upsert below fills it in in place instead of inserting a second,
+  // disconnected row -- the mirror image of the check scrape-scene/
+  // scrape-vox now do before creating a placeholder. Without this, every
+  // such placeholder sits stuck at tmdb_id null until the next
+  // /api/match-movies run's reconciliation pass catches it -- correct
+  // eventually, but a same-run fix is strictly better than depending on a
+  // second, differently-scheduled job to close the gap.
+  type SyncRow = {
+    tmdb_id: number;
+    title: string;
+    original_title: string;
+    poster_path: string | null;
+    release_date: string | null;
+    popularity: number;
+    match_status: 'matched';
+  };
+
+  const placeholderUpdates: { id: string; fields: SyncRow }[] = [];
+  const remainingRows: SyncRow[] = [];
+
+  await mapWithConcurrency(movies, SYNC_CONCURRENCY, async (m) => {
     const egyptInfo = await getEgyptReleaseInfo(supabase, m.id, m.title);
-    return {
+    const existingPlaceholderId = await findExistingMovieByTitle(supabase, m.title, {
+      placeholdersOnly: true,
+    });
+    const fields = {
       tmdb_id: m.id,
       title: m.title,
       original_title: m.original_title,
       poster_path: m.poster_path || egyptInfo.posterUrl || null,
       release_date: egyptInfo.releaseDate || m.release_date || null,
       popularity: m.popularity,
+      match_status: 'matched' as const,
     };
+
+    if (existingPlaceholderId) {
+      placeholderUpdates.push({ id: existingPlaceholderId, fields });
+    } else {
+      remainingRows.push(fields);
+    }
   });
+
+  // Rows that matched an existing Scene/VOX placeholder by title are
+  // updated in place via their own id, not folded into the bulk upsert
+  // below: that upsert is keyed on `onConflict: 'tmdb_id'`, which only
+  // triggers Postgres's ON CONFLICT path for a conflict on tmdb_id --
+  // supplying a placeholder's existing id alongside a tmdb_id that isn't
+  // in the table yet would instead collide on the primary key and throw,
+  // since the conflict target named here is tmdb_id, not id.
+  for (const { id, fields } of placeholderUpdates) {
+    await supabase.from('movies').update(fields).eq('id', id);
+  }
 
   // TMDB itself occasionally has two distinct tmdb_ids for the same real
   // movie (confirmed for real: "aks seir" existed as both 1728650 and
@@ -102,7 +148,7 @@ export async function POST(request: Request) {
   // match risks merging unrelated films.
   const dedupedRows = [];
   let skippedDuplicates = 0;
-  for (const row of rows) {
+  for (const row of remainingRows) {
     if (!row.release_date) {
       dedupedRows.push(row);
       continue;
@@ -177,6 +223,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     synced: dedupedRows.length,
+    placeholdersAttached: placeholderUpdates.length,
     candidates: candidates.length,
     skippedDuplicates,
     removed,

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchVoxShowtimes } from '@/lib/elcinema/vox-showtimes';
-import { sleep, REQUEST_DELAY_MS } from '@/lib/elcinema/fetcher';
+import { fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '@/lib/elcinema/fetcher';
 import { VOX_ELCINEMA_THEATER_IDS, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { logEvent } from '@/lib/analytics';
+import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 
 const VOX_BRANCHES = Object.keys(VOX_ELCINEMA_THEATER_IDS) as VoxBranchId[];
 const DAYS_AHEAD = 5; // confirmed rolling window: today through +4 have real showtimes, +5 is always empty
@@ -89,42 +90,89 @@ export async function POST(request: Request) {
       if (existingLink) {
         movieId = existingLink.movie_id;
       } else {
-        const { data: newMovie, error: insertError } = await supabase
-          .from('movies')
-          .insert({ title, match_status: 'unmatched' })
-          .select('id')
-          .single();
+        // Same title-first check as scrape-scene: a new elCinema work id
+        // for this branch doesn't mean this is a new movie -- it may
+        // already exist as a Scene placeholder or a TMDB-sourced matched
+        // row under a different id. Attach the new slug to that row
+        // instead of spawning a disconnected duplicate.
+        const existingByTitle = await findExistingMovieByTitle(supabase, title);
 
-        if (insertError || !newMovie) {
-          throw new Error(`Failed to insert placeholder movie: ${insertError?.message}`);
-        }
-        movieId = newMovie.id;
-
-        const { error: slugInsertError } = await supabase
-          .from('movie_branch_slugs')
-          .insert({ movie_id: movieId, branch_id: branch, slug });
-
-        if (slugInsertError) {
-          // 23505 = unique violation on (branch_id, slug): a concurrent
-          // scrape run won the insert first, same race scrape-scene
-          // handles. Use its link instead, delete our orphaned movie row.
-          if (slugInsertError.code === '23505') {
-            const { data: winningLink } = await supabase
-              .from('movie_branch_slugs')
-              .select('movie_id')
-              .eq('branch_id', branch)
-              .eq('slug', slug)
-              .single();
-
-            await supabase.from('movies').delete().eq('id', movieId);
-
-            if (!winningLink) {
-              throw new Error(`Lost the slug-insert race for ${branch}/${slug} but couldn't find the winning link`);
-            }
-            movieId = winningLink.movie_id;
-          } else {
-            throw new Error(`Failed to insert movie_branch_slugs: ${slugInsertError.message}`);
+        if (existingByTitle) {
+          movieId = existingByTitle;
+          const { error: linkError } = await supabase
+            .from('movie_branch_slugs')
+            .insert({ movie_id: movieId, branch_id: branch, slug });
+          if (linkError && linkError.code !== '23505') {
+            throw new Error(`Failed to insert movie_branch_slugs: ${linkError.message}`);
           }
+        } else {
+          const { data: newMovie, error: insertError } = await supabase
+            .from('movies')
+            .insert({ title, match_status: 'unmatched' })
+            .select('id')
+            .single();
+
+          if (insertError || !newMovie) {
+            throw new Error(`Failed to insert placeholder movie: ${insertError?.message}`);
+          }
+          movieId = newMovie.id;
+
+          const { error: slugInsertError } = await supabase
+            .from('movie_branch_slugs')
+            .insert({ movie_id: movieId, branch_id: branch, slug });
+
+          if (slugInsertError) {
+            // 23505 = unique violation on (branch_id, slug): a concurrent
+            // scrape run won the insert first, same race scrape-scene
+            // handles. Use its link instead, delete our orphaned movie row.
+            if (slugInsertError.code === '23505') {
+              const { data: winningLink } = await supabase
+                .from('movie_branch_slugs')
+                .select('movie_id')
+                .eq('branch_id', branch)
+                .eq('slug', slug)
+                .single();
+
+              await supabase.from('movies').delete().eq('id', movieId);
+
+              if (!winningLink) {
+                throw new Error(`Lost the slug-insert race for ${branch}/${slug} but couldn't find the winning link`);
+              }
+              movieId = winningLink.movie_id;
+            } else {
+              throw new Error(`Failed to insert movie_branch_slugs: ${slugInsertError.message}`);
+            }
+          }
+        }
+      }
+
+      // VOX movies never get a poster from anywhere else until they're
+      // TMDB-matched (getEgyptReleaseInfo's poster fallback is keyed by
+      // tmdb_id, so it can't help a still-unmatched placeholder) --
+      // unlike Scene, which fills one in from its own listing page during
+      // scraping. Fetch elCinema's work page directly (same source
+      // getEgyptReleaseInfo uses post-match, just reached via the elCinema
+      // id this route already has instead of a title search) as a
+      // placeholder-stage fallback, only when the row doesn't already
+      // have one, so an already-TMDB-matched or already-postered row
+      // never pays for this extra request.
+      const { data: movieRow } = await supabase
+        .from('movies')
+        .select('poster_path')
+        .eq('id', movieId)
+        .maybeSingle();
+
+      if (!movieRow?.poster_path) {
+        try {
+          await sleep(REQUEST_DELAY_MS);
+          const details = await fetchWorkDetails(elcinemaId);
+          if (details.posterUrl) {
+            await supabase.from('movies').update({ poster_path: details.posterUrl }).eq('id', movieId);
+          }
+        } catch {
+          // elCinema unreachable/unexpected markup for this one work page --
+          // skip the poster for this run rather than failing the whole
+          // branch scrape over a display detail; the next run retries.
         }
       }
 

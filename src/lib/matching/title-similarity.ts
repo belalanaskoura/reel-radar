@@ -32,10 +32,37 @@ function levenshtein(a: string, b: string): number {
 // Whole-word Levenshtein similarity (not full-string) is what makes this
 // tolerant of one word's spelling drifting ("Delilah" vs "Dalilah") without
 // smearing that tolerance across the whole title.
+//
+// A mismatched word count falls back to one more check rather than
+// returning 0 outright: whole-string similarity with every space removed.
+// This catches a different real transliteration variant than the per-word
+// path above -- not a spelling drift within a word, but a word BOUNDARY
+// drift, e.g. "Mahmoud Eltany" (Scene) vs "Mahmoud El Tany" (VOX), same
+// name, elCinema and Scene just split "Eltany" differently. Comparing with
+// spaces stripped entirely sidesteps the word-count guard's blind spot
+// here without weakening it: the guard still fires first (this is a
+// fallback, only reached when it fails), and the fallback's own threshold
+// is deliberately stricter (0.9 vs the word-mode 0.8) since a coarser
+// whole-string signal is a weaker guarantee against unrelated titles that
+// happen to be similar lengths.
+const SPACE_INSENSITIVE_FALLBACK_THRESHOLD = 0.9;
+
 export function titleSimilarity(a: string, b: string): number {
   const aWords = a.split(/\s+/).filter(Boolean);
   const bWords = b.split(/\s+/).filter(Boolean);
-  if (aWords.length === 0 || aWords.length !== bWords.length) return 0;
+  if (aWords.length === 0) return 0;
+
+  if (aWords.length !== bWords.length) {
+    const aJoined = aWords.join('');
+    const bJoined = bWords.join('');
+    const digitsA = aJoined.match(/\d+/g)?.join('') ?? '';
+    const digitsB = bJoined.match(/\d+/g)?.join('') ?? '';
+    if (digitsA !== digitsB) return 0;
+
+    const distance = levenshtein(aJoined, bJoined);
+    const similarity = 1 - distance / Math.max(aJoined.length, bJoined.length, 1);
+    return similarity >= SPACE_INSENSITIVE_FALLBACK_THRESHOLD ? similarity : 0;
+  }
 
   let total = 0;
   for (let i = 0; i < aWords.length; i++) {
