@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { ArrowLeftIcon, MapPinIcon } from '@/components/icons';
 import { CinemaMovieGrid, type CinemaMovie, type CinemaDate } from '@/components/CinemaMovieGrid';
 import { parseSceneDate, filterFutureDates, formatSceneDateLabel } from '@/lib/scene/dates';
-import { voxBranchShowtimesUrl, type VoxBranchId } from '@/lib/branches';
+import { voxBranchShowtimesUrl, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { logPageView } from '@/lib/analytics';
 
 export default async function CinemaDetailPage({
@@ -87,6 +87,23 @@ export default async function CinemaDetailPage({
   const bookableCount = movies.filter((m) => m.bookable).length;
   const branchShortName = branch.id === 'cfc' ? 'CFC' : branch.name;
 
+  // Same derivation as /cinemas: Scene's formats come from branches.formats
+  // (scrape-formats), but that job never touches VOX, so VOX's tags are
+  // derived here from showtimes_cache.raw_showtimes instead (already
+  // populated by scrape-vox, no extra scraping needed).
+  let displayFormats: string[] = branch.formats ?? [];
+  if (branch.chain === 'vox') {
+    const voxFormats = new Set<string>();
+    for (const cache of cacheRows ?? []) {
+      if (!cache.bookable || !Array.isArray(cache.raw_showtimes)) continue;
+      const days = cache.raw_showtimes as unknown as VoxDayDetail[];
+      for (const day of days) {
+        for (const f of day.formats ?? []) voxFormats.add(f.format);
+      }
+    }
+    displayFormats = [...voxFormats].sort();
+  }
+
   return (
     <main className="relative overflow-x-hidden">
       <div
@@ -118,6 +135,23 @@ export default async function CinemaDetailPage({
           <p className="mt-2 text-sm" style={{ color: 'var(--ink-dim)' }}>
             {bookableCount} movie{bookableCount === 1 ? '' : 's'} bookable now
           </p>
+
+          {displayFormats.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {displayFormats.map((format) => (
+                <span
+                  key={format}
+                  className="rounded-full px-3 py-1 text-[10px] font-bold tracking-widest uppercase"
+                  style={{
+                    background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                    color: 'var(--accent)',
+                  }}
+                >
+                  {format}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <CinemaMovieGrid

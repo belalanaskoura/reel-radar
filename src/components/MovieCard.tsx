@@ -30,7 +30,7 @@ export function MovieCard({
 
   return (
     <div
-      className="poster-card group relative flex flex-col gap-3 rounded-lg p-2"
+      className="poster-card group relative flex h-full flex-col gap-3 rounded-lg p-2"
       style={{ background: 'var(--surface)', boxShadow: '0 0 0 1px var(--rule)' }}
     >
       <Link
@@ -68,7 +68,7 @@ export function MovieCard({
           </span>
         )}
       </div>
-      <div className="pointer-events-none relative flex flex-col gap-1 px-1 pb-1">
+      <div className="pointer-events-none relative flex flex-1 flex-col gap-1 px-1 pb-1">
         <h3
           className="font-display line-clamp-2 text-lg leading-tight uppercase"
           style={{ color: 'var(--ink)' }}
@@ -96,7 +96,7 @@ export function MovieCard({
                 ? removeFromWatchlist.bind(null, movie.id)
                 : addToWatchlist.bind(null, movie.id)
             }
-            className="relative z-10 mt-2 pointer-events-auto"
+            className="relative z-10 mt-auto pointer-events-auto pt-2"
           >
             <button
               type="submit"
