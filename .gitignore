@@ -49,3 +49,5 @@ AGENTS.md
 
 # local Claude Code permission settings, machine-specific
 .claude/
+
+/docs/HISTORY.md
