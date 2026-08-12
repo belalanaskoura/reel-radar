@@ -14,6 +14,7 @@ import { applyTmdbMatch } from '@/lib/matching/match-to-tmdb';
 // job logic, so the routes themselves are untouched.
 const JOB_ROUTES = {
   'scrape-scene': '/api/scrape-scene',
+  'scrape-scene-delist': '/api/scrape-scene-delist',
   'scrape-vox': '/api/scrape-vox',
   poll: '/api/poll',
   'match-movies': '/api/match-movies',
@@ -189,14 +190,23 @@ function summarize(job: JobName, body: unknown): string {
   if (job === 'admin-digest') {
     return `${b.issues ?? 0} issue(s). Email ${b.emailSent ? 'sent' : 'not sent'}, push sent to ${b.pushSent ?? 0}.`;
   }
-  // scrape-scene / scrape-vox: { [branch]: { listed/movies, bookable, ... } }
+  if (job === 'scrape-scene-delist') {
+    const entries = Object.entries(b);
+    if (entries.length === 0) return 'Done.';
+    return entries
+      .map(([branch, stats]) => `${branch}: ${(stats as Record<string, unknown>).delisted ?? 0} delisted`)
+      .join(' · ');
+  }
+  // scrape-scene (one batch) / scrape-vox: { [branch]: { listed/movies, bookable, ... } }
   const entries = Object.entries(b);
   if (entries.length === 0) return 'Done.';
   return entries
     .map(([branch, stats]) => {
       const s = stats as Record<string, unknown>;
       const listed = s.listed ?? s.movies ?? 0;
-      return `${branch}: ${listed} listed, ${s.bookable ?? 0} bookable`;
+      const batchSize = s.batchSize as number | undefined;
+      const scope = batchSize !== undefined ? ` (batch of ${batchSize})` : '';
+      return `${branch}: ${listed} listed${scope}, ${s.bookable ?? 0} bookable`;
     })
     .join(' · ');
 }

@@ -23,6 +23,20 @@ const STALE_THRESHOLD_HOURS: Record<'scene' | 'vox', number> = {
 };
 const WIDEST_STALE_THRESHOLD_HOURS = Math.max(...Object.values(STALE_THRESHOLD_HOURS));
 
+// A run that's silently missing entirely -- not one that logged a
+// failure, but one cron-job.org's own 30s timeout killed before the
+// request ever reached the logEvent call at the end of the route --
+// leaves zero trace: no error, just a gap in analytics_events. The
+// existing cache-health staleness check above (showtimes_cache.last_
+// checked_at) doesn't fully cover this anymore now that scrape-scene is
+// batched: one successful batch call only touches ~10 movies, so
+// last_checked_at can look "fresh enough" even if several scheduled
+// runs in a row never happened. This checks the job's own run log
+// directly instead, per branch -- confirmed for real: a 107-minute gap
+// in CFC's scrape_run history (expected every ~30 min) that the old
+// single-flat-threshold cache check gave no visibility into at all.
+const JOB_GAP_THRESHOLD_MINUTES = 90;
+
 type EventRow = { event_type: string; occurred_at: string; payload: Record<string, unknown> };
 
 export default async function AdminOverviewPage() {
@@ -46,6 +60,8 @@ export default async function AdminOverviewPage() {
     { data: watchlistEvents },
     { count: recentSignIns },
     dataQualityIssues,
+    { data: sceneBranches },
+    { data: recentScrapeAndDelistEvents },
   ] = await Promise.all([
     // No DB-side .limit() here: the query window is widened to the
     // largest per-chain threshold (VOX's 24h), so a hard limit here
@@ -74,7 +90,7 @@ export default async function AdminOverviewPage() {
     supabase
       .from('analytics_events')
       .select('event_type, occurred_at, payload')
-      .in('event_type', ['poll_run', 'scrape_run', 'match_run'])
+      .in('event_type', ['poll_run', 'scrape_run', 'scrape_delist_run', 'match_run'])
       .order('occurred_at', { ascending: false })
       .limit(20),
     supabase
@@ -102,6 +118,18 @@ export default async function AdminOverviewPage() {
     // TMDB-calling "no synopsis" check stays digest-only, see
     // src/lib/matching/data-quality.ts.
     findCheapDataQualityIssues(supabase),
+    supabase.from('branches').select('id, name').eq('chain', 'scene'),
+    // Wide-window fetch for job-gap detection below: needs every recent
+    // scrape_run/scrape_delist_run per branch, not just the newest one
+    // overall (recentRunEvents above caps at 20 across ALL event types
+    // and branches combined, which isn't enough once there are 2 Scene
+    // branches x 2 job types competing for those 20 slots).
+    supabase
+      .from('analytics_events')
+      .select('event_type, occurred_at, payload')
+      .in('event_type', ['scrape_run', 'scrape_delist_run'])
+      .gte('occurred_at', new Date(now.getTime() - JOB_GAP_THRESHOLD_MINUTES * 2 * 60 * 1000).toISOString())
+      .order('occurred_at', { ascending: false }),
   ]);
 
   // Each row checked against its own chain's real threshold (the query
@@ -125,16 +153,37 @@ export default async function AdminOverviewPage() {
   });
 
   // Most recent event of each kind, keyed by a stable identity per source
-  // (poll has one, scrape has one per branch, match has one) -- this is a
-  // "did the last run of each job succeed" strip, not a full history.
+  // (poll has one, scrape/delist each have one per branch, match has
+  // one) -- this is a "did the last run of each job succeed" strip, not
+  // a full history.
   const latestByKey = new Map<string, EventRow>();
   for (const row of (recentRunEvents ?? []) as EventRow[]) {
     const key =
       row.event_type === 'scrape_run'
         ? `scrape_run:${row.payload.source}:${row.payload.branch}`
-        : row.event_type;
+        : row.event_type === 'scrape_delist_run'
+          ? `scrape_delist_run:${row.payload.branch}`
+          : row.event_type;
     if (!latestByKey.has(key)) latestByKey.set(key, row);
   }
+
+  // Per-branch job-gap detection (see JOB_GAP_THRESHOLD_MINUTES's own
+  // comment for why this is a distinct signal from cache staleness
+  // above): for each Scene branch, the newest scrape_run/scrape_delist_run
+  // of either type should be recent -- if the newest of BOTH types
+  // combined is older than the threshold, at least that many scheduled
+  // runs were silently lost (killed by the scheduler's own timeout
+  // before ever reaching logEvent, so nothing else would ever surface
+  // this on its own).
+  const missingRunBranches = (sceneBranches ?? []).filter((branch) => {
+    const branchEvents = (recentScrapeAndDelistEvents ?? []).filter(
+      (row) => (row.payload as { branch?: string }).branch === branch.id,
+    );
+    if (branchEvents.length === 0) return true;
+    const newest = branchEvents[0].occurred_at;
+    const minutesSince = (now.getTime() - new Date(newest).getTime()) / 60000;
+    return minutesSince > JOB_GAP_THRESHOLD_MINUTES;
+  });
 
   // Distinct stale branches, so the fix-it row offers one button per
   // affected branch rather than one per stale movie row.
@@ -224,6 +273,38 @@ export default async function AdminOverviewPage() {
           )}
         </div>
       </section>
+
+      {missingRunBranches.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
+            Missing scrape runs
+          </h2>
+          <div
+            className="rounded-sm border p-4"
+            style={{ borderColor: 'var(--error-ink)', background: 'var(--error-bg)' }}
+          >
+            <p className="font-display text-2xl leading-none" style={{ color: 'var(--error-ink)' }}>
+              {missingRunBranches.length} branch{missingRunBranches.length === 1 ? '' : 'es'} silent
+            </p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--ink-dim)' }}>
+              No scrape or delist run logged in over {JOB_GAP_THRESHOLD_MINUTES} min -- the scheduler&rsquo;s own
+              timeout likely killed the request before it could even log a failure.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {missingRunBranches.map((branch) => (
+                <RunJobButton
+                  key={branch.id}
+                  job="scrape-scene"
+                  branch={branch.id}
+                  size="sm"
+                  label={`Run ${branch.name} now`}
+                  confirmText={`Manually run one scrape batch for ${branch.name} now?`}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {dataQualityIssues.length > 0 && (
         <section>
@@ -332,7 +413,7 @@ function RunStatusRow({ row, now }: { row: EventRow; now: Date }) {
   const timeSince = minutesAgo < 60 ? `${minutesAgo}m ago` : `${Math.round(minutesAgo / 60)}h ago`;
 
   const hasError =
-    row.event_type === 'scrape_run'
+    row.event_type === 'scrape_run' || row.event_type === 'scrape_delist_run'
       ? !!row.payload.error
       : row.event_type === 'poll_run'
         ? (row.payload.pair_errors as number) > 0
@@ -341,21 +422,28 @@ function RunStatusRow({ row, now }: { row: EventRow; now: Date }) {
   const label =
     row.event_type === 'scrape_run'
       ? `Scrape (${row.payload.source} / ${row.payload.branch})`
-      : row.event_type === 'poll_run'
-        ? 'Poll'
-        : 'Match';
+      : row.event_type === 'scrape_delist_run'
+        ? `Delist (scene / ${row.payload.branch})`
+        : row.event_type === 'poll_run'
+          ? 'Poll'
+          : 'Match';
 
-  const runJobProps: { job: 'scrape-scene' | 'scrape-vox' | 'poll' | 'match-movies'; branch?: string } | null =
+  const runJobProps: {
+    job: 'scrape-scene' | 'scrape-scene-delist' | 'scrape-vox' | 'poll' | 'match-movies';
+    branch?: string;
+  } | null =
     row.event_type === 'scrape_run'
       ? {
           job: row.payload.source === 'vox' ? 'scrape-vox' : 'scrape-scene',
           branch: row.payload.branch as string,
         }
-      : row.event_type === 'poll_run'
-        ? { job: 'poll' }
-        : row.event_type === 'match_run'
-          ? { job: 'match-movies' }
-          : null;
+      : row.event_type === 'scrape_delist_run'
+        ? { job: 'scrape-scene-delist', branch: row.payload.branch as string }
+        : row.event_type === 'poll_run'
+          ? { job: 'poll' }
+          : row.event_type === 'match_run'
+            ? { job: 'match-movies' }
+            : null;
 
   return (
     <div

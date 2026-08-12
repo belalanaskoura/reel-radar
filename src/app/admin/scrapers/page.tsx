@@ -10,6 +10,8 @@ type ScrapeRunPayload = {
   delisted: number;
   duration_ms: number;
   error: string | null;
+  batchSize?: number;
+  offset?: number;
 };
 
 type PollRunPayload = {
@@ -17,6 +19,14 @@ type PollRunPayload = {
   notified: number;
   pair_errors: number;
   duration_ms: number;
+};
+
+type DelistRunPayload = {
+  branch: string;
+  listed: number;
+  delisted: number;
+  duration_ms: number;
+  error: string | null;
 };
 
 export default async function AdminScrapersPage({
@@ -27,21 +37,28 @@ export default async function AdminScrapersPage({
   const { branch } = await searchParams;
   const supabase = createServiceRoleClient();
 
-  const [{ data: branches }, { data: scrapeEvents }, { data: pollEvents }] = await Promise.all([
-    supabase.from('branches').select('id, name').order('id', { ascending: true }),
-    supabase
-      .from('analytics_events')
-      .select('occurred_at, payload')
-      .eq('event_type', 'scrape_run')
-      .order('occurred_at', { ascending: false })
-      .limit(100),
-    supabase
-      .from('analytics_events')
-      .select('occurred_at, payload')
-      .eq('event_type', 'poll_run')
-      .order('occurred_at', { ascending: false })
-      .limit(30),
-  ]);
+  const [{ data: branches }, { data: scrapeEvents }, { data: pollEvents }, { data: delistEvents }] =
+    await Promise.all([
+      supabase.from('branches').select('id, name').order('id', { ascending: true }),
+      supabase
+        .from('analytics_events')
+        .select('occurred_at, payload')
+        .eq('event_type', 'scrape_run')
+        .order('occurred_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('analytics_events')
+        .select('occurred_at, payload')
+        .eq('event_type', 'poll_run')
+        .order('occurred_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('analytics_events')
+        .select('occurred_at, payload')
+        .eq('event_type', 'scrape_delist_run')
+        .order('occurred_at', { ascending: false })
+        .limit(30),
+    ]);
 
   const scrapeRows = (scrapeEvents ?? [])
     .filter((row) => !branch || (row.payload as ScrapeRunPayload).branch === branch)
@@ -74,6 +91,7 @@ export default async function AdminScrapersPage({
                   <Th>When</Th>
                   <Th>Branch</Th>
                   <Th>Listed</Th>
+                  <Th>Batch</Th>
                   <Th>Bookable</Th>
                   <Th>Delisted</Th>
                   <Th>Duration</Th>
@@ -90,7 +108,63 @@ export default async function AdminScrapersPage({
                         {p.source} / {p.branch}
                       </Td>
                       <Td>{p.listed}</Td>
+                      <Td>
+                        {p.batchSize !== undefined ? (
+                          <span style={{ color: 'var(--ink-dim)' }}>
+                            {p.offset ?? 0}–{(p.offset ?? 0) + p.batchSize}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--ink-dim)' }}>—</span>
+                        )}
+                      </Td>
                       <Td>{p.bookable}</Td>
+                      <Td>{p.delisted}</Td>
+                      <Td>{(p.duration_ms / 1000).toFixed(1)}s</Td>
+                      <Td>
+                        {p.error ? (
+                          <span style={{ color: 'var(--error-ink)' }}>{p.error.slice(0, 60)}</span>
+                        ) : (
+                          <span style={{ color: 'var(--ok-ink)' }}>ok</span>
+                        )}
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
+          Delist runs (Scene)
+        </h2>
+        {!delistEvents || delistEvents.length === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+            No delist runs logged yet.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-sm border" style={{ borderColor: 'var(--rule)' }}>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr style={{ background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }}>
+                  <Th>When</Th>
+                  <Th>Branch</Th>
+                  <Th>Listed</Th>
+                  <Th>Delisted</Th>
+                  <Th>Duration</Th>
+                  <Th>Error</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {delistEvents.map((row, i) => {
+                  const p = row.payload as DelistRunPayload;
+                  return (
+                    <tr key={i} className="border-t" style={{ borderColor: 'var(--rule)' }}>
+                      <Td>{timeAgo(row.occurred_at)}</Td>
+                      <Td>{p.branch}</Td>
+                      <Td>{p.listed}</Td>
                       <Td>{p.delisted}</Td>
                       <Td>{(p.duration_ms / 1000).toFixed(1)}s</Td>
                       <Td>
