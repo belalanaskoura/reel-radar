@@ -1,8 +1,10 @@
+import Link from 'next/link';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
 import { StatTile } from '@/components/admin/StatTile';
 import { RunJobButton } from '@/components/admin/RunJobButton';
 import { RunAllJobsButton, type JobTarget } from '@/components/admin/RunAllJobsButton';
+import { findCheapDataQualityIssues } from '@/lib/matching/data-quality';
 
 // A movie/branch pair not re-checked in roughly 2 poll cycles is worth
 // flagging -- the external scheduler runs poll every 15-30 min, so 90 min
@@ -30,6 +32,7 @@ export default async function AdminOverviewPage() {
     { data: signupEvents },
     { data: watchlistEvents },
     { count: recentSignIns },
+    dataQualityIssues,
   ] = await Promise.all([
     supabase
       .from('showtimes_cache')
@@ -76,6 +79,11 @@ export default async function AdminOverviewPage() {
       ).length;
       return { count };
     })(),
+    // Cheap-only data quality checks (no poster, stuck backlog) -- safe
+    // on every dashboard load since both are plain column queries; the
+    // TMDB-calling "no synopsis" check stays digest-only, see
+    // src/lib/matching/data-quality.ts.
+    findCheapDataQualityIssues(supabase),
   ]);
 
   const deliveryStats = (['email', 'push'] as const).map((channel) => {
@@ -184,6 +192,33 @@ export default async function AdminOverviewPage() {
           )}
         </div>
       </section>
+
+      {dataQualityIssues.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
+            Data quality
+          </h2>
+          <div
+            className="rounded-sm border p-4"
+            style={{ borderColor: 'var(--error-ink)', background: 'var(--error-bg)' }}
+          >
+            <p className="font-display text-2xl leading-none" style={{ color: 'var(--error-ink)' }}>
+              {dataQualityIssues.length} issue{dataQualityIssues.length === 1 ? '' : 's'}
+            </p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--ink-dim)' }}>
+              {dataQualityIssues.filter((i) => i.kind === 'no_poster').length} missing poster,{' '}
+              {dataQualityIssues.filter((i) => i.kind === 'stuck_backlog').length} stuck unmatched/ambiguous
+            </p>
+            <Link
+              href="/admin/matching"
+              className="mt-3 inline-block text-xs font-semibold underline"
+              style={{ color: 'var(--error-ink)' }}
+            >
+              Review in Matching →
+            </Link>
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
