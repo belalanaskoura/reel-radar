@@ -1,17 +1,24 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { getDayShowtimes } from '@/app/movies/[id]/actions';
 import { DateTabStrip } from '@/components/DateTabStrip';
 import { formatSceneDateLabel } from '@/lib/scene/dates';
 import type { SceneShowtime } from '@/lib/scene/types';
 
 export function ShowtimePicker({
+  movieId,
+  movieTitle,
   branchId,
+  branchName,
   slug,
   dates,
 }: {
+  movieId: string;
+  movieTitle: string;
   branchId: string;
+  branchName: string;
   slug: string;
   dates: string[];
 }) {
@@ -82,15 +89,22 @@ export function ShowtimePicker({
                             {s.time}
                           </span>
                         ) : (
-                          <a
-                            href={s.bookingUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <Link
+                            href={{
+                              pathname: `/movies/${movieId}/seats`,
+                              query: {
+                                showtimeUrl: s.bookingUrl,
+                                time: s.time,
+                                format,
+                                branchName,
+                                movieTitle,
+                              },
+                            }}
                             className="inline-block rounded-sm px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90"
                             style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                           >
                             {s.time}
-                          </a>
+                          </Link>
                         )}
                       </li>
                     ))}
@@ -124,4 +138,3 @@ function groupByFormat(showtimes: SceneShowtime[]): [string, SceneShowtime[]][] 
   }
   return [...groups.entries()];
 }
-

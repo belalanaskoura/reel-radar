@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // playwright-core needs its non-JS asset files (browsers.json, etc.) at
+  // runtime, but Next's automatic file tracing doesn't pick them up for
+  // this route in production -- confirmed during the earlier VOX Chromium
+  // work ("Cannot find module '/var/task/node_modules/playwright-core/
+  // browsers.json'" despite a clean local build). Force the whole package
+  // directory into this route's trace.
+  outputFileTracingIncludes: {
+    '/api/seat-plan': ['./node_modules/playwright-core/**/*'],
+  },
   async headers() {
     return [
       {
