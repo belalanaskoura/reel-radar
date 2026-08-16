@@ -373,4 +373,43 @@ body {
       transform: scale(0.96) translateY(-4px);
     }
   }
+
+  /* Seat-map checkmark, on selecting a seat -- a quick overshoot pop
+     rather than just appearing, so picking a seat reads as a deliberate,
+     confirmed action (the ux-guidelines "Success Feedback" rule: confirm
+     completed actions with a visible change, not silently). */
+  .animate-seat-pop {
+    animation: seat-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes seat-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Screen element's teal glow -- a slow, subtle breathing pulse rather
+     than a static line, cheap (opacity only, no repaint-triggering
+     properties) and gentle enough not to compete with the seat grid for
+     attention. */
+  .animate-screen-glow {
+    animation: screen-glow 3.5s ease-in-out infinite;
+  }
+
+  @keyframes screen-glow {
+    0%,
+    100% {
+      opacity: 0.7;
+      box-shadow: 0 4px 20px -4px var(--accent);
+    }
+    50% {
+      opacity: 1;
+      box-shadow: 0 4px 32px -2px var(--accent);
+    }
+  }
 }

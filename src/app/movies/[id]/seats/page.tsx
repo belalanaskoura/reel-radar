@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeftIcon } from '@/components/icons';
+import { ArrowLeftIcon, CinemaIcon } from '@/components/icons';
 import { SeatGrid, SeatGridSkeleton } from '@/components/SeatGrid';
 import type { Seat } from '@/lib/scene/seat-plan';
 
@@ -123,13 +123,37 @@ export default function SeatsPage({ params }: { params: Promise<{ id: string }> 
         Back to showtimes
       </Link>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2">
         <h1 className="font-display text-2xl leading-tight sm:text-3xl" style={{ color: 'var(--ink)' }}>
           {movieTitle || 'Select your seats'}
         </h1>
-        <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-          {[branchName, format, time].filter(Boolean).join(' · ')}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {branchName && (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }}
+            >
+              <CinemaIcon size={12} />
+              {branchName}
+            </span>
+          )}
+          {format && (
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+              style={{ background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }}
+            >
+              {format}
+            </span>
+          )}
+          {time && (
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+              style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}
+            >
+              {time}
+            </span>
+          )}
+        </div>
       </div>
 
       {loading ? (

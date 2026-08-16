@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Skeleton } from '@/components/Skeleton';
+import { TicketIcon } from '@/components/icons';
 import type { Seat } from '@/lib/scene/seat-plan';
 
 // Renders a real Scene Cinemas seat grid fetched via /api/seat-plan, as a
@@ -18,8 +19,11 @@ import type { Seat } from '@/lib/scene/seat-plan';
 // live: clicking a seat there fires a request that locks it server-side to
 // that page load's own session -- there's no token or URL parameter a
 // second, separate browser could reuse), so this intentionally doesn't try
-// to hand off a selection -- it keeps the picks visible instead, as a
-// reference for what to click on Scene's page.
+// to hand off a selection. Instead, the picks stay visible in a persistent
+// bottom bar the whole time the user scrolls the grid -- deliberately
+// mirroring Scene's own "Choose Seats" page, which keeps its own selection
+// count + Checkout button pinned in a header bar throughout -- not a
+// pixel-for-pixel copy, adapted to this app's own dark teal system.
 export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: string }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -75,7 +79,7 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <Screen />
 
       <div className="scrollbar-none overflow-x-auto pb-2">
@@ -86,7 +90,7 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
             seats, which shifted each row's true center off-axis by however
             wide the label was, since only the label side had that extra
             space. */}
-        <div className="mx-auto flex w-fit flex-col items-center gap-2 py-1 pr-2 pl-6">
+        <div className="mx-auto flex w-fit flex-col items-center gap-2.5 py-1 pr-2 pl-6">
           {rows.map((rowSeats, i) => {
             const rowLabel = rowLetterFor(rowSeats);
             const seatCount = rowSeats.length;
@@ -100,7 +104,7 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
                 >
                   {rowLabel}
                 </span>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1">
                   {rowSeats.map((seat, seatIdx) => {
                     const isSelected = selected.has(seat.appId);
                     // Real theater curvature: seats bow slightly toward the
@@ -114,17 +118,13 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
                     const liftPx = distanceFromRowCenter ** 2 * 8 * curveStrength;
 
                     return (
-                      <button
+                      <SeatButton
                         key={seat.appId}
-                        type="button"
-                        title={`${seat.label}${seat.category ? ` · ${seat.category}` : ''}`}
-                        disabled={seat.availability !== 'free'}
-                        onClick={() => toggleSeat(seat)}
-                        className="relative h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px] text-[9px] leading-6 font-medium transition-transform disabled:cursor-not-allowed active:scale-90 enabled:hover:scale-110"
-                        style={{ transform: `translateY(${liftPx}px)`, ...seatStyle(seat, isSelected) }}
-                      >
-                        {isSelected ? '✓' : ''}
-                      </button>
+                        seat={seat}
+                        isSelected={isSelected}
+                        liftPx={liftPx}
+                        onToggle={() => toggleSeat(seat)}
+                      />
                     );
                   })}
                 </div>
@@ -136,17 +136,112 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
 
       <Legend categories={categories} />
 
-      <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: 'var(--rule)' }}>
-        <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
-          {selectedSeats.length === 0
-            ? 'Tap seats to plan your pick, then continue to Scene Cinemas to book.'
-            : `Your picks: ${selectedSeats.map((s) => s.label).join(', ')} — look for these on Scene's page.`}
-        </p>
+      {/* Spacer so the sticky bar below never covers the legend/last row --
+          height matches the bar's own real height (measured: ~88px with
+          seats selected, ~72px empty; 96px covers both with margin). */}
+      <div className="h-24" aria-hidden="true" />
+
+      <SelectionBar selectedSeats={selectedSeats} bookingUrl={bookingUrl} />
+    </div>
+  );
+}
+
+function SeatButton({
+  seat,
+  isSelected,
+  liftPx,
+  onToggle,
+}: {
+  seat: Seat;
+  isSelected: boolean;
+  liftPx: number;
+  onToggle: () => void;
+}) {
+  return (
+    // The visual seat stays a compact 24px (a real hall row can be 25+
+    // seats wide -- 44px marks would force far more horizontal scrolling
+    // than the tap-forgiveness is worth), but the actual tappable area
+    // is padded out toward the 44px touch-target minimum by wrapping it
+    // in a larger invisible hit box, matching Scene's own row-tight
+    // layout while still meeting the real minimum.
+    <span
+      className="-m-2.5 inline-flex h-11 w-11 shrink-0 items-center justify-center"
+      style={{ transform: `translateY(${liftPx}px)` }}
+    >
+      <button
+        type="button"
+        title={`${seat.label}${seat.category ? ` · ${seat.category}` : ''}`}
+        disabled={seat.availability !== 'free'}
+        onClick={onToggle}
+        className="relative h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px] text-[9px] leading-6 font-medium transition-transform duration-150 ease-out disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:scale-110 enabled:active:scale-90"
+        style={seatStyle(seat, isSelected)}
+      >
+        {isSelected && (
+          <svg
+            className="animate-seat-pop absolute inset-0 m-auto h-3.5 w-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </button>
+    </span>
+  );
+}
+
+// Persistent bottom bar -- always visible while the (potentially very
+// tall, 20+ row) grid scrolls, rather than a summary line buried at the
+// bottom of the page a user would have to scroll all the way down to see.
+// Mirrors Scene's own "Choose Seats" page, which keeps its seat count +
+// Checkout button pinned in view throughout, not a one-time footer.
+function SelectionBar({ selectedSeats, bookingUrl }: { selectedSeats: Seat[]; bookingUrl: string }) {
+  const hasSelection = selectedSeats.length > 0;
+
+  return (
+    <div
+      className="fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur-md"
+      style={{
+        borderColor: 'var(--rule)',
+        background: 'color-mix(in srgb, var(--surface) 92%, transparent)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
+    >
+      <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors duration-200"
+            style={{
+              background: hasSelection ? 'var(--accent)' : 'var(--bg-elevated)',
+              color: hasSelection ? 'var(--accent-ink)' : 'var(--ink-dim)',
+            }}
+          >
+            <TicketIcon size={16} />
+          </span>
+          <div className="min-w-0 flex-col leading-tight">
+            <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+              {hasSelection
+                ? `${selectedSeats.length} seat${selectedSeats.length === 1 ? '' : 's'} selected`
+                : 'No seats selected'}
+            </p>
+            <p className="truncate text-xs" style={{ color: 'var(--ink-dim)' }}>
+              {hasSelection
+                ? selectedSeats.map((s) => s.label).join(', ')
+                : 'Tap seats above to plan your pick'}
+            </p>
+          </div>
+        </div>
+
         <a
           href={bookingUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-block shrink-0 rounded-sm px-4 py-2 text-center text-sm font-medium transition-opacity hover:opacity-90"
+          className="inline-block shrink-0 rounded-sm px-4 py-2.5 text-center text-sm font-medium whitespace-nowrap transition-opacity hover:opacity-90"
           style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
         >
           Continue to booking
@@ -167,11 +262,11 @@ export function SeatGridSkeleton() {
   const rowWidths = [22, 22, 24, 24, 22, 20, 18, 10, 12, 12, 20, 18, 16];
 
   return (
-    <div className="flex flex-col gap-5" aria-hidden="true">
+    <div className="flex flex-col gap-6" aria-hidden="true">
       <Screen />
-      <div className="mx-auto flex w-fit flex-col items-center gap-2 py-1 pr-2 pl-6">
+      <div className="mx-auto flex w-fit flex-col items-center gap-2.5 py-1 pr-2 pl-6">
         {rowWidths.map((count, i) => (
-          <div key={i} className="flex gap-1.5">
+          <div key={i} className="flex gap-1">
             {Array.from({ length: count }, (_, j) => (
               <Skeleton key={j} className="h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px]" />
             ))}
@@ -194,15 +289,14 @@ function rowLetterFor(rowSeats: Seat[]): string {
 
 function Screen() {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col items-center gap-1">
+    <div className="mx-auto flex w-full max-w-md flex-col items-center gap-1.5">
       <div
-        className="h-1.5 w-full rounded-t-full"
+        className="animate-screen-glow h-1.5 w-full rounded-t-full"
         style={{
           background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
-          boxShadow: '0 4px 24px -4px var(--accent)',
         }}
       />
-      <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
+      <span className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--ink-dim)' }}>
         Screen
       </span>
     </div>
