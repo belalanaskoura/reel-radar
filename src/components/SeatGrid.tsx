@@ -255,21 +255,48 @@ function SelectionBar({ selectedSeats, bookingUrl }: { selectedSeats: Seat[]; bo
 // Screen element) while /api/seat-plan's real headless-browser fetch is
 // still in flight -- that request routinely takes 10-20s+ (cold Chromium
 // launch + live third-party page load, not a cache read), long enough that
-// a bare spinner reads as stalled well before it resolves. Row widths
-// shrink toward the back like a real hall so the skeleton-to-real
-// transition doesn't jolt.
-export function SeatGridSkeleton() {
-  const rowWidths = [22, 22, 24, 24, 22, 20, 18, 10, 12, 12, 20, 18, 16];
+// a bare spinner reads as stalled well before it resolves.
+//
+// Rows are drawn as real X/gap patterns rather than solid tapering blocks:
+// pulled two live halls' actual seat-plan responses (cfc's "The End of Oak
+// Street" and district5's "The Odyssey") and both showed the same real
+// structure -- three seat blocks per row separated by two aisle gaps, a
+// short single-block row near the middle (Scene's own row H, 5-8 seats),
+// and the two side blocks narrowing on rows further from the screen. A
+// solid uniform-taper skeleton (the previous version) read as visibly
+// fake next to that -- no aisles, no row-to-row shape variation -- so the
+// jump to real data was jarring. `X` = a seat skeleton cell, `.` = a real
+// gap (rendered as empty space, not a dimmed seat).
+const ROW_PATTERNS = [
+  'XXXX..XXXXXX..XXXX',
+  'XXXX..XXXXXX..XXXX',
+  'XXXXX..XXXXXX..XXXXX',
+  'XXXXX..XXXXXX..XXXXX',
+  'XXXXX..XXXXXX..XXXXX',
+  'XXXXX..XXXXXX..XXXXX',
+  'XXXXX..XXXXXX..XXXXX',
+  '.....XXXXXXXX.....', // Scene's own short center-only row (its real row H).
+  'XXX..XXXXXXXX..XXX',
+  'XXX..XXXXXXXX..XXX',
+  'XXXXXX..XXXXXXXX..XXXXXX',
+  'XXXXXX..XXXXXXXX..XXXXXX',
+  'XXXXXXX..XXXXXXXX..XXXXXXX',
+];
 
+export function SeatGridSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-hidden="true">
       <Screen />
       <div className="mx-auto flex w-fit flex-col items-center gap-2.5 py-1 pr-2 pl-6">
-        {rowWidths.map((count, i) => (
+        {ROW_PATTERNS.map((pattern, i) => (
           <div key={i} className="flex gap-1">
-            {Array.from({ length: count }, (_, j) => (
-              <Skeleton key={j} className="h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px]" />
-            ))}
+            {pattern.split('').map((cell, j) =>
+              cell === 'X' ? (
+                <Skeleton key={j} className="h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px]" />
+              ) : (
+                <div key={j} className="h-6 w-6 shrink-0" />
+              ),
+            )}
           </div>
         ))}
       </div>
