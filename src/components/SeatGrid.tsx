@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Skeleton } from '@/components/Skeleton';
 import type { Seat } from '@/lib/scene/seat-plan';
 
 // Renders a real Scene Cinemas seat grid fetched via /api/seat-plan, as a
@@ -150,6 +151,37 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
         >
           Continue to booking
         </a>
+      </div>
+    </div>
+  );
+}
+
+// Echoes SeatGrid's real curved-row shape (same row-count taper, same
+// Screen element) while /api/seat-plan's real headless-browser fetch is
+// still in flight -- that request routinely takes 10-20s+ (cold Chromium
+// launch + live third-party page load, not a cache read), long enough that
+// a bare spinner reads as stalled well before it resolves. Row widths
+// shrink toward the back like a real hall so the skeleton-to-real
+// transition doesn't jolt.
+export function SeatGridSkeleton() {
+  const rowWidths = [22, 22, 24, 24, 22, 20, 18, 10, 12, 12, 20, 18, 16];
+
+  return (
+    <div className="flex flex-col gap-5" aria-hidden="true">
+      <Screen />
+      <div className="mx-auto flex w-fit flex-col items-center gap-2 py-1 pr-2 pl-6">
+        {rowWidths.map((count, i) => (
+          <div key={i} className="flex gap-1.5">
+            {Array.from({ length: count }, (_, j) => (
+              <Skeleton key={j} className="h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px]" />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-4">
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-3 w-16" />
       </div>
     </div>
   );
