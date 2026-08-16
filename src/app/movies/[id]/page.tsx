@@ -249,7 +249,10 @@ export default async function MovieDetailPage({
                         Bookable, pick a day
                       </p>
                       <ShowtimePicker
+                        movieId={movie.id}
+                        movieTitle={movie.title}
                         branchId={cache.branch_id}
+                        branchName={branchName}
                         slug={slugRow.slug}
                         dates={futureDates}
                       />
