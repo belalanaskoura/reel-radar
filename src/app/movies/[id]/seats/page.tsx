@@ -4,8 +4,57 @@ import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeftIcon } from '@/components/icons';
-import { SeatGrid } from '@/components/SeatGrid';
+import { SeatGrid, SeatGridSkeleton } from '@/components/SeatGrid';
 import type { Seat } from '@/lib/scene/seat-plan';
+
+// Honest, in-order narration of what /api/seat-plan is actually doing
+// server-side (see seat-plan.ts: launch a real headless browser, open the
+// live showtime page, wait for Scene's own seat-plan response) -- a real
+// cold Chromium launch on Vercel plus a live third-party page load
+// routinely takes 10-20s+, long enough that a single static line reads as
+// stalled well before it resolves. Timings are staggered rather than even
+// (the browser launch is the slow, unpredictable part) so the message
+// keeps changing through the whole wait instead of finishing early and
+// sitting idle on the last line.
+const LOADING_MESSAGES = [
+  { afterMs: 0, text: 'Connecting to Scene Cinemas…' },
+  { afterMs: 2500, text: 'Opening the real showtime page…' },
+  { afterMs: 6000, text: 'Reading live seat availability…' },
+  { afterMs: 12000, text: 'Scene Cinemas is taking a moment — hang tight…' },
+];
+
+function useLoadingMessage(): string {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const timers = LOADING_MESSAGES.slice(1).map((msg, i) =>
+      setTimeout(() => setIndex(i + 1), msg.afterMs),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  return LOADING_MESSAGES[index].text;
+}
+
+// Isolated so its useState(0) is fresh every time the loading state mounts
+// (via key={showtimeUrl} at the call site) -- the sequence needs to
+// restart from the first message on every new load, and a full remount is
+// what actually achieves that without an effect calling setState to "undo"
+// a previous run's progress.
+function LoadingStatus() {
+  const message = useLoadingMessage();
+  return (
+    <p
+      key={message}
+      className="animate-fade-in text-center text-sm"
+      style={{ color: 'var(--ink-dim)' }}
+      role="status"
+      aria-live="polite"
+    >
+      {message}
+    </p>
+  );
+}
 
 // A real, standalone page rather than an inline disclosure on the movie
 // detail page -- the seat map needs real width and vertical room to read
@@ -84,14 +133,9 @@ export default function SeatsPage({ params }: { params: Promise<{ id: string }> 
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center gap-3 py-16">
-          <div
-            className="h-8 w-8 animate-spin rounded-full border-2 border-t-transparent"
-            style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
-          />
-          <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-            Loading the real seat map from Scene Cinemas...
-          </p>
+        <div className="flex flex-col gap-4">
+          <LoadingStatus key={showtimeUrl} />
+          <SeatGridSkeleton />
         </div>
       ) : error || !seats ? (
         <p className="rounded-sm border px-4 py-6 text-center text-sm" style={{ borderColor: 'var(--rule)', color: 'var(--error-ink)' }}>
