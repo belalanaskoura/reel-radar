@@ -220,6 +220,22 @@ body {
     }
   }
 
+  /* Rotating status text (e.g. the seat-map loading messages) -- keyed by
+     message text so each swap remounts and replays the fade, instead of
+     one fade-in that only plays once. */
+  .animate-fade-in {
+    animation: fade-in 0.3s ease both;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
   .theme-icon-swap {
     animation: theme-icon-swap 0.28s ease both;
   }
