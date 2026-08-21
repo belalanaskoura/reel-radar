@@ -50,6 +50,18 @@ type AnalyticsEvent =
         liveObservedPriceEgp: number | null;
         duration_ms: number;
       };
+    }
+  | {
+      type: 'broadcast_run';
+      payload: {
+        subject: string;
+        recipientCount: number;
+        emailSent: number;
+        emailFailed: number;
+        pushSent: number;
+        pushFailed: number;
+        duration_ms: number;
+      };
     };
 
 // Fire-and-forget: analytics must never fail or slow down the request
