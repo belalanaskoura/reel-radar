@@ -134,6 +134,30 @@ body {
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+/* Showtime picker time button (ShowtimePicker, VoxShowtimePicker) --
+   quiet outlined default rather than every single time slot rendering as
+   a solid filled accent block (the original design: every button
+   screaming "primary" at once read as flat, undifferentiated noise, no
+   sense of which one you'd actually pick). Fills solid on hover/focus
+   instead, so the accent color is reserved for the moment of intent
+   rather than the resting state. Uses real CSS custom properties via a
+   named class (matching .poster-card's own pattern) rather than
+   Tailwind's hover: utilities, since Tailwind can't target CSS vars
+   without arbitrary-value syntax that gets unreadable fast for a
+   3-property hover swap. */
+.showtime-pill {
+  cursor: pointer;
+  border-color: var(--rule);
+  background: var(--bg-elevated);
+  color: var(--ink);
+}
+.showtime-pill:hover,
+.showtime-pill:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
 /* Horizontal scroll strips (e.g. the cinema date picker) where the
    native scrollbar would be visual noise; scrolling itself stays fully
    functional via touch/trackpad/keyboard, only its own chrome is hidden. */
@@ -183,6 +207,14 @@ body {
   .poster-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 0 0 1px var(--rule), 0 0 20px 0 color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  .showtime-pill {
+    transition: transform 0.15s ease;
+  }
+  .showtime-pill:hover,
+  .showtime-pill:focus-visible {
+    transform: translateY(-2px);
   }
 
   /* Cast tab photo cards -- same lift + glow treatment as .poster-card

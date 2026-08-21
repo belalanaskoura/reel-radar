@@ -63,18 +63,20 @@ export function VoxShowtimePicker({
               // into an unreadable two-line chip.
               const price = f.showtimes.find((s) => s.price)?.price;
               return (
-                <div key={f.format}>
-                  <p
-                    className="mb-1.5 flex items-baseline gap-1.5 text-[11px] font-semibold tracking-wide uppercase"
-                    style={{ color: 'var(--ink-dim)' }}
-                  >
-                    <span>{f.format}</span>
+                <div key={f.format} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold tracking-wide uppercase" style={{ color: 'var(--ink)' }}>
+                      {f.format}
+                    </span>
                     {price && (
-                      <span className="text-[10px] font-medium tracking-normal normal-case" style={{ color: 'var(--accent-dim)' }}>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-normal normal-case"
+                        style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}
+                      >
                         {price}
                       </span>
                     )}
-                  </p>
+                  </div>
                   <ul className="flex flex-wrap gap-2">
                     {f.showtimes.map((s) => (
                       <li key={s.time}>
@@ -82,8 +84,7 @@ export function VoxShowtimePicker({
                           href={branchShowtimesUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-block rounded-sm px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90"
-                          style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                          className="showtime-pill inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold"
                         >
                           {s.time}
                         </a>
