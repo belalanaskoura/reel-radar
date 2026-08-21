@@ -30,9 +30,12 @@ export default async function CinemaDetailPage({
     // browse.
     supabase
       .from('movie_branch_slugs')
-      .select('movie_id, slug, movies(id, title, poster_path, match_status)')
+      .select('movie_id, slug, movies(id, title, poster_path, match_status, release_date)')
       .eq('branch_id', id),
-    supabase.from('showtimes_cache').select('movie_id, bookable, raw_showtimes').eq('branch_id', id),
+    supabase
+      .from('showtimes_cache')
+      .select('movie_id, bookable, was_ever_bookable, raw_showtimes')
+      .eq('branch_id', id),
   ]);
 
   if (!branch) notFound();
@@ -41,9 +44,18 @@ export default async function CinemaDetailPage({
 
   const cacheByMovieId = new Map((cacheRows ?? []).map((c) => [c.movie_id, c]));
 
+  // Same grace window /browse applies to a dead Scene listing (created a
+  // page but never posted real showtimes) -- Scene occasionally lags a
+  // few days behind the official release date, so this isn't "hide the
+  // instant release_date passes."
+  const STALE_LISTING_GRACE_DAYS = 7;
+  const staleCutoff = new Date();
+  staleCutoff.setDate(staleCutoff.getDate() - STALE_LISTING_GRACE_DAYS);
+  const staleCutoffStr = staleCutoff.toISOString().slice(0, 10);
+
   const movies: CinemaMovie[] = (slugRows ?? []).flatMap((row) => {
     const m = row.movies as unknown as
-      | { id: string; title: string; poster_path: string | null; match_status: string }
+      | { id: string; title: string; poster_path: string | null; match_status: string; release_date: string | null }
       | null;
     if (!m) return [];
     // 'ambiguous' is allowed through here too, matching /browse's rule:
@@ -52,6 +64,19 @@ export default async function CinemaDetailPage({
     // whether TMDB matching resolved cleanly.
     if (!['matched', 'unmatched', 'ambiguous'].includes(m.match_status)) return [];
     const cache = cacheByMovieId.get(m.id);
+    // Same "run ended" rule /browse applies: was_ever_bookable is a
+    // one-way flag set by a DB trigger the instant bookable is ever
+    // written true, so a movie that was once bookable here but isn't now
+    // has finished its run at this branch, not just yet to open -- excluded
+    // rather than shown as a currently-listed movie.
+    const hasEndedHere = !!cache?.was_ever_bookable && !cache?.bookable;
+    // Same "stale listing" rule /browse applies: never bookable here at
+    // all, well past its release_date -- a dead listing rather than
+    // "coming soon." No release_date is left alone (Arabic-title-matching
+    // gap or an unconfirmed TMDB date, not evidence of a dead entry).
+    const isStaleListing =
+      !cache?.was_ever_bookable && !!m.release_date && m.release_date < staleCutoffStr;
+    if (hasEndedHere || isStaleListing) return [];
     return [{
       id: m.id,
       title: m.title,
