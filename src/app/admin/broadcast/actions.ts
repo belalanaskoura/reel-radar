@@ -17,10 +17,9 @@ async function requireAdmin() {
   }
 }
 
-export interface BroadcastResult {
-  ok: boolean;
-  message: string;
-}
+export type BroadcastResult =
+  | { ok: true; recipientCount: number; emailSent: number; emailFailed: number; pushSent: number }
+  | { ok: false; error: string };
 
 // Admin-authored message to every real signed-up user, both channels
 // independently (email via Resend to every real auth.users address, push
@@ -41,7 +40,7 @@ export async function sendBroadcast(subject: string, message: string): Promise<B
   const trimmedSubject = subject.trim();
   const trimmedMessage = message.trim();
   if (!trimmedSubject || !trimmedMessage) {
-    return { ok: false, message: 'Subject and message are both required.' };
+    return { ok: false, error: 'Subject and message are both required.' };
   }
 
   const startedAt = Date.now();
@@ -49,7 +48,7 @@ export async function sendBroadcast(subject: string, message: string): Promise<B
 
   const { data: usersPage, error: listError } = await supabase.auth.admin.listUsers();
   if (listError || !usersPage) {
-    return { ok: false, message: `Couldn't list users: ${listError?.message ?? 'unknown error'}` };
+    return { ok: false, error: `Couldn't list users: ${listError?.message ?? 'unknown error'}` };
   }
   const users = usersPage.users.filter((u): u is typeof u & { email: string } => !!u.email);
 
@@ -88,7 +87,10 @@ export async function sendBroadcast(subject: string, message: string): Promise<B
   });
 
   return {
-    ok: emailFailed === 0,
-    message: `Sent to ${users.length} user${users.length === 1 ? '' : 's'} — email: ${emailSent} sent${emailFailed ? `, ${emailFailed} failed` : ''}; push: ${pushSent} delivered.`,
+    ok: true,
+    recipientCount: users.length,
+    emailSent,
+    emailFailed,
+    pushSent,
   };
 }
