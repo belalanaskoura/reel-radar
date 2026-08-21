@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { sendBroadcast } from '@/app/admin/broadcast/actions';
+import { sendBroadcast, type BroadcastResult } from '@/app/admin/broadcast/actions';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { StatTile } from '@/components/admin/StatTile';
+import { CheckIcon } from '@/components/icons';
 
 export function BroadcastForm({ recipientCount }: { recipientCount: number }) {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [result, setResult] = useState<BroadcastResult | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleConfirm() {
@@ -86,18 +88,7 @@ export function BroadcastForm({ recipientCount }: { recipientCount: number }) {
         </div>
       </div>
 
-      {result && (
-        <p
-          role="status"
-          className="rounded-sm px-4 py-2.5 text-sm"
-          style={{
-            background: result.ok ? 'var(--ok-bg)' : 'var(--error-bg)',
-            color: result.ok ? 'var(--ok-ink)' : 'var(--error-ink)',
-          }}
-        >
-          {result.message}
-        </p>
-      )}
+      {result && <BroadcastResultPanel result={result} />}
 
       <button
         type="button"
@@ -117,6 +108,60 @@ export function BroadcastForm({ recipientCount }: { recipientCount: number }) {
           onCancel={() => setShowConfirm(false)}
         />
       )}
+    </div>
+  );
+}
+
+// A genuine send-time failure (couldn't list users, action rejected) is
+// rare and worth a real error banner. A per-user email/push failure is
+// not that -- it's routine and expected (bounced address, expired push
+// subscription), so it's shown as calm stats instead of stacking a red
+// "X failed" clause onto an otherwise-successful send, which previously
+// made an 18/20-delivered broadcast read as if the whole thing errored.
+function BroadcastResultPanel({ result }: { result: BroadcastResult }) {
+  if (!result.ok) {
+    return (
+      <p
+        role="alert"
+        className="rounded-sm px-4 py-2.5 text-sm"
+        style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}
+      >
+        {result.error}
+      </p>
+    );
+  }
+
+  const pushSkipped = result.recipientCount - result.pushSent;
+
+  return (
+    <div role="status" className="flex flex-col gap-3 rounded-sm border p-4" style={{ borderColor: 'var(--rule)' }}>
+      <div className="flex items-center gap-2">
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+          style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}
+        >
+          <CheckIcon size={13} />
+        </span>
+        <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+          Broadcast sent
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <StatTile label="Recipients" value={result.recipientCount} />
+        <StatTile
+          label="Email delivered"
+          value={result.emailSent}
+          tone={result.emailFailed > 0 ? 'error' : 'ok'}
+          sublabel={result.emailFailed > 0 ? `${result.emailFailed} didn't go through` : undefined}
+        />
+        <StatTile
+          label="Push delivered"
+          value={result.pushSent}
+          tone="neutral"
+          sublabel={pushSkipped > 0 ? `${pushSkipped} not subscribed` : undefined}
+        />
+      </div>
     </div>
   );
 }
