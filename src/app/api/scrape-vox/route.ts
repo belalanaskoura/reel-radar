@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   const branchesToScrape: VoxBranchId[] = branchParam ? [branchParam as VoxBranchId] : VOX_BRANCHES;
 
   const supabase = createServiceRoleClient();
-  const results: Record<string, { movies: number; bookable: number }> = {};
+  const results: Record<string, { movies: number; bookable: number; delisted: number }> = {};
 
   for (const branch of branchesToScrape) {
     const branchStartedAt = Date.now();
@@ -191,7 +191,53 @@ export async function POST(request: Request) {
       );
     }
 
-    results[branch] = { movies: titleByElcinemaId.size, bookable: bookableCount };
+    // A movie previously linked to this branch but absent from this run's
+    // elCinema listing has finished its run there -- unlike scrape-scene
+    // (which needs a separate scrape-scene-delist job because its
+    // bookability checks are batched by offset, see that route's own
+    // comment), this run already has the branch's COMPLETE current
+    // listing in titleByElcinemaId, so delisting can happen inline with
+    // no extra fetch. Without this, a movie's last-known showtimes_cache
+    // row (bookable: true, real dates) sits unchanged forever once
+    // elCinema stops listing it -- confirmed for real via the admin
+    // dashboard's stale-rows check: several VOX movies were still shown
+    // bookable a week after their real run ended.
+    const seenSlugs = new Set([...titleByElcinemaId.keys()].map(String));
+    const { data: knownSlugs } = await supabase
+      .from('movie_branch_slugs')
+      .select('movie_id, slug')
+      .eq('branch_id', branch);
+
+    const delistedMovieIds = (knownSlugs ?? [])
+      .filter((row) => !seenSlugs.has(row.slug))
+      .map((row) => row.movie_id);
+
+    let delistedCount = 0;
+    if (delistedMovieIds.length > 0) {
+      const { data: cleared } = await supabase
+        .from('showtimes_cache')
+        .update({ bookable: false, raw_showtimes: [], last_checked_at: new Date().toISOString() })
+        .eq('branch_id', branch)
+        .eq('bookable', true)
+        .in('movie_id', delistedMovieIds)
+        .select('movie_id');
+      delistedCount = cleared?.length ?? 0;
+
+      // A delisted movie already bookable: false is skipped by the update
+      // above (.eq('bookable', true)), so its last_checked_at never gets
+      // touched even though this run just re-confirmed it's still absent
+      // -- it would otherwise look stale forever on the admin dashboard
+      // despite the sweep genuinely covering it every time. Same fix
+      // scrape-scene-delist applies for the same reason.
+      await supabase
+        .from('showtimes_cache')
+        .update({ last_checked_at: new Date().toISOString() })
+        .eq('branch_id', branch)
+        .eq('bookable', false)
+        .in('movie_id', delistedMovieIds);
+    }
+
+    results[branch] = { movies: titleByElcinemaId.size, bookable: bookableCount, delisted: delistedCount };
 
     logEvent({
       type: 'scrape_run',
@@ -200,13 +246,13 @@ export async function POST(request: Request) {
         branch,
         listed: titleByElcinemaId.size,
         bookable: bookableCount,
-        delisted: 0,
+        delisted: delistedCount,
         duration_ms: Date.now() - branchStartedAt,
         error: null,
       },
     });
     } catch (err) {
-      results[branch] = { movies: 0, bookable: 0 };
+      results[branch] = { movies: 0, bookable: 0, delisted: 0 };
       logEvent({
         type: 'scrape_run',
         payload: {
