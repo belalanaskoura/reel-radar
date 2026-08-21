@@ -126,6 +126,9 @@ export async function notifyAdminDigestByEmail(issues: DataQualityIssue[]): Prom
   const stuckBacklog = issues.filter(
     (i): i is Extract<DataQualityIssue, { kind: 'stuck_backlog' }> => i.kind === 'stuck_backlog',
   );
+  const priceMismatches = issues.filter(
+    (i): i is Extract<DataQualityIssue, { kind: 'price_mismatch' }> => i.kind === 'price_mismatch',
+  );
 
   const section = (title: string, rows: { movieId: string; title: string; extra?: string }[]) => {
     if (rows.length === 0) return '';
@@ -137,6 +140,16 @@ export async function notifyAdminDigestByEmail(issues: DataQualityIssue[]): Prom
       .join('');
     return `<h2 style="font-size: 15px; color: #14201d; margin-top: 20px; margin-bottom: 6px;">${title} (${rows.length})</h2><ul style="padding-left: 18px; font-size: 14px; color: #14201d;">${items}</ul>`;
   };
+
+  const priceMismatchSection =
+    priceMismatches.length === 0
+      ? ''
+      : `<h2 style="font-size: 15px; color: #14201d; margin-top: 20px; margin-bottom: 6px;">Scene price template mismatch (${priceMismatches.length})</h2><ul style="padding-left: 18px; font-size: 14px; color: #14201d;">${priceMismatches
+          .map(
+            (i) =>
+              `<li style="margin-bottom: 4px;">${escapeHtml(i.branchId)} · ${escapeHtml(i.format)}: template says ${i.templatePriceEgp} EGP, live read ${i.liveObservedPriceEgp} EGP</li>`,
+          )
+          .join('')}</ul>`;
 
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 560px; margin: 0 auto;">
@@ -151,6 +164,7 @@ export async function notifyAdminDigestByEmail(issues: DataQualityIssue[]): Prom
         'Stuck unmatched/ambiguous',
         stuckBacklog.map((i) => ({ movieId: i.movieId, title: i.title, extra: `${i.matchStatus}, ${i.daysStuck}d` })),
       )}
+      ${priceMismatchSection}
       <p style="margin-top: 24px;"><a href="${siteUrl}/admin/matching" style="color: #00534c; font-weight: 600;">Open the admin matching page →</a></p>
     </div>
   `;
@@ -161,6 +175,10 @@ export async function notifyAdminDigestByEmail(issues: DataQualityIssue[]): Prom
     ...noOverview.map((i) => `[no synopsis] ${i.title} (tmdb ${i.tmdbId}) — ${siteUrl}/movies/${i.movieId}`),
     ...stuckBacklog.map(
       (i) => `[stuck ${i.matchStatus}, ${i.daysStuck}d] ${i.title} — ${siteUrl}/movies/${i.movieId}`,
+    ),
+    ...priceMismatches.map(
+      (i) =>
+        `[price mismatch] ${i.branchId} ${i.format}: template ${i.templatePriceEgp} EGP, live ${i.liveObservedPriceEgp} EGP`,
     ),
   ];
 

@@ -14,6 +14,13 @@ export interface Seat {
   label: string; // Scene's own seat label, e.g. "A5".
   category: string;
   availability: SeatAvailability;
+  // Admin-maintained template price for this seat's category (see
+  // src/lib/scene/price-template.ts), attached by the API route rather
+  // than fetched here -- Scene's real per-seat price is only reachable
+  // via a live lock/unlock round trip (see fetchScenePriceForFormat),
+  // far too heavy to do for every seat on every page view. Null if no
+  // template price is on file for this branch/category yet.
+  priceEgp: number | null;
 }
 
 export interface SeatPlan {
@@ -151,6 +158,7 @@ export async function fetchSeatPlan(browser: Browser, showtimeUrl: string): Prom
         label: row.st_txt,
         category,
         availability,
+        priceEgp: null,
       });
     }
 

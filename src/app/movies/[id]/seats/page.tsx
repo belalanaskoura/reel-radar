@@ -70,6 +70,7 @@ export default function SeatsPage({ params }: { params: Promise<{ id: string }> 
   const time = searchParams.get('time') ?? '';
   const format = searchParams.get('format') ?? '';
   const branchName = searchParams.get('branchName') ?? '';
+  const branchId = searchParams.get('branchId') ?? '';
   const movieTitle = searchParams.get('movieTitle') ?? '';
 
   // Keyed by showtimeUrl rather than reset imperatively: a fetch's result
@@ -89,7 +90,7 @@ export default function SeatsPage({ params }: { params: Promise<{ id: string }> 
     fetch('/api/seat-plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ showtimeUrl }),
+      body: JSON.stringify({ showtimeUrl, branchId }),
     })
       .then((res) => {
         if (!res.ok) throw new Error('seat-plan request failed');
@@ -105,6 +106,12 @@ export default function SeatsPage({ params }: { params: Promise<{ id: string }> 
     return () => {
       cancelled = true;
     };
+    // branchId intentionally omitted: it only ever changes together with
+    // showtimeUrl (both come from the same ShowtimePicker link/navigation),
+    // so showtimeUrl alone is a reliable proxy for "a new showtime was
+    // selected" -- matching this effect's existing keyed-by-showtimeUrl
+    // design (see the result state's own showtimeUrl-gated read above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showtimeUrl]);
 
   const loading = !!showtimeUrl && result?.showtimeUrl !== showtimeUrl;
