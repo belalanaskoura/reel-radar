@@ -40,6 +40,14 @@ branch for one movie; this is the general version.
   pulls real per-day format/time/price detail for all three VOX
   branches. Booking links point at VOX's real per-branch showtime pages,
   not just its homepage.
+- **Ticket prices** are shown per format on the showtime picker and seat
+  page. VOX prices come straight from elCinema (already scraped
+  alongside showtimes). Scene doesn't expose price anywhere in its own
+  scraped data — it only surfaces after a seat is locked into a live
+  booking session — so Scene prices are admin-maintained templates
+  (per branch and format) instead, spot-checked periodically against a
+  real live read to catch drift; see
+  [`src/lib/scene/price-template.ts`](src/lib/scene/price-template.ts).
 - **Title matching** links each cinema's own listings to the right TMDB
   entry: English search first, Arabic fallback on zero results,
   disambiguation via a confirmed Egypt theatrical release date when a
@@ -86,7 +94,7 @@ directly via Supabase's SQL Editor. If you're standing up a fresh
 project, you'll need to create the core tables yourself: `movies`,
 `branches`, `movie_branch_slugs`, `showtimes_cache`, `watchlist`,
 `notification_log`, `profiles`, `push_subscriptions`, `feedback`,
-`egypt_releases`, `egypt_distributors`.
+`egypt_releases`, `egypt_distributors`, `scene_price_templates`.
 
 ### Environment variables
 
@@ -120,10 +128,13 @@ to be called on a real interval by an external scheduler (e.g.
 |---|---|---|
 | `POST /api/sync-movies` | Pulls upcoming movies from TMDB into the catalog | Daily |
 | `POST /api/scrape-scene?branch=<id>` | Scrapes a Scene branch's listings and bookability | Every 15–30 min per branch |
-| `POST /api/scrape-vox` | Scrapes VOX showtimes (via elCinema) for all 3 branches | Daily (full-detail fetch, more expensive per run) |
+| `POST /api/scrape-scene-delist` | Clears bookability for Scene movies no longer listed at all | Every 15–30 min |
+| `POST /api/scrape-vox` | Scrapes VOX showtimes (via elCinema) for all 3 branches, including delisting movies whose run has ended | Daily (full-detail fetch, more expensive per run) |
 | `POST /api/scrape-formats` | Records which showtime formats (Standard, IMAX, etc.) are available per Scene branch, for `/cinemas` | Every 30 min |
 | `POST /api/match-movies` | Matches new listings to TMDB entries | After each scrape run |
 | `POST /api/poll` | Checks bookability for watched (movie, branch) pairs and notifies | Every 15–30 min |
+| `POST /api/admin-digest` | Emails/pushes a data-quality summary to admins (missing posters, stuck matches, price drift) | Daily |
+| `POST /api/check-scene-prices?branch=<id>&format=<name>` | Spot-checks one Scene branch+format's admin-maintained price template against a real live read | Daily per branch+format combo |
 
 Each requires an `x-sync-secret: <SYNC_SECRET>` header. Example:
 
@@ -152,13 +163,6 @@ backfills / corrections, not part of the regular scheduled-job loop:
 
 ## Known limitations
 
-- **Email requires a verified sending domain**: Resend's sandbox sender
-  only delivers to the Resend account's own signup address, so real
-  email notifications need `RESEND_FROM_EMAIL` on a domain that's passed
-  Resend's DNS verification. A custom domain (`reelradar.online`) has
-  been purchased for this; DNS verification is in progress but not yet
-  complete, so email notifications currently only reach the maintainer's
-  own inbox.
 - **VOX isn't scraped directly**: VOX's own site sits behind bot
   protection that blocks direct fetching and headless-browser scraping
   alike. Showtimes instead come from elCinema, which has real per-branch
