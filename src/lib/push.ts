@@ -88,6 +88,20 @@ export async function notifyNewReleasePush(
   });
 }
 
+// Admin-triggered broadcast to a real user's own subscriptions -- see
+// src/app/admin/broadcast/actions.ts. title/body are admin-authored per
+// send, same reasoning as notifyBroadcastByEmail. url falls back to the
+// site root since a broadcast isn't tied to any one movie/page.
+export async function notifyBroadcastPush(
+  supabase: SupabaseClient,
+  userId: string,
+  title: string,
+  body: string,
+): Promise<number> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  return sendToUser(supabase, userId, { title, body, url: siteUrl || '/' });
+}
+
 // Admin data-quality digest push -- same push_subscriptions/user_id
 // mechanism as any watchlist notification, just to whichever admin
 // user(s) the caller resolves (see admin-digest/route.ts, which looks
