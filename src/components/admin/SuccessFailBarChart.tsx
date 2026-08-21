@@ -54,7 +54,13 @@ export function SuccessFailBarChart({ days }: { days: DayCounts[] }) {
         </span>
       </div>
       <div className="overflow-x-auto">
-        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Daily success and failure counts">
+        <svg
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label="Daily success and failure counts"
+        >
           {ticks.map((t) => {
             const y = padTop + plotHeight - (t / max) * plotHeight;
             return (

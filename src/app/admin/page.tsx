@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
+import { SectionHeader } from '@/components/admin/SectionHeader';
+import { AlertCard } from '@/components/admin/AlertCard';
 import { StatTile } from '@/components/admin/StatTile';
 import { RunJobButton } from '@/components/admin/RunJobButton';
 import { RunAllJobsButton, type JobTarget } from '@/components/admin/RunAllJobsButton';
@@ -206,28 +208,18 @@ export default async function AdminOverviewPage() {
   return (
     <AdminPageShell title="Admin">
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Cache health
-        </h2>
-        <div
-          className="rounded-sm border p-4"
-          style={
+        <SectionHeader>Cache health</SectionHeader>
+        <AlertCard
+          tone={actuallyStaleRows.length > 0 ? 'error' : 'ok'}
+          title={
             actuallyStaleRows.length > 0
-              ? { borderColor: 'var(--error-ink)', background: 'var(--error-bg)' }
-              : { borderColor: 'var(--rule)', background: 'var(--surface)' }
+              ? `${actuallyStaleRows.length} stale ${actuallyStaleRows.length === 1 ? 'row' : 'rows'}`
+              : 'All caches fresh'
           }
+          description={`Not re-checked in over ${STALE_THRESHOLD_HOURS.scene}h (Scene) or ${STALE_THRESHOLD_HOURS.vox}h (VOX)`}
         >
-          <p
-            className="font-display text-2xl leading-none"
-            style={{ color: actuallyStaleRows.length > 0 ? 'var(--error-ink)' : 'var(--ok-ink)' }}
-          >
-            {actuallyStaleRows.length} stale {actuallyStaleRows.length === 1 ? 'row' : 'rows'}
-          </p>
-          <p className="mt-1 text-xs" style={{ color: 'var(--ink-dim)' }}>
-            Not re-checked in over {STALE_THRESHOLD_HOURS.scene}h (Scene) or {STALE_THRESHOLD_HOURS.vox}h (VOX)
-          </p>
           {staleBranches.size > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               {staleBranches.size > 1 && (
                 <RunAllJobsButton
                   targets={[...staleBranches.entries()].map(
@@ -255,7 +247,7 @@ export default async function AdminOverviewPage() {
             </div>
           )}
           {staleRowsToShow.length > 0 && (
-            <ul className="mt-3 flex flex-col gap-1.5 text-sm" style={{ color: 'var(--ink)' }}>
+            <ul className="flex flex-col gap-1.5 text-sm" style={{ color: 'var(--ink)' }}>
               {staleRowsToShow.map((row) => {
                 const movie = row.movies as unknown as { title: string } | null;
                 const branch = row.branches as unknown as { name: string } | null;
@@ -271,26 +263,18 @@ export default async function AdminOverviewPage() {
               })}
             </ul>
           )}
-        </div>
+        </AlertCard>
       </section>
 
       {missingRunBranches.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-            Missing scrape runs
-          </h2>
-          <div
-            className="rounded-sm border p-4"
-            style={{ borderColor: 'var(--error-ink)', background: 'var(--error-bg)' }}
+          <SectionHeader>Missing scrape runs</SectionHeader>
+          <AlertCard
+            tone="error"
+            title={`${missingRunBranches.length} branch${missingRunBranches.length === 1 ? '' : 'es'} silent`}
+            description={`No scrape or delist run logged in over ${JOB_GAP_THRESHOLD_MINUTES} min — the scheduler's own timeout likely killed the request before it could even log a failure.`}
           >
-            <p className="font-display text-2xl leading-none" style={{ color: 'var(--error-ink)' }}>
-              {missingRunBranches.length} branch{missingRunBranches.length === 1 ? '' : 'es'} silent
-            </p>
-            <p className="mt-1 text-xs" style={{ color: 'var(--ink-dim)' }}>
-              No scrape or delist run logged in over {JOB_GAP_THRESHOLD_MINUTES} min -- the scheduler&rsquo;s own
-              timeout likely killed the request before it could even log a failure.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               {missingRunBranches.map((branch) => (
                 <RunJobButton
                   key={branch.id}
@@ -302,42 +286,32 @@ export default async function AdminOverviewPage() {
                 />
               ))}
             </div>
-          </div>
+          </AlertCard>
         </section>
       )}
 
       {dataQualityIssues.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-            Data quality
-          </h2>
-          <div
-            className="rounded-sm border p-4"
-            style={{ borderColor: 'var(--error-ink)', background: 'var(--error-bg)' }}
+          <SectionHeader>Data quality</SectionHeader>
+          <AlertCard
+            tone="error"
+            title={`${dataQualityIssues.length} issue${dataQualityIssues.length === 1 ? '' : 's'}`}
+            description={`${dataQualityIssues.filter((i) => i.kind === 'no_poster').length} missing poster, ${dataQualityIssues.filter((i) => i.kind === 'stuck_backlog').length} stuck unmatched/ambiguous`}
           >
-            <p className="font-display text-2xl leading-none" style={{ color: 'var(--error-ink)' }}>
-              {dataQualityIssues.length} issue{dataQualityIssues.length === 1 ? '' : 's'}
-            </p>
-            <p className="mt-1 text-xs" style={{ color: 'var(--ink-dim)' }}>
-              {dataQualityIssues.filter((i) => i.kind === 'no_poster').length} missing poster,{' '}
-              {dataQualityIssues.filter((i) => i.kind === 'stuck_backlog').length} stuck unmatched/ambiguous
-            </p>
             <Link
               href="/admin/matching"
-              className="mt-3 inline-block text-xs font-semibold underline"
+              className="inline-block text-xs font-semibold underline"
               style={{ color: 'var(--error-ink)' }}
             >
               Review in Matching →
             </Link>
-          </div>
+          </AlertCard>
         </section>
       )}
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Matching backlog
-        </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <SectionHeader>Matching backlog</SectionHeader>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <StatTile
             label="Unmatched / ambiguous"
             value={unmatchedCount ?? 0}
@@ -353,10 +327,8 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Notification delivery (24h)
-        </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <SectionHeader>Notification delivery (24h)</SectionHeader>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {deliveryStats.map(({ channel, total, successCount }) => {
             const rate = total > 0 ? Math.round((successCount / total) * 100) : null;
             return (
@@ -373,9 +345,7 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Last run status
-        </h2>
+        <SectionHeader>Last run status</SectionHeader>
         <div className="flex flex-col gap-2">
           {latestByKey.size === 0 ? (
             <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
@@ -388,10 +358,8 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Active users
-        </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <SectionHeader>Active users</SectionHeader>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <StatTile
             label="Signed in (24h)"
             value={recentSignIns ?? 0}
@@ -447,8 +415,8 @@ function RunStatusRow({ row, now }: { row: EventRow; now: Date }) {
 
   return (
     <div
-      className="flex flex-wrap items-center justify-between gap-2 rounded-sm border px-4 py-2.5"
-      style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
+      className="flex flex-wrap items-center justify-between gap-2 rounded-md px-4 py-3 transition-colors"
+      style={{ background: 'var(--bg-elevated)' }}
     >
       <div className="flex items-center gap-2">
         <span

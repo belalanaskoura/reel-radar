@@ -17,29 +17,39 @@ async function requireAdmin() {
   }
 }
 
+export type BroadcastChannel = 'email' | 'push';
+
 export type BroadcastResult =
-  | { ok: true; recipientCount: number; emailSent: number; emailFailed: number; pushSent: number }
+  | {
+      ok: true;
+      channelsSent: BroadcastChannel[];
+      recipientCount: number;
+      emailSent: number;
+      emailFailed: number;
+      pushSent: number;
+    }
   | { ok: false; error: string };
 
 // Admin-authored message either to every real signed-up user (recipientIds
 // omitted) or to a specific hand-picked subset (recipientIds provided --
-// the admin/broadcast page's "Specific users" mode), both channels
-// independently (email via Resend to every real auth.users address, push
-// via web-push to every push_subscriptions row) -- mirrors the existing
-// per-user notification paths' "one channel's failure can't block the
-// other, and one user's failure can't block the rest" pattern (see
-// /api/poll's notifyWatchers), just fanned out to the target user set
-// instead of one movie's watchers. Not logged through
-// notification_deliveries (that table's movie_id/branch_id columns are
-// NOT NULL, movie-shaped -- confirmed against the live schema before
-// choosing this instead of a schema change): a broadcast summary is
-// logged as one broadcast_run analytics_events row, the same "record a
-// batch job's outcome" pattern every other scheduled job in this app
-// already uses.
+// the admin/broadcast page's "Specific users" mode), over one or both
+// channels (see BroadcastChannel -- defaults to both if omitted, matching
+// this function's original behavior). Channels are independent (email via
+// Resend, push via web-push) -- mirrors the existing per-user notification
+// paths' "one channel's failure can't block the other, and one user's
+// failure can't block the rest" pattern (see /api/poll's notifyWatchers),
+// just fanned out to the target user set instead of one movie's watchers.
+// Not logged through notification_deliveries (that table's movie_id/
+// branch_id columns are NOT NULL, movie-shaped -- confirmed against the
+// live schema before choosing this instead of a schema change): a
+// broadcast summary is logged as one broadcast_run analytics_events row,
+// the same "record a batch job's outcome" pattern every other scheduled
+// job in this app already uses.
 export async function sendBroadcast(
   subject: string,
   message: string,
   recipientIds?: string[],
+  channels: BroadcastChannel[] = ['email', 'push'],
 ): Promise<BroadcastResult> {
   await requireAdmin();
 
@@ -51,6 +61,11 @@ export async function sendBroadcast(
   if (recipientIds && recipientIds.length === 0) {
     return { ok: false, error: 'Pick at least one recipient.' };
   }
+  if (channels.length === 0) {
+    return { ok: false, error: 'Pick at least one channel.' };
+  }
+  const sendEmail = channels.includes('email');
+  const sendPush = channels.includes('push');
 
   const startedAt = Date.now();
   const supabase = createServiceRoleClient();
@@ -70,18 +85,22 @@ export async function sendBroadcast(
   let pushFailed = 0;
 
   for (const user of users) {
-    try {
-      await notifyBroadcastByEmail(user.email, trimmedSubject, trimmedMessage);
-      emailSent += 1;
-    } catch {
-      emailFailed += 1;
+    if (sendEmail) {
+      try {
+        await notifyBroadcastByEmail(user.email, trimmedSubject, trimmedMessage);
+        emailSent += 1;
+      } catch {
+        emailFailed += 1;
+      }
     }
 
-    try {
-      const sentCount = await notifyBroadcastPush(supabase, user.id, trimmedSubject, trimmedMessage);
-      if (sentCount > 0) pushSent += 1;
-    } catch {
-      pushFailed += 1;
+    if (sendPush) {
+      try {
+        const sentCount = await notifyBroadcastPush(supabase, user.id, trimmedSubject, trimmedMessage);
+        if (sentCount > 0) pushSent += 1;
+      } catch {
+        pushFailed += 1;
+      }
     }
   }
 
@@ -90,6 +109,7 @@ export async function sendBroadcast(
     payload: {
       subject: trimmedSubject,
       targeted: recipientIdSet !== null,
+      channels,
       recipientCount: users.length,
       emailSent,
       emailFailed,
@@ -101,6 +121,7 @@ export async function sendBroadcast(
 
   return {
     ok: true,
+    channelsSent: channels,
     recipientCount: users.length,
     emailSent,
     emailFailed,
