@@ -25,7 +25,6 @@ export async function addToWatchlist(movieId: string) {
     logEvent({ type: 'watchlist_add', payload: { user_id: userId, movie_id: movieId } });
   }
   revalidatePath('/watchlist');
-  revalidatePath('/browse');
   revalidatePath(`/movies/${movieId}`);
 }
 
@@ -38,6 +37,5 @@ export async function removeFromWatchlist(movieId: string) {
     .eq('movie_id', movieId);
   if (error) throw new Error(error.message);
   revalidatePath('/watchlist');
-  revalidatePath('/browse');
   revalidatePath(`/movies/${movieId}`);
 }

@@ -3,7 +3,7 @@
 import { useOptimistic, useTransition } from 'react';
 import { addToWatchlist, removeFromWatchlist } from '@/app/watchlist/actions';
 
-export function WatchlistButton({
+export function MovieCardWatchlistButton({
   movieId,
   isWatchlisted,
 }: {
@@ -25,7 +25,7 @@ export function WatchlistButton({
     <button
       type="button"
       onClick={toggle}
-      className="rounded-sm border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+      className="w-full rounded-sm border px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
       style={
         optimisticWatchlisted
           ? { borderColor: 'var(--rule)', color: 'var(--ink-dim)', background: 'transparent' }

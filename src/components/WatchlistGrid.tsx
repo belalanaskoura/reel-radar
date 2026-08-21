@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { posterUrl } from '@/lib/tmdb-image';
@@ -60,9 +60,18 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [, startTransition] = useTransition();
+
+  function handleRemove(movieId: string) {
+    startTransition(async () => {
+      setRemovedIds((prev) => new Set(prev).add(movieId));
+      await removeFromWatchlist(movieId);
+    });
+  }
 
   const filteredMovies = useMemo(() => {
-    let result = movies;
+    let result = movies.filter((m) => !removedIds.has(m.id));
 
     if (statusFilter === 'bookable') {
       result = result.filter((m) => m.showtimes_cache.some((c) => c.bookable));
@@ -75,7 +84,7 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
     }
 
     return result;
-  }, [movies, statusFilter, query]);
+  }, [movies, removedIds, statusFilter, query]);
 
   // Movies with no known release date (the Arabic-title matching gap
   // flagged elsewhere in the app) don't have a meaningful "soonest" or
@@ -174,17 +183,16 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
                       />
                     ) : null}
                   </Link>
-                  <form action={removeFromWatchlist.bind(null, movie.id)} className="absolute top-2 right-2">
-                    <button
-                      type="submit"
-                      aria-label="Remove from watchlist"
-                      title="Remove from watchlist"
-                      className="flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-sm transition-opacity hover:opacity-80"
-                      style={{ background: 'color-mix(in srgb, var(--bg) 65%, transparent)', color: 'var(--ink)' }}
-                    >
-                      <TrashIcon size={15} />
-                    </button>
-                  </form>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(movie.id)}
+                    aria-label="Remove from watchlist"
+                    title="Remove from watchlist"
+                    className="absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-sm transition-opacity hover:opacity-80"
+                    style={{ background: 'color-mix(in srgb, var(--bg) 65%, transparent)', color: 'var(--ink)' }}
+                  >
+                    <TrashIcon size={15} />
+                  </button>
                 </div>
 
                 <div className="flex flex-1 flex-col gap-2 p-3">

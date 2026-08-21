@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { posterUrl } from '@/lib/tmdb-image';
-import { addToWatchlist, removeFromWatchlist } from '@/app/watchlist/actions';
+import { MovieCardWatchlistButton } from '@/components/MovieCardWatchlistButton';
 
 export interface MovieCardData {
   id: string;
@@ -90,26 +90,9 @@ export function MovieCard({
         )}
 
         {showWatchlistControl && (
-          <form
-            action={
-              isWatchlisted
-                ? removeFromWatchlist.bind(null, movie.id)
-                : addToWatchlist.bind(null, movie.id)
-            }
-            className="relative z-10 mt-auto pointer-events-auto pt-2"
-          >
-            <button
-              type="submit"
-              className="w-full rounded-sm border px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
-              style={
-                isWatchlisted
-                  ? { borderColor: 'var(--rule)', color: 'var(--ink-dim)', background: 'transparent' }
-                  : { background: 'var(--accent)', color: 'var(--accent-ink)', borderColor: 'var(--accent)' }
-              }
-            >
-              {isWatchlisted ? 'Remove from watchlist' : 'Add to watchlist'}
-            </button>
-          </form>
+          <div className="relative z-10 mt-auto pointer-events-auto pt-2">
+            <MovieCardWatchlistButton movieId={movie.id} isWatchlisted={isWatchlisted} />
+          </div>
         )}
       </div>
     </div>
