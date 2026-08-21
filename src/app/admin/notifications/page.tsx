@@ -122,7 +122,7 @@ export default async function AdminNotificationsPage() {
                       <Td>{timeAgo(row.created_at)}</Td>
                       <Td>{row.channel}</Td>
                       <Td>{profile?.email ?? row.user_id}</Td>
-                      <Td>{movie?.title ?? row.movie_id}</Td>
+                      <Td>{movie?.title ?? row.movie_id ?? 'Broadcast'}</Td>
                       <Td>
                         <span style={{ color: 'var(--error-ink)' }}>{row.error?.slice(0, 80) ?? 'unknown'}</span>
                       </Td>
