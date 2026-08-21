@@ -158,6 +158,15 @@ body {
   color: var(--accent-ink);
 }
 
+/* Admin log tables (Scrapers, Notifications, Broadcast) -- rows separate
+   by a subtle hover fill instead of a full border grid on every row,
+   part of the "blocky admin" cleanup: a table with 20-30 rows each
+   boxed in its own border read as far denser/noisier than the data
+   itself warranted. */
+.admin-table-row:hover {
+  background: var(--bg-elevated);
+}
+
 /* Horizontal scroll strips (e.g. the cinema date picker) where the
    native scrollbar would be visual noise; scrolling itself stays fully
    functional via touch/trackpad/keyboard, only its own chrome is hidden. */

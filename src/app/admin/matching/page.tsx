@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
+import { SectionHeader } from '@/components/admin/SectionHeader';
 import { StatTile } from '@/components/admin/StatTile';
 import { RunJobButton } from '@/components/admin/RunJobButton';
 import { ResolveMatchPanel } from '@/components/admin/ResolveMatchPanel';
@@ -48,19 +49,20 @@ export default async function AdminMatchingPage() {
   return (
     <AdminPageShell title="Matching">
       <section>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-            Latest match run
-          </h2>
-          <RunJobButton
-            job="match-movies"
-            size="sm"
-            label="Re-run matching"
-            confirmText="Re-run the matching job now? This tries to resolve the current unmatched/ambiguous backlog."
-          />
-        </div>
+        <SectionHeader
+          action={
+            <RunJobButton
+              job="match-movies"
+              size="sm"
+              label="Re-run matching"
+              confirmText="Re-run the matching job now? This tries to resolve the current unmatched/ambiguous backlog."
+            />
+          }
+        >
+          Latest match run
+        </SectionHeader>
         {latestMatch ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatTile label="Matched" value={latestMatch.matched} tone="ok" />
             <StatTile
               label="Ambiguous"
@@ -82,11 +84,9 @@ export default async function AdminMatchingPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Latest sync (Egypt-release filter)
-        </h2>
+        <SectionHeader>Latest sync (Egypt-release filter)</SectionHeader>
         {latestSync ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatTile label="Accepted" value={latestSync.accepted} tone="ok" />
             <StatTile label="Rejected" value={latestSync.rejected} />
           </div>
@@ -98,19 +98,20 @@ export default async function AdminMatchingPage() {
       </section>
 
       <section>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-            Data quality digest
-          </h2>
-          <RunJobButton
-            job="admin-digest"
-            size="sm"
-            label="Run digest now"
-            confirmText="Run the data quality digest now? This emails/pushes a summary of missing posters, unresolved matches, and movies with no synopsis, if there are any."
-          />
-        </div>
+        <SectionHeader
+          action={
+            <RunJobButton
+              job="admin-digest"
+              size="sm"
+              label="Run digest now"
+              confirmText="Run the data quality digest now? This emails/pushes a summary of missing posters, unresolved matches, and movies with no synopsis, if there are any."
+            />
+          }
+        >
+          Data quality digest
+        </SectionHeader>
         {latestDigest ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatTile
               label="Issues found"
               value={latestDigest.issues}
@@ -136,18 +137,16 @@ export default async function AdminMatchingPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Match run history
-        </h2>
+        <SectionHeader>Match run history</SectionHeader>
         {!matchEvents || matchEvents.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
             No match runs logged yet.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-sm border" style={{ borderColor: 'var(--rule)' }}>
+          <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr style={{ background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }}>
+                <tr>
                   <Th>When</Th>
                   <Th>Matched</Th>
                   <Th>Ambiguous</Th>
@@ -159,7 +158,7 @@ export default async function AdminMatchingPage() {
                 {matchEvents.map((row, i) => {
                   const p = row.payload as MatchRunPayload;
                   return (
-                    <tr key={i} className="border-t" style={{ borderColor: 'var(--rule)' }}>
+                    <tr key={i} className="admin-table-row rounded-md transition-colors">
                       <Td>{timeAgo(row.occurred_at)}</Td>
                       <Td>{p.matched}</Td>
                       <Td>{p.ambiguous}</Td>
@@ -175,9 +174,7 @@ export default async function AdminMatchingPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Backlog — needs manual attention
-        </h2>
+        <SectionHeader>Backlog — needs manual attention</SectionHeader>
         {!backlogMovies || backlogMovies.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ok-ink)' }}>
             Nothing unmatched or ambiguous right now.
@@ -187,17 +184,13 @@ export default async function AdminMatchingPage() {
           // into a candidate grid + collapsible id-search section that
           // needs real width to be usable on a phone, which a table
           // squeezed into one <td> inside overflow-x-auto can't give it.
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2.5">
             {backlogMovies.map((movie) => (
-              <div
-                key={movie.id}
-                className="flex flex-col gap-3 rounded-sm border p-3"
-                style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
-              >
+              <div key={movie.id} className="flex flex-col gap-3 rounded-md p-3.5" style={{ background: 'var(--bg-elevated)' }}>
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                   <Link
                     href={`/movies/${movie.id}`}
-                    className="text-sm font-medium underline"
+                    className="text-sm font-medium underline underline-offset-2"
                     style={{ color: 'var(--accent-dim)' }}
                   >
                     {movie.title}
@@ -218,12 +211,19 @@ export default async function AdminMatchingPage() {
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-3 py-2 text-xs font-semibold tracking-wide uppercase">{children}</th>;
+  return (
+    <th
+      className="border-b px-3 pb-2.5 text-xs font-semibold tracking-wide uppercase"
+      style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
+    >
+      {children}
+    </th>
+  );
 }
 
 function Td({ children }: { children: React.ReactNode }) {
   return (
-    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--ink)' }}>
+    <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: 'var(--ink)' }}>
       {children}
     </td>
   );

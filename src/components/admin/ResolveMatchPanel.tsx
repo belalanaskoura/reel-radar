@@ -87,7 +87,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
   return (
     <div
       className="flex w-full flex-col gap-3 rounded-sm border p-3"
-      style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+      style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
@@ -132,7 +132,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                 onClick={() => setPendingChoice({ tmdbId: c.id, label: c.title })}
                 disabled={isPending}
                 className="flex flex-col gap-1 rounded-sm border p-2 text-left transition-opacity hover:opacity-80 disabled:opacity-60"
-                style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}
+                style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
               >
                 <div
                   className="relative aspect-[2/3] w-full overflow-hidden rounded-sm"
@@ -219,7 +219,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                   }}
                   placeholder="e.g. 1232569"
                   className="min-h-[36px] w-full rounded-sm border px-2 py-1.5 text-xs xs:w-32"
-                  style={{ borderColor: 'var(--rule)', background: 'var(--surface)', color: 'var(--ink)' }}
+                  style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
                 />
                 <button
                   type="button"
@@ -247,7 +247,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                   }}
                   placeholder="tt1232569 or an imdb.com link"
                   className="min-h-[36px] w-full rounded-sm border px-2 py-1.5 text-xs xs:w-48"
-                  style={{ borderColor: 'var(--rule)', background: 'var(--surface)', color: 'var(--ink)' }}
+                  style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
                 />
                 <button
                   type="button"

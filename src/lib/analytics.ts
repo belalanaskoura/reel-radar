@@ -56,6 +56,7 @@ type AnalyticsEvent =
       payload: {
         subject: string;
         targeted: boolean; // true = sent to a hand-picked subset, not every user
+        channels: ('email' | 'push')[];
         recipientCount: number;
         emailSent: number;
         emailFailed: number;
