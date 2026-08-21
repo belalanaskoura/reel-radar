@@ -55,6 +55,7 @@ type AnalyticsEvent =
       type: 'broadcast_run';
       payload: {
         subject: string;
+        targeted: boolean; // true = sent to a hand-picked subset, not every user
         recipientCount: number;
         emailSent: number;
         emailFailed: number;
