@@ -4,20 +4,9 @@ import { useState, useTransition } from 'react';
 import { sendBroadcast } from '@/app/admin/broadcast/actions';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
 
-const DEFAULT_SUBJECT = 'Thank you for using ReelRadar';
-const DEFAULT_MESSAGE = `Hi there,
-
-We just wanted to take a moment to say thank you for using ReelRadar. Having you here means a lot, and your support is what keeps this project going.
-
-We're always working to make ReelRadar better for you — faster showtime updates, more cinemas, and a smoother experience overall. If there's ever anything you'd like to see improved, we'd love to hear from you.
-
-Thanks again for being part of this.
-
-— The ReelRadar team`;
-
 export function BroadcastForm({ recipientCount }: { recipientCount: number }) {
-  const [subject, setSubject] = useState(DEFAULT_SUBJECT);
-  const [message, setMessage] = useState(DEFAULT_MESSAGE);
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -49,6 +38,7 @@ export function BroadcastForm({ recipientCount }: { recipientCount: number }) {
             type="text"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
+            placeholder="e.g. New cinema now on ReelRadar"
             className="w-full rounded-sm border-b-2 px-4 py-3 text-sm focus:outline-none"
             style={{ background: 'var(--surface)', color: 'var(--ink)', borderColor: 'var(--rule)' }}
             onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
@@ -69,6 +59,7 @@ export function BroadcastForm({ recipientCount }: { recipientCount: number }) {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={10}
+            placeholder="Write what you want to send to every user here..."
             className="w-full resize-y rounded-sm border-b-2 px-4 py-4 text-sm leading-relaxed focus:outline-none"
             style={{ background: 'var(--surface)', color: 'var(--ink)', borderColor: 'var(--rule)' }}
             onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
