@@ -72,7 +72,7 @@ export function ShowtimePicker({
               Couldn&apos;t load showtimes. Try again.
             </p>
           ) : showtimes && showtimes.length > 0 ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {groupByFormat(showtimes).map(([format, group]) => {
                 // Price is a property of the format/hall, not the
                 // individual showtime -- shown once next to the format
@@ -81,27 +81,29 @@ export function ShowtimePicker({
                 // when price was stacked inside each button).
                 const templateRow = findTemplateRowForFormat(priceTemplate, branchId as BranchId, format);
                 return (
-                  <div key={format}>
-                    <p
-                      className="mb-1.5 flex items-baseline gap-1.5 text-[11px] font-semibold tracking-wide uppercase"
-                      style={{ color: 'var(--ink-dim)' }}
-                    >
-                      <span>{format}</span>
+                  <div key={format} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="text-xs font-bold tracking-wide uppercase"
+                        style={{ color: 'var(--ink)' }}
+                      >
+                        {format}
+                      </span>
                       {templateRow && (
                         <span
-                          className="text-[10px] font-medium tracking-normal normal-case"
-                          style={{ color: 'var(--accent-dim)' }}
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-normal normal-case"
+                          style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}
                         >
                           {templateRow.priceEgp} EGP
                         </span>
                       )}
-                    </p>
+                    </div>
                     <ul className="flex flex-wrap gap-2">
                       {group.map((s) => (
                         <li key={s.bookingUrl}>
                           {s.soldOut ? (
                             <span
-                              className="inline-block rounded-sm border px-2 py-1 text-xs line-through"
+                              className="inline-block rounded-full border px-3 py-1.5 text-xs font-medium line-through"
                               style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
                             >
                               {s.time}
@@ -119,8 +121,7 @@ export function ShowtimePicker({
                                   movieTitle,
                                 },
                               }}
-                              className="inline-block rounded-sm px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90"
-                              style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                              className="showtime-pill inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold"
                             >
                               {s.time}
                             </Link>
