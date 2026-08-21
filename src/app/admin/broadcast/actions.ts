@@ -39,12 +39,19 @@ export type BroadcastResult =
 // paths' "one channel's failure can't block the other, and one user's
 // failure can't block the rest" pattern (see /api/poll's notifyWatchers),
 // just fanned out to the target user set instead of one movie's watchers.
-// Not logged through notification_deliveries (that table's movie_id/
-// branch_id columns are NOT NULL, movie-shaped -- confirmed against the
-// live schema before choosing this instead of a schema change): a
-// broadcast summary is logged as one broadcast_run analytics_events row,
-// the same "record a batch job's outcome" pattern every other scheduled
-// job in this app already uses.
+//
+// Logs one real notification_deliveries row per user per channel, same
+// as every other notification path (movie_id/branch_id null -- a
+// broadcast has neither; the column NOT NULL constraint was relaxed for
+// this). Originally only logged a broadcast_run analytics_events
+// summary, which meant a real send was completely invisible on the
+// Notifications page's chart/stats (that page reads notification_
+// deliveries only) -- writing real per-user rows here means broadcasts
+// show up correctly everywhere else already reads that table, with no
+// special-casing needed on the reporting side. The broadcast_run summary
+// event is still logged too, since /admin/broadcast's own result panel
+// and future per-send auditing still want a single "this send happened,
+// here's the aggregate outcome" record.
 export async function sendBroadcast(
   subject: string,
   message: string,
@@ -89,17 +96,56 @@ export async function sendBroadcast(
       try {
         await notifyBroadcastByEmail(user.email, trimmedSubject, trimmedMessage);
         emailSent += 1;
-      } catch {
+        await supabase.from('notification_deliveries').insert({
+          user_id: user.id,
+          movie_id: null,
+          branch_id: null,
+          channel: 'email',
+          success: true,
+        });
+      } catch (err) {
         emailFailed += 1;
+        await supabase.from('notification_deliveries').insert({
+          user_id: user.id,
+          movie_id: null,
+          branch_id: null,
+          channel: 'email',
+          success: false,
+          error: String(err).slice(0, 500),
+        });
       }
     }
 
     if (sendPush) {
       try {
         const sentCount = await notifyBroadcastPush(supabase, user.id, trimmedSubject, trimmedMessage);
-        if (sentCount > 0) pushSent += 1;
-      } catch {
+        // sentCount === 0 means the user has zero push_subscriptions rows
+        // -- sendToUser returns early without ever attempting a real send
+        // (see push.ts), so there's no delivery event to log at all here,
+        // same as a watchlist notification never logs anything for a
+        // user with push simply switched off. Only a real attempted send
+        // (sentCount > 0, meaning at least one device was actually hit)
+        // is worth a notification_deliveries row.
+        if (sentCount > 0) {
+          pushSent += 1;
+          await supabase.from('notification_deliveries').insert({
+            user_id: user.id,
+            movie_id: null,
+            branch_id: null,
+            channel: 'push',
+            success: true,
+          });
+        }
+      } catch (err) {
         pushFailed += 1;
+        await supabase.from('notification_deliveries').insert({
+          user_id: user.id,
+          movie_id: null,
+          branch_id: null,
+          channel: 'push',
+          success: false,
+          error: String(err).slice(0, 500),
+        });
       }
     }
   }
