@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { launchBrowser } from '@/lib/scene/browser';
 import { fetchSeatPlan } from '@/lib/scene/seat-plan';
+import { getScenePriceTemplate, matchPriceForCategory } from '@/lib/scene/price-template';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 
 // Hobby's default function timeout is 10s; a full booking-hold browser
@@ -24,14 +25,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { showtimeUrl } = (await request.json()) as { showtimeUrl?: string };
+  const { showtimeUrl, branchId } = (await request.json()) as {
+    showtimeUrl?: string;
+    branchId?: string;
+  };
   if (!showtimeUrl || typeof showtimeUrl !== 'string') {
     return NextResponse.json({ error: 'Missing showtimeUrl' }, { status: 400 });
   }
 
-  const allowedHosts = Object.values(BRANCH_BASE_URLS as Record<BranchId, string>).map(
-    (base) => new URL(base).hostname,
-  );
+  const branchBaseUrls = BRANCH_BASE_URLS as Record<BranchId, string>;
+  const allowedHosts = Object.values(branchBaseUrls).map((base) => new URL(base).hostname);
   let parsed: URL;
   try {
     parsed = new URL(showtimeUrl);
@@ -41,11 +44,28 @@ export async function POST(request: Request) {
   if (parsed.protocol !== 'https:' || !allowedHosts.includes(parsed.hostname) || !/^\/showtime-[a-f0-9]+$/i.test(parsed.pathname)) {
     return NextResponse.json({ error: 'showtimeUrl is not a recognized Scene showtime URL' }, { status: 400 });
   }
+  // branchId is only used to key the price template lookup below (a cheap
+  // display nicety) -- an unrecognized/missing value just means no prices
+  // get attached, never a hard failure, since showtimeUrl's own host
+  // validation above is what actually gates which site gets scraped.
+  const resolvedBranchId =
+    branchId && branchId in branchBaseUrls ? (branchId as BranchId) : null;
 
   const browser = await launchBrowser();
   try {
-    const seatPlan = await fetchSeatPlan(browser, showtimeUrl);
-    return NextResponse.json(seatPlan);
+    const [seatPlan, priceTemplate] = await Promise.all([
+      fetchSeatPlan(browser, showtimeUrl),
+      resolvedBranchId ? getScenePriceTemplate(supabase) : Promise.resolve([]),
+    ]);
+
+    const seats = resolvedBranchId
+      ? seatPlan.seats.map((seat) => ({
+          ...seat,
+          priceEgp: matchPriceForCategory(priceTemplate, resolvedBranchId, seat.category),
+        }))
+      : seatPlan.seats;
+
+    return NextResponse.json({ ...seatPlan, seats });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to fetch seat plan' },

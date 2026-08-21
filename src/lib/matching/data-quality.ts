@@ -27,7 +27,21 @@ export interface StuckBacklogIssue {
   daysStuck: number;
 }
 
-export type DataQualityIssue = NoPosterIssue | NoOverviewIssue | StuckBacklogIssue;
+// Raised by /api/check-scene-prices (see src/lib/scene/price-template.ts)
+// when a live lock/unlock price read for a branch+format disagrees with
+// the admin-maintained scene_price_templates row -- surfaced here rather
+// than acted on automatically, since a template update is a real-world
+// fact only an admin should confirm (a single flaky/stale scrape
+// shouldn't silently overwrite a human-entered price).
+export interface PriceMismatchIssue {
+  kind: 'price_mismatch';
+  branchId: string;
+  format: string;
+  templatePriceEgp: number;
+  liveObservedPriceEgp: number;
+}
+
+export type DataQualityIssue = NoPosterIssue | NoOverviewIssue | StuckBacklogIssue | PriceMismatchIssue;
 
 // The no-poster and stuck-backlog checks only: both plain, cheap column
 // queries with no external API calls, safe to run on every /admin page
@@ -103,6 +117,39 @@ export async function findDataQualityIssues(
       // TMDB unreachable for this one movie -- skip it rather than
       // failing the whole digest over a single lookup; it'll be
       // re-checked next run since matched_at doesn't change.
+    }
+  }
+
+  // /api/check-scene-prices logs one price_check_run analytics event per
+  // (branch, format) spot-check -- read back any real mismatch since the
+  // last digest rather than storing a separate flags table, the same
+  // "read the event log since last run" pattern the no-overview check
+  // above uses for admin_digest_run itself. matched: null (couldn't
+  // verify a live price this run, e.g. the lock click raced the widget's
+  // render) is deliberately NOT surfaced -- only a confirmed mismatch is
+  // worth an admin's attention.
+  const { data: priceCheckEvents } = await supabase
+    .from('analytics_events')
+    .select('payload')
+    .eq('event_type', 'price_check_run')
+    .gte('occurred_at', sinceIso);
+
+  for (const row of priceCheckEvents ?? []) {
+    const payload = row.payload as {
+      branch: string;
+      format: string;
+      matched: boolean | null;
+      templatePriceEgp: number;
+      liveObservedPriceEgp: number | null;
+    };
+    if (payload.matched === false && payload.liveObservedPriceEgp != null) {
+      issues.push({
+        kind: 'price_mismatch',
+        branchId: payload.branch,
+        format: payload.format,
+        templatePriceEgp: payload.templatePriceEgp,
+        liveObservedPriceEgp: payload.liveObservedPriceEgp,
+      });
     }
   }
 

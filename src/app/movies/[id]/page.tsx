@@ -15,6 +15,7 @@ import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { filterFutureDates, filterFutureIsoDates, filterPastVoxShowtimes } from '@/lib/scene/dates';
 import { chainForBranch, voxBranchShowtimesUrl, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { getFallbackCredits, type CreditsCastMember } from '@/lib/matching/credits';
+import { getScenePriceTemplate } from '@/lib/scene/price-template';
 import { WatchlistButton } from '@/components/WatchlistButton';
 import { ShowtimePicker } from '@/components/ShowtimePicker';
 import { VoxShowtimePicker } from '@/components/VoxShowtimePicker';
@@ -33,12 +34,17 @@ export default async function MovieDetailPage({
   const supabase = await createClient();
 
   // Independent of each other (the movie lookup doesn't need `user`), so
-  // run concurrently rather than as two sequential round-trips.
+  // run concurrently rather than as two sequential round-trips. The price
+  // template is a tiny (single-digit row count), unfiltered table read --
+  // cheap enough to always fetch here rather than threading a per-movie
+  // "does this even have a Scene branch" condition through just to skip
+  // one small query.
   const [
     {
       data: { user },
     },
     { data: movieRow },
+    scenePriceTemplate,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase
@@ -50,6 +56,7 @@ export default async function MovieDetailPage({
       )
       .eq('id', id)
       .maybeSingle(),
+    getScenePriceTemplate(supabase),
   ]);
 
   if (!movieRow) notFound();
@@ -255,6 +262,7 @@ export default async function MovieDetailPage({
                         branchName={branchName}
                         slug={slugRow.slug}
                         dates={futureDates}
+                        priceTemplate={scenePriceTemplate}
                       />
                     </>
                   ) : slugRow ? (
