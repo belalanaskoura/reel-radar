@@ -54,31 +54,45 @@ export function VoxShowtimePicker({
       {selectedDay && (
         <div className="rounded-sm border p-3" style={{ borderColor: 'var(--rule)' }}>
           <div className="flex flex-col gap-3">
-            {selectedDay.formats.map((f) => (
-              <div key={f.format}>
-                <p
-                  className="mb-1.5 text-[11px] font-semibold tracking-wide uppercase"
-                  style={{ color: 'var(--ink-dim)' }}
-                >
-                  {f.format}
-                </p>
-                <ul className="flex flex-wrap gap-2">
-                  {f.showtimes.map((s) => (
-                    <li key={s.time}>
-                      <a
-                        href={branchShowtimesUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block rounded-sm px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90"
-                        style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
-                      >
-                        {s.time}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+            {selectedDay.formats.map((f) => {
+              // Price is constant across every showtime within a format on
+              // a given day (confirmed against real elCinema data -- VOX
+              // prices by format/hall, not by individual time slot), so
+              // it's shown once next to the format label rather than
+              // repeated on every time pill, which cramped each button
+              // into an unreadable two-line chip.
+              const price = f.showtimes.find((s) => s.price)?.price;
+              return (
+                <div key={f.format}>
+                  <p
+                    className="mb-1.5 flex items-baseline gap-1.5 text-[11px] font-semibold tracking-wide uppercase"
+                    style={{ color: 'var(--ink-dim)' }}
+                  >
+                    <span>{f.format}</span>
+                    {price && (
+                      <span className="text-[10px] font-medium tracking-normal normal-case" style={{ color: 'var(--accent-dim)' }}>
+                        {price}
+                      </span>
+                    )}
+                  </p>
+                  <ul className="flex flex-wrap gap-2">
+                    {f.showtimes.map((s) => (
+                      <li key={s.time}>
+                        <a
+                          href={branchShowtimesUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block rounded-sm px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90"
+                          style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+                        >
+                          {s.time}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
           </div>
 
           <div

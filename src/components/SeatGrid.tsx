@@ -50,12 +50,17 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
       .sort(([a], [b]) => b - a)
       .map(([, rowSeats]) => rowSeats.sort((a, b) => b.col - a.col));
 
-    const seenCategories = new Set<string>();
+    // Price rides along with category rather than as a separate lookup:
+    // every seat sharing a category name carries the same priceEgp (set
+    // once per branch/category by the API route from the admin-maintained
+    // template, see src/lib/scene/price-template.ts), so the first seat
+    // seen for a category is a safe representative for the legend.
+    const categoryPrices = new Map<string, number | null>();
     for (const s of seats) {
-      if (s.category) seenCategories.add(s.category);
+      if (s.category && !categoryPrices.has(s.category)) categoryPrices.set(s.category, s.priceEgp);
     }
 
-    return { rows: sortedRows, categories: [...seenCategories] };
+    return { rows: sortedRows, categories: [...categoryPrices.entries()] };
   }, [seats]);
 
   function toggleSeat(seat: Seat) {
@@ -202,6 +207,11 @@ function SeatButton({
 // Checkout button pinned in view throughout, not a one-time footer.
 function SelectionBar({ selectedSeats, bookingUrl }: { selectedSeats: Seat[]; bookingUrl: string }) {
   const hasSelection = selectedSeats.length > 0;
+  // Only shown once every selected seat has a known template price --
+  // a partial total (e.g. 2 of 3 seats priced) would understate the real
+  // cost, worse than not showing a number at all.
+  const allPriced = hasSelection && selectedSeats.every((s) => s.priceEgp != null);
+  const totalEgp = allPriced ? selectedSeats.reduce((sum, s) => sum + (s.priceEgp ?? 0), 0) : null;
 
   return (
     <div
@@ -226,7 +236,7 @@ function SelectionBar({ selectedSeats, bookingUrl }: { selectedSeats: Seat[]; bo
           <div className="min-w-0 flex-col leading-tight">
             <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
               {hasSelection
-                ? `${selectedSeats.length} seat${selectedSeats.length === 1 ? '' : 's'} selected`
+                ? `${selectedSeats.length} seat${selectedSeats.length === 1 ? '' : 's'} selected${totalEgp != null ? ` · ${totalEgp} EGP` : ''}`
                 : 'No seats selected'}
             </p>
             <p className="truncate text-xs" style={{ color: 'var(--ink-dim)' }}>
@@ -330,7 +340,7 @@ function Screen() {
   );
 }
 
-function Legend({ categories }: { categories: string[] }) {
+function Legend({ categories }: { categories: [string, number | null][] }) {
   return (
     <div className="flex flex-col gap-2 text-[11px]" style={{ color: 'var(--ink-dim)' }}>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 xs:flex xs:flex-wrap xs:items-center xs:gap-x-4">
@@ -341,11 +351,11 @@ function Legend({ categories }: { categories: string[] }) {
       </div>
       {categories.length > 1 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t pt-2" style={{ borderColor: 'var(--rule)' }}>
-          {categories.map((category) => (
+          {categories.map(([category, priceEgp]) => (
             <LegendItem
               key={category}
               swatch={seatStyle({ availability: 'free', category } as Seat, false)}
-              label={category}
+              label={priceEgp != null ? `${category} · ${priceEgp} EGP` : category}
             />
           ))}
         </div>

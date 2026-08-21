@@ -39,6 +39,17 @@ type AnalyticsEvent =
   | {
       type: 'scrape_delist_run';
       payload: { branch: string; listed: number; delisted: number; duration_ms: number; error: string | null };
+    }
+  | {
+      type: 'price_check_run';
+      payload: {
+        branch: string;
+        format: string;
+        matched: boolean | null; // null = the live price couldn't be verified this run, not a mismatch.
+        templatePriceEgp: number;
+        liveObservedPriceEgp: number | null;
+        duration_ms: number;
+      };
     };
 
 // Fire-and-forget: analytics must never fail or slow down the request
