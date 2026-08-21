@@ -1,22 +1,41 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
+import { SectionHeader } from '@/components/admin/SectionHeader';
+import { StatTile } from '@/components/admin/StatTile';
 import { BroadcastForm } from '@/components/admin/BroadcastForm';
 
 export default async function AdminBroadcastPage() {
   const supabase = createServiceRoleClient();
-  const { data: usersPage } = await supabase.auth.admin.listUsers();
+  const [{ data: usersPage }, { data: pushRows }] = await Promise.all([
+    supabase.auth.admin.listUsers(),
+    // user_id only -- a user can have several rows (one per device), so
+    // "how many people have push enabled" is the distinct user_id count,
+    // not the raw row count.
+    supabase.from('push_subscriptions').select('user_id'),
+  ]);
+
+  const pushEnabledUserIds = new Set((pushRows ?? []).map((r) => r.user_id));
   const users = (usersPage?.users ?? [])
-    .flatMap((u) => (u.email ? [{ id: u.id, email: u.email }] : []))
+    .flatMap((u) => (u.email ? [{ id: u.id, email: u.email, hasPush: pushEnabledUserIds.has(u.id) }] : []))
     .sort((a, b) => a.email.localeCompare(b.email));
+
+  const pushEnabledCount = users.filter((u) => u.hasPush).length;
+  const pushRate = users.length > 0 ? Math.round((pushEnabledCount / users.length) * 100) : 0;
 
   return (
     <AdminPageShell title="Broadcast">
       <section>
+        <SectionHeader>Push adoption</SectionHeader>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <StatTile label="Users" value={users.length} />
+          <StatTile label="Push enabled" value={pushEnabledCount} tone={pushEnabledCount > 0 ? 'ok' : 'neutral'} />
+          <StatTile label="Adoption rate" value={`${pushRate}%`} sublabel={`${pushEnabledCount} / ${users.length}`} />
+        </div>
+      </section>
+
+      <section>
         <p className="mb-6 text-sm" style={{ color: 'var(--ink-dim)' }}>
-          Send a one-off message to every signed-up user, or to specific
-          people, by email and push (for whoever&rsquo;s subscribed). Edit the
-          subject/message below before sending — there&rsquo;s no undo once it
-          goes out.
+          Sends immediately once confirmed — there&rsquo;s no undo or scheduling.
         </p>
         <BroadcastForm users={users} />
       </section>

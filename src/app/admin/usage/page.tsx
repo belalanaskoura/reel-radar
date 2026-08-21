@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
+import { SectionHeader } from '@/components/admin/SectionHeader';
 import { StatTile } from '@/components/admin/StatTile';
 import { LineChart, type LinePoint } from '@/components/admin/LineChart';
 
@@ -68,9 +69,7 @@ export default async function AdminUsagePage() {
   return (
     <AdminPageShell title="Usage">
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Daily active users (30 days) — signup or watchlist_add events
-        </h2>
+        <SectionHeader>Daily active users (30 days) — signup or watchlist_add events</SectionHeader>
         {dauPoints.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
             No activity logged yet.
@@ -81,68 +80,76 @@ export default async function AdminUsagePage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Growth (30 days)
-        </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <SectionHeader>Growth (30 days)</SectionHeader>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <StatTile label="Signups" value={signups?.length ?? 0} />
           <StatTile label="Watchlist adds" value={watchlistAdds?.length ?? 0} />
         </div>
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Top viewed movies (7 days)
-        </h2>
+        <SectionHeader>Top viewed movies (7 days)</SectionHeader>
         {topMovieIds.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
             No page views logged yet.
           </p>
         ) : (
-          <ol className="flex flex-col gap-1.5">
+          <ol className="flex flex-col">
             {topMovieIds.map(([id, count], i) => (
-              <li key={id} className="flex items-center justify-between rounded-sm border px-3 py-2 text-sm" style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
+              <RankedRow key={id}>
                 <span style={{ color: 'var(--ink)' }}>
-                  {i + 1}.{' '}
-                  <Link href={`/movies/${id}`} className="underline" style={{ color: 'var(--accent-dim)' }}>
+                  <span style={{ color: 'var(--ink-dim)' }}>{i + 1}.</span>{' '}
+                  <Link href={`/movies/${id}`} className="underline underline-offset-2" style={{ color: 'var(--accent-dim)' }}>
                     {movieTitleById.get(id) ?? id}
                   </Link>
                 </span>
                 <span style={{ color: 'var(--ink-dim)' }}>
                   {count} view{count === 1 ? '' : 's'}
                 </span>
-              </li>
+              </RankedRow>
             ))}
           </ol>
         )}
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Top viewed cinemas (7 days)
-        </h2>
+        <SectionHeader>Top viewed cinemas (7 days)</SectionHeader>
         {topBranchIds.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
             No page views logged yet.
           </p>
         ) : (
-          <ol className="flex flex-col gap-1.5">
+          <ol className="flex flex-col">
             {topBranchIds.map(([id, count], i) => (
-              <li key={id} className="flex items-center justify-between rounded-sm border px-3 py-2 text-sm" style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
+              <RankedRow key={id}>
                 <span style={{ color: 'var(--ink)' }}>
-                  {i + 1}.{' '}
-                  <Link href={`/cinemas/${id}`} className="underline" style={{ color: 'var(--accent-dim)' }}>
+                  <span style={{ color: 'var(--ink-dim)' }}>{i + 1}.</span>{' '}
+                  <Link href={`/cinemas/${id}`} className="underline underline-offset-2" style={{ color: 'var(--accent-dim)' }}>
                     {branchNameById.get(id) ?? id}
                   </Link>
                 </span>
                 <span style={{ color: 'var(--ink-dim)' }}>
                   {count} view{count === 1 ? '' : 's'}
                 </span>
-              </li>
+              </RankedRow>
             ))}
           </ol>
         )}
       </section>
     </AdminPageShell>
+  );
+}
+
+// Plain rows separated by a hairline instead of each its own bordered
+// box -- a ranked top-10 list read as ten stacked cards before, more
+// noise than a scannable list needs.
+function RankedRow({ children }: { children: React.ReactNode }) {
+  return (
+    <li
+      className="flex items-center justify-between gap-3 border-b py-2.5 text-sm last:border-b-0"
+      style={{ borderColor: 'var(--rule)' }}
+    >
+      {children}
+    </li>
   );
 }

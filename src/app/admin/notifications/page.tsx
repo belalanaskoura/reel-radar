@@ -1,16 +1,20 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
+import { SectionHeader } from '@/components/admin/SectionHeader';
+import { StatTile } from '@/components/admin/StatTile';
 import { SuccessFailBarChart, type DayCounts } from '@/components/admin/SuccessFailBarChart';
+
+const WINDOW_DAYS = 14;
 
 export default async function AdminNotificationsPage() {
   const supabase = createServiceRoleClient();
-  const fourteenDaysAgo = new Date(new Date().getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const windowStart = new Date(new Date().getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
   const [{ data: recentDeliveries }, { data: failures }] = await Promise.all([
     supabase
       .from('notification_deliveries')
-      .select('created_at, success')
-      .gte('created_at', fourteenDaysAgo),
+      .select('created_at, channel, success')
+      .gte('created_at', windowStart.toISOString()),
     supabase
       .from('notification_deliveries')
       .select('created_at, channel, error, user_id, movie_id, profiles(email), movies(title)')
@@ -19,25 +23,70 @@ export default async function AdminNotificationsPage() {
       .limit(30),
   ]);
 
+  const deliveries = recentDeliveries ?? [];
+
+  // Every day in the window gets a bucket, even ones with zero
+  // deliveries -- the previous version only ever created a bucket for a
+  // day that had at least one row, so a quiet day silently vanished from
+  // the x-axis instead of showing as a real zero. That made the whole
+  // window look sparser and more scattered than it actually was (most of
+  // a real 14-day series here was genuinely quiet, not missing data).
   const dayBuckets = new Map<string, { success: number; fail: number }>();
-  for (const row of recentDeliveries ?? []) {
+  for (let i = WINDOW_DAYS - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    dayBuckets.set(label, { success: 0, fail: 0 });
+  }
+  for (const row of deliveries) {
     const label = new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const bucket = dayBuckets.get(label) ?? { success: 0, fail: 0 };
+    const bucket = dayBuckets.get(label);
+    if (!bucket) continue; // outside the window's own day labels, shouldn't happen given the query's own gte filter
     if (row.success) bucket.success += 1;
     else bucket.fail += 1;
-    dayBuckets.set(label, bucket);
   }
-  const days: DayCounts[] = [...dayBuckets.entries()]
-    .slice(-14)
-    .map(([label, counts]) => ({ label, ...counts }));
+  const days: DayCounts[] = [...dayBuckets.entries()].map(([label, counts]) => ({ label, ...counts }));
+
+  const totalSent = deliveries.length;
+  const totalSuccess = deliveries.filter((d) => d.success).length;
+  const overallRate = totalSent > 0 ? Math.round((totalSuccess / totalSent) * 100) : null;
+
+  const byChannel = (['email', 'push'] as const).map((channel) => {
+    const rows = deliveries.filter((d) => d.channel === channel);
+    const success = rows.filter((d) => d.success).length;
+    return { channel, total: rows.length, success };
+  });
 
   return (
     <AdminPageShell title="Notifications">
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Delivery success/fail, last 14 days
-        </h2>
-        {days.length === 0 ? (
+        <SectionHeader>Last {WINDOW_DAYS} days</SectionHeader>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label="Total sent" value={totalSent} />
+          <StatTile
+            label="Overall success"
+            value={overallRate === null ? '—' : `${overallRate}%`}
+            tone={overallRate === null ? 'neutral' : overallRate < 90 ? 'error' : 'ok'}
+            sublabel={totalSent > 0 ? `${totalSuccess} / ${totalSent}` : undefined}
+          />
+          {byChannel.map(({ channel, total, success }) => {
+            const rate = total > 0 ? Math.round((success / total) * 100) : null;
+            return (
+              <StatTile
+                key={channel}
+                label={channel === 'email' ? 'Email success' : 'Push success'}
+                value={rate === null ? 'No sends' : `${rate}%`}
+                tone={rate === null ? 'neutral' : rate < 90 ? 'error' : 'ok'}
+                sublabel={total > 0 ? `${success} / ${total}` : undefined}
+              />
+            );
+          })}
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader>Daily delivery</SectionHeader>
+        {totalSent === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
             No deliveries logged yet.
           </p>
@@ -47,18 +96,16 @@ export default async function AdminNotificationsPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
-          Recent failures
-        </h2>
+        <SectionHeader>Recent failures</SectionHeader>
         {!failures || failures.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
             No recent delivery failures.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-sm border" style={{ borderColor: 'var(--rule)' }}>
+          <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr style={{ background: 'var(--bg-elevated)', color: 'var(--ink-dim)' }}>
+                <tr>
                   <Th>When</Th>
                   <Th>Channel</Th>
                   <Th>User</Th>
@@ -71,7 +118,7 @@ export default async function AdminNotificationsPage() {
                   const profile = row.profiles as unknown as { email: string | null } | null;
                   const movie = row.movies as unknown as { title: string } | null;
                   return (
-                    <tr key={i} className="border-t" style={{ borderColor: 'var(--rule)' }}>
+                    <tr key={i} className="admin-table-row rounded-md transition-colors">
                       <Td>{timeAgo(row.created_at)}</Td>
                       <Td>{row.channel}</Td>
                       <Td>{profile?.email ?? row.user_id}</Td>
@@ -92,12 +139,19 @@ export default async function AdminNotificationsPage() {
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-3 py-2 text-xs font-semibold tracking-wide uppercase">{children}</th>;
+  return (
+    <th
+      className="border-b px-3 pb-2.5 text-xs font-semibold tracking-wide uppercase"
+      style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
+    >
+      {children}
+    </th>
+  );
 }
 
 function Td({ children }: { children: React.ReactNode }) {
   return (
-    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--ink)' }}>
+    <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: 'var(--ink)' }}>
       {children}
     </td>
   );
