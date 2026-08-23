@@ -36,9 +36,17 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://reelradar.online";
+const SITE_DESCRIPTION =
+  "Browse what's bookable and coming soon at Cairo cinemas, and get notified the moment tickets go live.";
+
 export const metadata: Metadata = {
-  title: "ReelRadar",
-  description: "Browse what's bookable and coming soon at Scene Cinemas, and get notified the moment tickets go live.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "ReelRadar",
+    template: "%s",
+  },
+  description: SITE_DESCRIPTION,
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -47,6 +55,13 @@ export const metadata: Metadata = {
   },
   icons: {
     apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "ReelRadar",
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    siteName: "ReelRadar",
+    type: "website",
   },
 };
 
