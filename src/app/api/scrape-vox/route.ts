@@ -5,6 +5,7 @@ import { fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '@/lib/elcinema/fetche
 import { VOX_ELCINEMA_THEATER_IDS, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { logEvent } from '@/lib/analytics';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
+import { notifyLineupAdditions, notifyLineupRemovals } from '@/lib/matching/notify-cinema-lineup';
 
 const VOX_BRANCHES = Object.keys(VOX_ELCINEMA_THEATER_IDS) as VoxBranchId[];
 const DAYS_AHEAD = 5; // confirmed rolling window: today through +4 have real showtimes, +5 is always empty
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
     }
 
     let bookableCount = 0;
+    const newlyLinkedMovieIds: string[] = [];
     for (const [elcinemaId, title] of titleByElcinemaId) {
       const slug = String(elcinemaId);
 
@@ -144,6 +146,11 @@ export async function POST(request: Request) {
             }
           }
         }
+
+        // Reached only when this elCinema work id had no existing
+        // movie_branch_slugs row for this branch -- new to this branch's
+        // lineup this run, regardless of which sub-path resolved movieId.
+        newlyLinkedMovieIds.push(movieId);
       }
 
       // VOX movies never get a poster from anywhere else until they're
@@ -191,6 +198,10 @@ export async function POST(request: Request) {
       );
     }
 
+    if (newlyLinkedMovieIds.length > 0) {
+      await notifyLineupAdditions(supabase, branch, newlyLinkedMovieIds);
+    }
+
     // A movie previously linked to this branch but absent from this run's
     // elCinema listing has finished its run there -- unlike scrape-scene
     // (which needs a separate scrape-scene-delist job because its
@@ -222,6 +233,11 @@ export async function POST(request: Request) {
         .in('movie_id', delistedMovieIds)
         .select('movie_id');
       delistedCount = cleared?.length ?? 0;
+
+      const justRemovedMovieIds = (cleared ?? []).map((row) => row.movie_id as string);
+      if (justRemovedMovieIds.length > 0) {
+        await notifyLineupRemovals(supabase, branch, justRemovedMovieIds);
+      }
 
       // A delisted movie already bookable: false is skipped by the update
       // above (.eq('bookable', true)), so its last_checked_at never gets

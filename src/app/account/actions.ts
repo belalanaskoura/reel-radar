@@ -41,6 +41,31 @@ export async function updateAlertPreferences(values: {
 // in the UI is stored back as null rather than an explicit array listing
 // all of them: a branch added later should be included automatically,
 // not silently excluded because it wasn't on the list at save time.
+export async function updateLineupAlerts(values: {
+  notify_cinema_lineup: boolean;
+}): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/signin');
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update(values)
+    .eq('id', user.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/account');
+  return { error: null };
+}
+
 export async function updateCinemaAlerts(values: {
   notify_cinema_showtimes: boolean;
   subscribed_branch_ids: string[] | null;

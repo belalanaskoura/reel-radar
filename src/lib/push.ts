@@ -1,6 +1,11 @@
 import webpush from 'web-push';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { BookableNotification, NewReleaseNotification } from '@/lib/notifications';
+import type {
+  BookableNotification,
+  NewReleaseNotification,
+  LineupAddedNotification,
+  LineupRemovedNotification,
+} from '@/lib/notifications';
 import { formatCheckedTimestamp } from '@/lib/notifications';
 
 const VAPID_SUBJECT = 'mailto:belalhamada489@gmail.com';
@@ -85,6 +90,30 @@ export async function notifyNewReleasePush(
     title: `${notification.movieTitle} release date confirmed`,
     body: `Coming to Egypt on ${notification.releaseDate}.`,
     url: notification.movieUrl,
+  });
+}
+
+export async function notifyLineupAddedPush(
+  supabase: SupabaseClient,
+  userId: string,
+  notification: LineupAddedNotification,
+): Promise<number> {
+  return sendToUser(supabase, userId, {
+    title: `${notification.movieTitle} is now at ${notification.branchName}`,
+    body: `Just joined the lineup at a cinema you follow.`,
+    url: notification.movieUrl,
+  });
+}
+
+export async function notifyLineupRemovedPush(
+  supabase: SupabaseClient,
+  userId: string,
+  notification: LineupRemovedNotification,
+): Promise<number> {
+  return sendToUser(supabase, userId, {
+    title: `${notification.movieTitle} has left ${notification.branchName}`,
+    body: `No longer playing at a cinema you follow.`,
+    url: notification.cinemaUrl,
   });
 }
 

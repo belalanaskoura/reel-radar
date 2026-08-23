@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   updateAlertPreferences,
   updateCinemaAlerts,
+  updateLineupAlerts,
   updateDisplayName,
   updateEmail,
   updatePassword,
@@ -13,6 +14,7 @@ import { SecurityPanel } from '@/components/SecurityPanel';
 import { SettingsCard } from '@/components/SettingsCard';
 import { CinemaAlertsCard } from '@/components/CinemaAlertsCard';
 import { NewReleaseToggle } from '@/components/NewReleaseToggle';
+import { LineupAlertsToggle } from '@/components/LineupAlertsToggle';
 import { PushSubscribeButton } from '@/components/PushSubscribeButton';
 import { ThemeSettings } from '@/components/ThemeSettings';
 import { sortBranchesForDisplay } from '@/lib/branches';
@@ -35,7 +37,7 @@ export default async function SettingsPage({
     supabase
       .from('profiles')
       .select(
-        'display_name, avatar_url, notify_new_releases, notify_cinema_showtimes, subscribed_branch_ids',
+        'display_name, avatar_url, notify_new_releases, notify_cinema_showtimes, subscribed_branch_ids, notify_cinema_lineup',
       )
       .eq('id', user.id)
       .single(),
@@ -209,6 +211,17 @@ export default async function SettingsPage({
             initialEnabled={profile?.notify_cinema_showtimes ?? true}
             initialBranchIds={profile?.subscribed_branch_ids ?? null}
             updateCinemaAlerts={updateCinemaAlerts}
+          />
+        </SettingsCard>
+
+        <SettingsCard
+          title="Cinema lineup alerts"
+          description="A movie joins or leaves a cinema you follow"
+          icon={<CinemaIcon size={20} />}
+        >
+          <LineupAlertsToggle
+            initialValue={profile?.notify_cinema_lineup ?? true}
+            updateLineupAlerts={updateLineupAlerts}
           />
         </SettingsCard>
 

@@ -10,6 +10,18 @@ export interface NewReleaseNotification {
   movieUrl: string;
 }
 
+export interface LineupAddedNotification {
+  movieTitle: string;
+  branchName: string;
+  movieUrl: string;
+}
+
+export interface LineupRemovedNotification {
+  movieTitle: string;
+  branchName: string;
+  cinemaUrl: string;
+}
+
 export function formatCheckedTimestamp(): string {
   return new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 }

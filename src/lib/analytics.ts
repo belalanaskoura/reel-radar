@@ -4,6 +4,7 @@ type AnalyticsEvent =
   | { type: 'page_view'; payload: { path: string; movie_id?: string; branch_id?: string } }
   | { type: 'signup'; payload: { user_id: string } }
   | { type: 'watchlist_add'; payload: { user_id: string; movie_id: string } }
+  | { type: 'cinema_follow_add'; payload: { user_id: string; branch_id: string } }
   | {
       type: 'scrape_run';
       payload: {
