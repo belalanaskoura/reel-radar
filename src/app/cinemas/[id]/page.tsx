@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -7,6 +8,28 @@ import { parseSceneDate, filterFutureDates, formatSceneDateLabel } from '@/lib/s
 import { voxBranchShowtimesUrl, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { logPageView } from '@/lib/analytics';
 import { hidePosterlessMovies } from '@/lib/movie-visibility';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: branch } = await supabase.from('branches').select('name, address').eq('id', id).maybeSingle();
+
+  if (!branch) return {};
+
+  const description = branch.address
+    ? `Now booking and coming soon at ${branch.name}, ${branch.address}. Live showtimes on ReelRadar.`
+    : `Now booking and coming soon at ${branch.name}. Live showtimes on ReelRadar.`;
+
+  return {
+    title: `${branch.name} | ReelRadar`,
+    description,
+    openGraph: { title: branch.name, description },
+  };
+}
 
 export default async function CinemaDetailPage({
   params,

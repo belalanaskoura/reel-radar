@@ -56,14 +56,6 @@ export default async function LandingPage() {
               'radial-gradient(ellipse 100% 80% at 50% -5%, color-mix(in srgb, var(--accent) 18%, transparent) 0%, transparent 70%)',
           }}
         />
-        {/* Grain texture overlay */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              'repeating-linear-gradient(0deg, var(--ink) 0, var(--ink) 1px, transparent 1px, transparent 4px), repeating-linear-gradient(90deg, var(--ink) 0, var(--ink) 1px, transparent 1px, transparent 4px)',
-          }}
-        />
 
         <div className="relative mx-auto flex max-w-5xl flex-col items-center px-4 py-24 text-center sm:px-6 sm:py-36">
           {/* Live pill */}
@@ -71,11 +63,7 @@ export default async function LandingPage() {
             className="mb-8 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-medium tracking-widest uppercase"
             style={{ borderColor: 'var(--rule)', background: 'var(--surface)', color: 'var(--accent-dim)' }}
           >
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{ background: 'var(--accent)' }}
-            />
-            Live: Cairo Cinema Updates
+            Cairo Cinema Updates
           </div>
 
           {/* Headline */}
@@ -165,7 +153,7 @@ export default async function LandingPage() {
             </div>
           ) : (
             <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-              Check back soon — catalog updates daily.
+              Check back soon. Catalog updates daily.
             </p>
           )}
 
@@ -194,7 +182,7 @@ export default async function LandingPage() {
           </h2>
           <p className="mb-10 text-sm leading-relaxed sm:text-base" style={{ color: 'var(--ink-dim)' }}>
             Create a free account to watchlist upcoming films and receive
-            instant push notifications the moment booking opens — no
+            instant push notifications the moment booking opens. No
             refreshing cinema sites, no missed premieres.
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
@@ -313,11 +301,14 @@ function TrendingCard({
         />
       )}
 
-      {/* Gradient overlay */}
+      {/* Gradient overlay -- deliberately a fixed dark scrim, not theme-
+          derived: it sits over a photographic poster to keep the white
+          title/date text readable, not over page background, so it should
+          not flip to a light tint in light mode. */}
       <div
         className="absolute inset-0"
         style={{
-          background: 'linear-gradient(to top, rgba(12,15,14,0.95) 0%, rgba(12,15,14,0.3) 50%, transparent 100%)',
+          background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.35) 50%, transparent 100%)',
         }}
       />
 
@@ -344,8 +335,8 @@ function TrendingCard({
           {title}
         </h3>
         {dateLabel && (
-          <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
-            {isBookable ? `Now playing · ${dateLabel}` : dateLabel}
+          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.75)' }}>
+            {isBookable ? `Now playing, ${dateLabel}` : dateLabel}
           </p>
         )}
       </div>

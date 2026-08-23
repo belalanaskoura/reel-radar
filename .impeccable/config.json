@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "createdAt": "2026-08-23T21:14:54.099Z",
+        "reason": "intentional overshoot on seat-pop checkmark only, confirms a discrete user action (seat selection) per the existing code comment; not used for page/layout motion"
+      }
+    ]
+  }
+}

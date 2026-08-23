@@ -35,10 +35,16 @@
   --ink: #0c0f0e;
   --ink-dim: #3f4947;
   --rule: #d0d8d5;
-  --accent: #00b5a5;
+  /* Darkened from the Figma-exact #00b5a5 -- that value only hit 2.58:1
+     contrast against white --accent-ink text, well under WCAG AA's 4.5:1
+     minimum for every primary CTA button on the site in light mode.
+     #007a6f (already used elsewhere as --ok-ink) hits 5.23:1 while
+     staying in the same brand teal family. Dark mode's accent (#40dcce)
+     was already fine at 11.32:1 and is untouched. */
+  --accent: #007a6f;
   --accent-ink: #ffffff;
   --accent-dim: #2b9a8e;
-  --highlight: #00b5a5;
+  --highlight: #007a6f;
   --ok-bg: #d6f5f0;
   --ok-ink: #007a6f;
   --listed-bg: #e8ecea;
@@ -95,10 +101,10 @@
   --ink: #0c0f0e;
   --ink-dim: #3f4947;
   --rule: #d0d8d5;
-  --accent: #00b5a5;
+  --accent: #007a6f;
   --accent-ink: #ffffff;
   --accent-dim: #2b9a8e;
-  --highlight: #00b5a5;
+  --highlight: #007a6f;
   --ok-bg: #d6f5f0;
   --ok-ink: #007a6f;
   --listed-bg: #e8ecea;

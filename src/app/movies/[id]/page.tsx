@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -21,6 +22,38 @@ import { ShowtimePicker } from '@/components/ShowtimePicker';
 import { VoxShowtimePicker } from '@/components/VoxShowtimePicker';
 import { MovieDetailTabs } from '@/components/MovieDetailTabs';
 import { logPageView } from '@/lib/analytics';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: movieRow } = await supabase
+    .from('movies')
+    .select('title, poster_path, tmdb_id')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!movieRow) return {};
+
+  const details = movieRow.tmdb_id ? await fetchMovieDetails(movieRow.tmdb_id).catch(() => null) : null;
+  const description =
+    details?.overview?.slice(0, 200) ||
+    `Showtimes and booking links for ${movieRow.title} at Cairo cinemas, updated live on ReelRadar.`;
+  const poster = posterUrl(movieRow.poster_path, 'w500');
+
+  return {
+    title: `${movieRow.title} | ReelRadar`,
+    description,
+    openGraph: {
+      title: movieRow.title,
+      description,
+      images: poster ? [{ url: poster }] : undefined,
+    },
+  };
+}
 
 export default async function MovieDetailPage({
   params,
