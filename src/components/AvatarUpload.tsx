@@ -83,7 +83,7 @@ export function AvatarUpload({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
-        className={`group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-wait ${shape === 'square' ? 'rounded-xl' : 'rounded-full'}`}
+        className={`group relative overflow-hidden transition-transform duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.97] disabled:cursor-wait disabled:active:scale-100 ${shape === 'square' ? 'rounded-xl' : 'rounded-full'}`}
         style={{
           width: size,
           height: size,
@@ -102,9 +102,12 @@ export function AvatarUpload({
           </div>
         )}
 
-        {/* Hover overlay */}
+        {/* Hover overlay -- Tailwind's hover:/group-hover: variants are
+            already wrapped in @media (hover: hover) as of v3.4+ (verified
+            against this project's installed v4), so this doesn't ghost-
+            flash on a touch tap the way a bare :hover selector would. */}
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+          className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
           style={{ background: 'rgba(12,15,14,0.7)', color: '#ffffff' }}
         >
           {uploading ? (

@@ -11,6 +11,7 @@ import {
 } from '../actions';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import { SettingsCard } from '@/components/SettingsCard';
+import { SubmitButton } from '@/components/SubmitButton';
 import { CinemaAlertsCard } from '@/components/CinemaAlertsCard';
 import { NewReleaseToggle } from '@/components/NewReleaseToggle';
 import { LineupAlertsToggle } from '@/components/LineupAlertsToggle';
@@ -67,17 +68,17 @@ export default async function SettingsPage({
       {(error || saved || email_pending) && (
         <div className="mb-6">
           {error && (
-            <p role="alert" className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}>
+            <p role="alert" className="flash-message rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}>
               {error}
             </p>
           )}
           {saved && (
-            <p className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}>
+            <p className="flash-message rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}>
               Display name saved.
             </p>
           )}
           {email_pending && (
-            <p className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}>
+            <p className="flash-message rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}>
               Check your inbox to confirm your new email address. Your current email stays active until then.
             </p>
           )}
@@ -115,16 +116,16 @@ export default async function SettingsPage({
                     maxLength={60}
                     defaultValue={profile?.display_name ?? ''}
                     placeholder="e.g. Belal"
-                    className="min-w-0 rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
+                    className="input-accent-focus min-w-0 rounded-sm border px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring-2"
                     style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
                   />
-                  <button
-                    type="submit"
-                    className="rounded-sm px-4 py-2 text-xs font-semibold tracking-wide transition-opacity hover:opacity-90"
+                  <SubmitButton
+                    pendingLabel="Saving..."
+                    className="rounded-sm px-4 py-2 text-xs font-semibold tracking-wide transition-[opacity,transform] duration-150 ease-out hover:opacity-90 active:scale-[0.97] disabled:cursor-wait disabled:opacity-70 disabled:active:scale-100"
                     style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                   >
                     Save
-                  </button>
+                  </SubmitButton>
                 </form>
                 <p className="mt-1.5 text-xs" style={{ color: 'var(--ink-dim)' }}>
                   Shown on your profile instead of your email.
@@ -147,16 +148,16 @@ export default async function SettingsPage({
                     type="email"
                     required
                     defaultValue={user.email ?? ''}
-                    className="min-w-0 flex-1 rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
+                    className="input-accent-focus min-w-0 flex-1 rounded-sm border px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring-2"
                     style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
                   />
-                  <button
-                    type="submit"
-                    className="shrink-0 rounded-sm px-4 text-xs font-semibold tracking-wide transition-opacity hover:opacity-90"
+                  <SubmitButton
+                    pendingLabel="Updating..."
+                    className="shrink-0 rounded-sm px-4 text-xs font-semibold tracking-wide transition-[opacity,transform] duration-150 ease-out hover:opacity-90 active:scale-[0.97] disabled:cursor-wait disabled:opacity-70 disabled:active:scale-100"
                     style={{ background: 'var(--bg)', color: 'var(--ink)', border: '1px solid var(--rule)' }}
                   >
                     Update
-                  </button>
+                  </SubmitButton>
                 </form>
                 <p className="mt-1.5 text-xs" style={{ color: 'var(--ink-dim)' }}>
                   Changing this requires confirming a link sent to the new address.
