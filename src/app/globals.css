@@ -432,6 +432,31 @@ body {
     }
   }
 
+  /* CinemaFollowButton/MovieCardWatchlistButton's radar toggle -- a
+     one-shot confirm ring on the moment tracking starts, replacing what
+     was an infinite .signal-ping loop on every tracked card. emil-
+     design-eng: an animation that runs forever on every card in a grid
+     is ambient noise, not feedback -- the solid-vs-hollow dot already
+     shows tracked state on its own, so the only valid reason left to
+     animate is confirming the actual click (apple-design's causality
+     rule: feedback fires on the real event, once). Plays only via
+     React state right after a toggle-to-tracked action, never on mount
+     or on the untrack direction. */
+  .signal-confirm {
+    animation: signal-confirm 450ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+
+  @keyframes signal-confirm {
+    from {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    to {
+      transform: scale(2.2);
+      opacity: 0;
+    }
+  }
+
   /* FilterDropdown/CinemaFilterDropdown's menu -- previously a bare
      `{open && (...)}` conditional with no transition at all, so the menu
      snapped in and vanished instantly (the only animated part was the

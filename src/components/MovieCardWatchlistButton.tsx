@@ -1,7 +1,11 @@
 'use client';
 
-import { useOptimistic, useTransition } from 'react';
+import { useOptimistic, useState, useTransition } from 'react';
 import { addToWatchlist, removeFromWatchlist } from '@/app/watchlist/actions';
+
+// How long the one-shot confirm ring plays before being unmounted --
+// must match .signal-confirm's animation-duration in globals.css.
+const CONFIRM_DURATION_MS = 450;
 
 export function MovieCardWatchlistButton({
   movieId,
@@ -14,9 +18,18 @@ export function MovieCardWatchlistButton({
 }) {
   const [optimisticWatchlisted, setOptimisticWatchlisted] = useOptimistic(isWatchlisted);
   const [, startTransition] = useTransition();
+  // Plays the confirm ring once, only on the moment tracking starts --
+  // never on mount and never on untrack, so it reads as feedback for a
+  // real action rather than an ambient loop running on every card in
+  // the grid.
+  const [showConfirm, setShowConfirm] = useState(false);
 
   function toggle() {
     const next = !optimisticWatchlisted;
+    if (next) {
+      setShowConfirm(true);
+      setTimeout(() => setShowConfirm(false), CONFIRM_DURATION_MS);
+    }
     startTransition(async () => {
       setOptimisticWatchlisted(next);
       await (next ? addToWatchlist(movieId) : removeFromWatchlist(movieId));
@@ -39,9 +52,13 @@ export function MovieCardWatchlistButton({
     // poster on a 2-column mobile card.
     //
     // The glyph itself is CinemaAlertsCard/CinemaFollowButton's own
-    // "signal dot" (filled + pulsing when tracked, hollow ring when
-    // not) rather than a bookmark icon, so every radar-tracking control
-    // in the app reads as the same visual language.
+    // "signal dot" (filled when tracked, hollow ring when not) rather
+    // than a bookmark icon, so every radar-tracking control in the app
+    // reads as the same visual language. The dot used to pulse forever
+    // once tracked -- replaced with a one-shot confirm ring that plays
+    // only at the moment of tracking, since an animation that never
+    // stops across every card in a grid reads as ambient noise, not
+    // feedback for the action the user just took.
     return (
       <button
         type="button"
@@ -49,18 +66,28 @@ export function MovieCardWatchlistButton({
         aria-pressed={optimisticWatchlisted}
         aria-label={optimisticWatchlisted ? 'Remove from radar' : 'Add to radar'}
         title={optimisticWatchlisted ? 'Remove from radar' : 'Add to radar'}
-        className="flex items-center gap-1.5 rounded-full py-1 pr-2 pl-1.5 text-[11px] font-semibold backdrop-blur-sm transition-opacity hover:opacity-85"
+        className="flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-1.5 text-[11px] font-semibold transition-[opacity,transform] duration-150 ease-out hover:opacity-85 active:scale-[0.95]"
         style={
           optimisticWatchlisted
-            ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
-            : { background: 'color-mix(in srgb, var(--accent) 22%, var(--bg) 78%)', color: 'var(--accent)' }
+            ? { background: 'var(--accent)', color: 'var(--accent-ink)', borderColor: 'var(--accent)' }
+            // Opaque --surface, not a color-mix accent tint: the mix was
+            // only 22% accent (mostly --bg), which failed WCAG AA in
+            // light mode (3.50:1 vs the 4.5:1 small-text minimum,
+            // measured directly) since this chip sits over unpredictable
+            // poster art with no real image behind it to blur -- the
+            // backdrop-blur-sm it had was dead CSS anyway, color-mix()
+            // produces an opaque color so nothing was ever showing
+            // through to blur. --surface clears AA in both themes
+            // (9.65:1 dark, 5.23:1 light) while keeping the same accent
+            // text/border so the chip still reads as "trackable."
+            : { background: 'var(--surface)', color: 'var(--accent)', borderColor: 'var(--accent)' }
         }
       >
         <span className="relative flex h-3 w-3 shrink-0 items-center justify-center">
-          {optimisticWatchlisted && (
+          {showConfirm && (
             <span
-              className="signal-ping absolute inset-0 rounded-full"
-              style={{ background: 'currentColor', opacity: 0.5 }}
+              className="signal-confirm absolute inset-0 rounded-full"
+              style={{ background: 'currentColor' }}
             />
           )}
           <span
