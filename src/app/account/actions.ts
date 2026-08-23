@@ -170,7 +170,7 @@ export async function updatePassword(formData: FormData) {
   const newPassword = formData.get('new_password') as string;
 
   if (newPassword.length < 6) {
-    redirect(`/account?error=${encodeURIComponent('Password must be at least 6 characters.')}`);
+    redirect(`/account/security?error=${encodeURIComponent('Password must be at least 6 characters.')}`);
   }
 
   const supabase = await createClient();
@@ -185,8 +185,8 @@ export async function updatePassword(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
 
   if (error) {
-    redirect(`/account?error=${encodeURIComponent(error.message)}`);
+    redirect(`/account/security?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect('/account?password_saved=1');
+  redirect('/account/security?password_saved=1');
 }

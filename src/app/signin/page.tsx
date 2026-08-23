@@ -5,9 +5,9 @@ import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 export default async function SigninPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, saved } = await searchParams;
 
   return (
     <main className="relative overflow-hidden">
@@ -31,6 +31,11 @@ export default async function SigninPage({
             {error}
           </p>
         )}
+        {saved && (
+          <p className="mb-4 rounded-sm px-3 py-2 text-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}>
+            Password updated. Sign in with your new password.
+          </p>
+        )}
         <form action={signin} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label htmlFor="email" className="text-sm font-medium" style={{ color: 'var(--ink)' }}>
@@ -47,9 +52,14 @@ export default async function SigninPage({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="password" className="text-sm font-medium" style={{ color: 'var(--ink)' }}>
-              Password
-            </label>
+            <div className="flex items-center justify-between">
+              <label htmlFor="password" className="text-sm font-medium" style={{ color: 'var(--ink)' }}>
+                Password
+              </label>
+              <Link href="/forgot-password" className="text-xs underline" style={{ color: 'var(--accent-dim)' }}>
+                Forgot password?
+              </Link>
+            </div>
             <input
               id="password"
               name="password"
