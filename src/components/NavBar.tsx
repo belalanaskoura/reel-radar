@@ -5,8 +5,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { NavSearch } from '@/components/NavSearch';
 import { RadarLogo } from '@/components/RadarLogo';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { BellIcon, CinemaIcon, FilmIcon, SettingsIcon, UserIcon } from '@/components/icons';
+import { BellIcon, CinemaIcon, FilmIcon, RadarIcon, SettingsIcon, UserIcon } from '@/components/icons';
 import { isAdminEmail } from '@/lib/admin';
 
 export async function NavBar() {
@@ -39,16 +38,20 @@ export async function NavBar() {
       }}
     >
       <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-1.5 gap-y-2 px-3 py-2.5 sm:flex-nowrap sm:gap-x-6 sm:px-6 sm:py-4">
-        {/* Wordmark — icon-only until `sm:` (the wordmark text used to
-            reappear at the `xs:` (390px) breakpoint, which made the row
-            just wide enough to force theme/auth onto its own line at
-            exactly that width; staying icon-only all the way through
-            `sm:` keeps this a single row at every mobile width). */}
-        <Link href="/" className="flex shrink-0 items-center gap-2 sm:gap-2.5">
+        {/* Wordmark — always visible now (previously icon-only below
+            `sm:`), at a smaller size on mobile so it doesn't crowd out
+            the nav links -- everything else in this row was tightened
+            to compensate for the extra width this takes up. */}
+        <Link href="/" className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
           <RadarLogo size={22} className="sm:hidden" />
           <RadarLogo size={28} className="hidden sm:block" />
+          {/* Bebas Neue's own glyph metrics sit visually high within its
+              line box even at leading-none -- a small manual nudge down
+              is needed on top of that to actually center against the
+              logo mark, not just against the font's own reported line
+              height. */}
           <span
-            className="font-display hidden text-2xl tracking-wider sm:block"
+            className="font-display translate-y-[3px] text-lg leading-none tracking-wider sm:translate-y-[4px] sm:text-2xl"
             style={{ color: 'var(--ink)' }}
           >
             REELRADAR
@@ -77,9 +80,16 @@ export async function NavBar() {
           )}
         </div>
 
-        {/* Theme + Auth */}
+        {/* Auth -- ThemeToggle removed from here to make room for the
+            Watchlist link (still reachable via ThemeSettings on
+            /account/edit's Appearance card, just no longer a one-tap
+            nav shortcut). Watchlist sits right next to the profile
+            avatar, same NavLink treatment as Browse/Cinemas/Notifications
+            above, just positioned here instead of in that group. */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <ThemeToggle />
+          {user && (
+            <NavLink href="/watchlist" iconSize={17} iconSizeSm={18} label="Watchlist" icon={RadarIcon} />
+          )}
           <AuthSlot user={user} avatarUrl={avatarUrl} />
         </div>
 
@@ -98,12 +108,19 @@ function NavLink({
   href,
   icon: Icon,
   iconSize,
+  iconSizeSm,
   label,
   badgeCount,
 }: {
   href: string;
   icon: (props: { size?: number; className?: string; style?: React.CSSProperties }) => React.ReactNode;
   iconSize: number;
+  // Defaults to iconSize + 1, matching every existing call site's
+  // mobile-to-desktop step (16 -> 17) -- only needs overriding when one
+  // icon's shape (e.g. a circular glyph, which reads smaller than a
+  // boxy one at the same nominal size) needs a different bump to look
+  // consistent with its siblings.
+  iconSizeSm?: number;
   label: string;
   badgeCount?: number;
 }) {
@@ -115,7 +132,7 @@ function NavLink({
     >
       <span className="relative">
         <Icon size={iconSize} className="sm:hidden" />
-        <Icon size={17} className="hidden sm:block" />
+        <Icon size={iconSizeSm ?? iconSize + 1} className="hidden sm:block" />
         {!!badgeCount && <NavBadge />}
       </span>
       <span className="text-[8px] leading-none font-medium tracking-wide whitespace-nowrap sm:text-xs">
