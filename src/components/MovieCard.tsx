@@ -45,6 +45,7 @@ export function MovieCard({
             alt={movie.title}
             fill
             sizes="200px"
+            unoptimized
             className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (

@@ -253,6 +253,7 @@ function RecentCard({
             alt={movie.title}
             fill
             sizes="(max-width: 640px) 50vw, 200px"
+            unoptimized
             className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (

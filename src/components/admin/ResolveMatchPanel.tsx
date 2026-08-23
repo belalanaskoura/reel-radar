@@ -139,7 +139,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                   style={{ background: 'var(--listed-bg)' }}
                 >
                   {poster ? (
-                    <Image src={poster} alt={c.title} fill sizes="(max-width: 390px) 45vw, 120px" className="object-cover" />
+                    <Image src={poster} alt={c.title} fill sizes="(max-width: 390px) 45vw, 120px" unoptimized className="object-cover" />
                   ) : (
                     <div className="flex h-full items-center justify-center px-2 text-center text-[10px]" style={{ color: 'var(--ink-dim)' }}>
                       No poster

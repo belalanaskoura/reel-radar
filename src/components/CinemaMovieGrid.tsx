@@ -143,7 +143,7 @@ export function CinemaMovieGrid({
                   style={{ background: 'var(--listed-bg)' }}
                 >
                   {poster ? (
-                    <Image src={poster} alt={movie.title} fill sizes="200px" className="object-cover" />
+                    <Image src={poster} alt={movie.title} fill sizes="200px" unoptimized className="object-cover" />
                   ) : (
                     <div className="flex h-full items-center justify-center" style={{ color: 'var(--ink-dim)' }}>
                       <FilmIcon size={28} />

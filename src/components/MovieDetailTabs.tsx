@@ -177,6 +177,7 @@ function CastCard({ member }: { member: CreditsCastMember }) {
             alt={member.name}
             fill
             sizes="(min-width: 640px) 160px, 33vw"
+            unoptimized
             className="object-cover"
           />
         ) : (
