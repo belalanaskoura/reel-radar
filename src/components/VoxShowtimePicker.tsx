@@ -63,7 +63,7 @@ export function VoxShowtimePicker({
       >
         <InfoIcon size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--ink-dim)' }} />
         <p className="text-xs leading-snug" style={{ color: 'var(--ink-dim)' }}>
-          Some showtimes below may already be fully booked — VOX doesn&rsquo;t give us live
+          Some showtimes below may already be fully booked. VOX doesn&rsquo;t give us live
           seat availability, so double-check on their site before heading out.
         </p>
       </div>

@@ -38,7 +38,7 @@ export function FeedbackForm({ email }: { email: string }) {
           MESSAGE SENT
         </h2>
         <p className="max-w-[80%] text-sm" style={{ color: 'var(--ink-dim)' }}>
-          Thanks for reaching out — feedback like this is what makes ReelRadar better.
+          Thanks for reaching out. Feedback like this is what makes ReelRadar better.
         </p>
         <button
           type="button"
@@ -91,7 +91,7 @@ export function FeedbackForm({ email }: { email: string }) {
         maxLength={MAX_MESSAGE_LENGTH}
         placeholder="What's on your mind?"
         aria-label="Your message"
-        className="w-full resize-none rounded-sm border-b-2 px-4 py-4 text-sm focus:outline-none"
+        className="w-full resize-none rounded-sm border-2 px-4 py-4 text-sm focus:outline-none"
         style={{ background: 'var(--surface)', color: 'var(--ink)', borderColor: 'transparent' }}
         onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
         onBlur={(e) => (e.currentTarget.style.borderColor = 'transparent')}

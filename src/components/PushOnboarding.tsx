@@ -55,7 +55,7 @@ export function PushOnboarding({
               Turn on notifications
             </h2>
             <p className="mt-1.5 text-sm leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
-              Your browser will ask for permission once — that&apos;s the
+              Your browser will ask for permission once, and that&apos;s the
               whole setup.
             </p>
           </div>
@@ -101,8 +101,8 @@ export function PushOnboarding({
         <p className="mt-5 text-center text-sm" style={{ color: 'var(--ink-dim)' }}>
           <Link href="/browse" className="underline" style={{ color: 'var(--accent)' }}>
             Skip for now
-          </Link>{' '}
-          — you can turn this on later from your profile.
+          </Link>
+          . You can turn this on later from your profile.
         </p>
       )}
     </div>

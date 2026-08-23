@@ -174,7 +174,7 @@ export default async function AdminMatchingPage() {
       </section>
 
       <section>
-        <SectionHeader>Backlog — needs manual attention</SectionHeader>
+        <SectionHeader>Backlog: needs manual attention</SectionHeader>
         {!backlogMovies || backlogMovies.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ok-ink)' }}>
             Nothing unmatched or ambiguous right now.

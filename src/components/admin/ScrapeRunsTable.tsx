@@ -88,10 +88,10 @@ export function ScrapeRunsTable({
                     <Td>
                       {p.batchSize !== undefined ? (
                         <span style={{ color: 'var(--ink-dim)' }}>
-                          {p.offset ?? 0}–{(p.offset ?? 0) + p.batchSize}
+                          {p.offset ?? 0}-{(p.offset ?? 0) + p.batchSize}
                         </span>
                       ) : (
-                        <span style={{ color: 'var(--ink-dim)' }}>—</span>
+                        <span style={{ color: 'var(--ink-dim)' }}>-</span>
                       )}
                     </Td>
                     <Td>{p.bookable}</Td>

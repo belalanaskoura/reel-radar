@@ -276,7 +276,7 @@ export default async function AdminOverviewPage() {
           <AlertCard
             tone="error"
             title={`${missingRunBranches.length} branch${missingRunBranches.length === 1 ? '' : 'es'} silent`}
-            description={`No scrape or delist run logged in over ${JOB_GAP_THRESHOLD_MINUTES} min — the scheduler's own timeout likely killed the request before it could even log a failure.`}
+            description={`No scrape or delist run logged in over ${JOB_GAP_THRESHOLD_MINUTES} min. The scheduler's own timeout likely killed the request before it could even log a failure.`}
           >
             <div className="flex flex-wrap gap-2">
               {missingRunBranches.map((branch) => (

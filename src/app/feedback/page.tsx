@@ -30,7 +30,7 @@ export default async function FeedbackPage() {
         SEND FEEDBACK
       </h1>
       <p className="mb-8 max-w-[90%] text-sm" style={{ color: 'var(--ink-dim)' }}>
-        Bug reports, movie requests, or just saying hi — your feedback goes directly to me.
+        Bug reports, movie requests, or just saying hi. Your feedback goes directly to me.
       </p>
 
       <FeedbackForm email={user.email ?? ''} />

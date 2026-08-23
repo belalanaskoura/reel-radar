@@ -20,7 +20,7 @@ const LOADING_MESSAGES = [
   { afterMs: 0, text: 'Connecting to Scene Cinemas…' },
   { afterMs: 2500, text: 'Opening the real showtime page…' },
   { afterMs: 6000, text: 'Reading live seat availability…' },
-  { afterMs: 12000, text: 'Scene Cinemas is taking a moment — hang tight…' },
+  { afterMs: 12000, text: 'Scene Cinemas is taking a moment, hang tight…' },
 ];
 
 function useLoadingMessage(): string {

@@ -93,14 +93,14 @@ export function PushPrompt() {
 
         {visibility === 'ios-needs-install' ? (
           <p className="mt-2.5 text-sm leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
-            On iPhone/iPad, add ReelRadar to your Home Screen first — then
+            On iPhone/iPad, add ReelRadar to your Home Screen first. Then
             you can turn on notifications and get told the instant tickets
             go live.
           </p>
         ) : (
           <p className="mt-2.5 text-sm leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
-            Get told the instant a watchlisted movie&apos;s tickets go live —
-            one browser prompt, that&apos;s the whole setup.
+            Get told the instant a watchlisted movie&apos;s tickets go live,
+            with one browser prompt. That&apos;s the whole setup.
           </p>
         )}
 
