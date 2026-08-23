@@ -1,23 +1,115 @@
-# ReelRadar
+<a id="readme-top"></a>
 
-A watchlist app for Egypt cinemas: browse everything bookable now or
-coming soon across **Scene Cinemas** (Cairo Festival City, District 5)
+<!-- PROJECT SHIELDS -->
+<div align="center">
+
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![MIT License][license-shield]][license-url]
+[![LinkedIn][linkedin-shield]][linkedin-url]
+
+</div>
+
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+  <a href="https://github.com/belalanaskoura/reel-radar">
+    <img src="public/icon-512.png" alt="Logo" width="120" height="120">
+  </a>
+
+  <h3 align="center">ReelRadar</h3>
+
+  <p align="center">
+    Never miss the moment a movie goes on sale at your cinema again.
+    <br />
+    <a href="https://reelradar.online"><strong>View Live Demo »</strong></a>
+    <br />
+    <br />
+    <a href="https://github.com/belalanaskoura/reel-radar/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    &middot;
+    <a href="https://github.com/belalanaskoura/reel-radar/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+  </p>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+      <ul>
+        <li><a href="#built-with">Built With</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#how-it-works">How It Works</a>
+    </li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#environment-variables">Environment Variables</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#usage">Usage</a>
+      <ul>
+        <li><a href="#scheduled-jobs">Scheduled Jobs</a></li>
+        <li><a href="#one-off-scripts">One-off Scripts</a></li>
+      </ul>
+    </li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#acknowledgments">Acknowledgments</a></li>
+  </ol>
+</details>
+
+<!-- ABOUT THE PROJECT -->
+## About The Project
+
+ReelRadar is a watchlist app for Egypt cinemas: browse everything bookable
+now or coming soon across **Scene Cinemas** (Cairo Festival City, District 5)
 and **VOX Cinemas** (Mall of Egypt, City Center Alexandria, City Centre
 Almaza), watchlist a title before it's even listed, and get notified the
 moment tickets go on sale — by email and/or browser push — with a link
 straight to booking.
 
-Live at: _https://reelradar.online_
+Cinemas don't notify you when booking opens for a movie you're waiting on.
+This app polls on your behalf and notifies you the instant a watchlisted
+title becomes bookable, so you stop manually refreshing their site. It
+started as a personal script that checked one cinema branch for one movie;
+this is the general version.
 
-## Why this exists
+**Live at:** [reelradar.online](https://reelradar.online)
 
-Cinemas don't notify you when booking opens for a movie you're waiting
-on. This app polls on your behalf and notifies you the instant a
-watchlisted title becomes bookable, so you stop manually refreshing
-their site. It started as a personal script that checked one cinema
-branch for one movie; this is the general version.
+<!-- SCREENSHOTS -->
+<!--
+  TODO: drop product screenshots/GIFs here, e.g.:
+  <p align="center">
+    <img src="docs/screenshot-watchlist.png" alt="Watchlist screen" width="80%">
+  </p>
+-->
 
-## How it works
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Built With
+
+* [![Next.js][Next.js]][Next-url]
+* [![React][React.js]][React-url]
+* [![TypeScript][TypeScript]][TypeScript-url]
+* [![Tailwind CSS][Tailwind]][Tailwind-url]
+* [![Supabase][Supabase]][Supabase-url]
+* [![Playwright][Playwright]][Playwright-url]
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- HOW IT WORKS -->
+## How It Works
 
 - **Movie catalog** comes from [TMDB](https://www.themoviedb.org/),
   filtered to titles a real Egypt-based distributor has actually
@@ -65,38 +157,52 @@ branch for one movie; this is the general version.
 - **In-app feedback** (`/feedback`) — saved to the database and emailed
   directly to the maintainer.
 
-## Stack
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- **Next.js 16** (App Router, TypeScript, Turbopack) + Tailwind CSS v4
-- **Supabase** — Postgres, Auth (email/password and Google OAuth), Row
-  Level Security
-- **TMDB API** — movie catalog, cast/crew, release dates
-- **elCinema**, **Scene Cinemas** — scraped directly (see
-  [`src/lib/elcinema/`](src/lib/elcinema/) and
-  [`src/lib/scene/`](src/lib/scene/))
-- **Resend** — transactional email for notifications and feedback
-- **web-push** (Web Push API + VAPID) — browser push notifications, no
-  third-party push service or app install required
-- **cheerio** for HTML parsing, **Playwright** for browser-driven
-  verification during development
+<!-- GETTING STARTED -->
+## Getting Started
 
-## Local setup
+To get a local copy up and running, follow these steps.
 
-```bash
-npm install
-cp .env.example .env.local   # fill in real values, see below
-npm run dev
-```
+### Prerequisites
 
-The app expects a Supabase project with a matching schema. Schema
-changes aren't tracked as migration files in this repo — they're applied
-directly via Supabase's SQL Editor. If you're standing up a fresh
-project, you'll need to create the core tables yourself: `movies`,
-`branches`, `movie_branch_slugs`, `showtimes_cache`, `watchlist`,
-`notification_log`, `profiles`, `push_subscriptions`, `feedback`,
-`egypt_releases`, `egypt_distributors`, `scene_price_templates`.
+* Node.js and npm
+  ```sh
+  npm install npm@latest -g
+  ```
+* A [Supabase](https://supabase.com) project (Postgres + Auth)
+* API keys for [TMDB](https://www.themoviedb.org/settings/api) and
+  [Resend](https://resend.com/api-keys)
 
-### Environment variables
+### Installation
+
+1. Clone the repo
+   ```sh
+   git clone https://github.com/belalanaskoura/reel-radar.git
+   ```
+2. Install NPM packages
+   ```sh
+   npm install
+   ```
+3. Copy the env file and fill in real values (see
+   [Environment Variables](#environment-variables))
+   ```sh
+   cp .env.example .env.local
+   ```
+4. Run the dev server
+   ```sh
+   npm run dev
+   ```
+
+The app expects a Supabase project with a matching schema. Schema changes
+aren't tracked as migration files in this repo — they're applied directly
+via Supabase's SQL Editor. If you're standing up a fresh project, you'll
+need to create the core tables yourself: `movies`, `branches`,
+`movie_branch_slugs`, `showtimes_cache`, `watchlist`, `notification_log`,
+`profiles`, `push_subscriptions`, `feedback`, `egypt_releases`,
+`egypt_distributors`, `scene_price_templates`.
+
+### Environment Variables
 
 | Variable | Used for |
 |---|---|
@@ -116,7 +222,22 @@ Google sign-in is configured entirely in the Supabase dashboard
 (Authentication → Providers → Google) and the corresponding Google Cloud
 OAuth client — no additional env vars in this repo.
 
-## Scheduled jobs
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- USAGE EXAMPLES -->
+## Usage
+
+Sign up, browse what's bookable now or coming soon at a Scene or VOX
+branch, and watchlist a title — you'll get an email and/or browser push
+the moment it becomes bookable, with a link straight to the cinema's
+booking page.
+
+<!--
+  TODO: add a short GIF/screenshot walkthrough of sign-up → browse →
+  watchlist → notification here.
+-->
+
+### Scheduled Jobs
 
 These are plain API routes, not Vercel Cron — Vercel's Hobby tier caps
 cron at once/day with up to ±59 min jitter, too coarse for this app's
@@ -143,7 +264,7 @@ curl -X POST https://reelradar.online/api/poll \
   -H "x-sync-secret: $SYNC_SECRET"
 ```
 
-## One-off scripts
+### One-off Scripts
 
 Run locally with `npx tsx scripts/<name>.ts` — these are historical
 backfills / corrections, not part of the regular scheduled-job loop:
@@ -161,7 +282,21 @@ backfills / corrections, not part of the regular scheduled-job loop:
 - `cleanup-distributor-filter.ts` — retroactively re-checks the catalog
   against a tightened distributor allowlist.
 
-## Known limitations
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- ROADMAP -->
+## Roadmap
+
+- [ ] Direct VOX scraping if a reliable way around its bot protection is
+      found (currently substituted via elCinema — see below)
+- [ ] Close the Arabic-title matching gap between differing
+      transliterations across cinemas and elCinema
+- [ ] Softer handling for unmatched distributors (confidence label
+      instead of outright exclusion)
+- [ ] Resilience improvements for HTML-scraping breakage on selector
+      changes
+
+**Known limitations:**
 
 - **VOX isn't scraped directly**: VOX's own site sits behind bot
   protection that blocks direct fetching and headless-browser scraping
@@ -184,3 +319,86 @@ backfills / corrections, not part of the regular scheduled-job loop:
   changes on either site can break parsing until the relevant selector
   is updated.
 
+See the [open issues](https://github.com/belalanaskoura/reel-radar/issues)
+for a full list of proposed features (and known issues).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- CONTRIBUTING -->
+## Contributing
+
+Contributions are what make the open source community such an amazing
+place to learn, inspire, and create. Any contributions you make are
+**greatly appreciated**.
+
+If you have a suggestion that would make this better, please fork the
+repo and create a pull request. You can also simply open an issue with
+the tag "enhancement". Don't forget to give the project a star! Thanks
+again!
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- LICENSE -->
+## License
+
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more
+information.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- CONTACT -->
+## Contact
+
+Belal Anas
+
+- LinkedIn: [belal-anas](https://www.linkedin.com/in/belal-anas)
+- Email: belalaskoura@outlook.com
+- Project Link: [https://github.com/belalanaskoura/reel-radar](https://github.com/belalanaskoura/reel-radar)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- ACKNOWLEDGMENTS -->
+## Acknowledgments
+
+* [TMDB](https://www.themoviedb.org/) — movie catalog, cast/crew, and release dates
+* [elCinema](https://elcinema.com) — Egypt release dates, posters, and VOX showtime data
+* [Scene Cinemas](https://scenecinemas.net) and [VOX Cinemas](https://voxcinemas.com/eg) — the cinemas this app tracks
+* [Resend](https://resend.com) — transactional email delivery
+* [Supabase](https://supabase.com) — Postgres, Auth, and Row Level Security
+* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — the README structure this file is based on
+* [Shields.io](https://shields.io) — README badges
+* [Choose an Open Source License](https://choosealicense.com)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- MARKDOWN LINKS & IMAGES -->
+[contributors-shield]: https://img.shields.io/github/contributors/belalanaskoura/reel-radar.svg?style=for-the-badge
+[contributors-url]: https://github.com/belalanaskoura/reel-radar/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/belalanaskoura/reel-radar.svg?style=for-the-badge
+[forks-url]: https://github.com/belalanaskoura/reel-radar/network/members
+[stars-shield]: https://img.shields.io/github/stars/belalanaskoura/reel-radar.svg?style=for-the-badge
+[stars-url]: https://github.com/belalanaskoura/reel-radar/stargazers
+[issues-shield]: https://img.shields.io/github/issues/belalanaskoura/reel-radar.svg?style=for-the-badge
+[issues-url]: https://github.com/belalanaskoura/reel-radar/issues
+[license-shield]: https://img.shields.io/github/license/belalanaskoura/reel-radar.svg?style=for-the-badge
+[license-url]: https://github.com/belalanaskoura/reel-radar/blob/main/LICENSE
+[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
+[linkedin-url]: https://www.linkedin.com/in/belal-anas
+[Next.js]: https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white
+[Next-url]: https://nextjs.org/
+[React.js]: https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB
+[React-url]: https://reactjs.org/
+[TypeScript]: https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white
+[TypeScript-url]: https://www.typescriptlang.org/
+[Tailwind]: https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white
+[Tailwind-url]: https://tailwindcss.com/
+[Supabase]: https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white
+[Supabase-url]: https://supabase.com/
+[Playwright]: https://img.shields.io/badge/Playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white
+[Playwright-url]: https://playwright.dev/
