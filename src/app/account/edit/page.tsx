@@ -7,10 +7,8 @@ import {
   updateLineupAlerts,
   updateDisplayName,
   updateEmail,
-  updatePassword,
 } from '../actions';
 import { AvatarUpload } from '@/components/AvatarUpload';
-import { SecurityPanel } from '@/components/SecurityPanel';
 import { SettingsCard } from '@/components/SettingsCard';
 import { CinemaAlertsCard } from '@/components/CinemaAlertsCard';
 import { NewReleaseToggle } from '@/components/NewReleaseToggle';
@@ -164,10 +162,14 @@ export default async function SettingsPage({
               </div>
 
               <div className="border-t pt-5" style={{ borderColor: 'var(--rule)' }}>
-                <h3 className="mb-2 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
+                <h3 className="mb-1 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
                   Password
                 </h3>
-                <SecurityPanel updatePassword={updatePassword} />
+                <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
+                  <Link href="/account/security" className="underline" style={{ color: 'var(--accent-dim)' }}>
+                    Change password →
+                  </Link>
+                </p>
               </div>
             </div>
           </div>

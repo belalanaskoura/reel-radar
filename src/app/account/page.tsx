@@ -10,9 +10,9 @@ import { ArrowRightIcon, BookmarkIcon, SettingsIcon, SignOutIcon, FilmIcon, Mess
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; password_saved?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
-  const { error, password_saved } = await searchParams;
+  const { error } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -84,18 +84,11 @@ export default async function ProfilePage({
       <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
 
       {/* Flash messages */}
-      {(error || password_saved) && (
+      {error && (
         <div className="mb-6">
-          {error && (
-            <p role="alert" className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}>
-              {error}
-            </p>
-          )}
-          {password_saved && (
-            <p className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}>
-              Password updated.
-            </p>
-          )}
+          <p role="alert" className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}>
+            {error}
+          </p>
         </div>
       )}
 
