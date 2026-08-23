@@ -231,6 +231,26 @@ body {
   }
 }
 
+/* ShowtimePicker/VoxShowtimePicker's day-detail panel -- was a bare
+   `{selectedDate && (...)}` conditional with zero enter transition,
+   popping in/out instantly (emil-design-eng: "elements appearing or
+   disappearing without transition feel broken"). @starting-style over a
+   measured-height approach since this panel's own content already
+   determines its final height with no risk of a stale/wrong number (no
+   ResizeObserver machinery needed, unlike SettingsCard's accordion). */
+@media (prefers-reduced-motion: no-preference) {
+  .panel-reveal {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition: opacity 200ms ease-out, transform 200ms ease-out;
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   /* Smooths the theme switch (light/dark/system) so every themed surface
      crossfades together instead of snapping instantly -- scoped to just
@@ -493,12 +513,14 @@ body {
     }
   }
 
-  /* Seat-map checkmark, on selecting a seat -- a quick overshoot pop
-     rather than just appearing, so picking a seat reads as a deliberate,
-     confirmed action (the ux-guidelines "Success Feedback" rule: confirm
-     completed actions with a visible change, not silently). */
+  /* Seat-map checkmark, on selecting a seat -- pops in rather than just
+     appearing, so picking a seat reads as a deliberate, confirmed action.
+     Previously used an overshoot/bounce curve; switched to a critically
+     damped strong ease-out per apple-design's rule that bounce belongs
+     only on momentum-carrying gestures (a drag, a flick, a release) --
+     a plain tap has no momentum to justify it. */
   .animate-seat-pop {
-    animation: seat-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: seat-pop 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   @keyframes seat-pop {

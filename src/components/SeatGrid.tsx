@@ -178,7 +178,7 @@ function SeatButton({
         title={`${seat.label}${seat.category ? ` · ${seat.category}` : ''}`}
         disabled={seat.availability !== 'free'}
         onClick={onToggle}
-        className="relative h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px] text-[9px] leading-6 font-medium transition-transform duration-150 ease-out disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:scale-110 enabled:active:scale-90"
+        className="relative h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px] text-[9px] leading-6 font-medium disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:scale-105 enabled:active:scale-90"
         style={seatStyle(seat, isSelected)}
       >
         {isSelected && (
@@ -234,12 +234,25 @@ function SelectionBar({ selectedSeats, bookingUrl }: { selectedSeats: Seat[]; bo
             <TicketIcon size={16} />
           </span>
           <div className="min-w-0 flex-col leading-tight">
-            <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+            {/* Keyed by the visible string so each change to the seat
+                count/total remounts and cross-fades instead of swapping
+                instantly -- the sticky bar's icon badge already had a
+                color transition on this same state change, but the text
+                itself popped with zero motion. */}
+            <p
+              key={selectedSeats.length}
+              className="animate-fade-in text-sm font-semibold"
+              style={{ color: 'var(--ink)' }}
+            >
               {hasSelection
                 ? `${selectedSeats.length} seat${selectedSeats.length === 1 ? '' : 's'} selected${totalEgp != null ? ` · ${totalEgp} EGP` : ''}`
                 : 'No seats selected'}
             </p>
-            <p className="truncate text-xs" style={{ color: 'var(--ink-dim)' }}>
+            <p
+              key={selectedSeats.map((s) => s.appId).join(',')}
+              className="animate-fade-in truncate text-xs"
+              style={{ color: 'var(--ink-dim)' }}
+            >
               {hasSelection
                 ? selectedSeats.map((s) => s.label).join(', ')
                 : 'Tap seats above to plan your pick'}
@@ -380,7 +393,13 @@ function LegendItem({ swatch, label }: { swatch: React.CSSProperties; label: str
 // have 1-3 categories, so a border variant reads clearly without
 // introducing an unrelated categorical ramp.
 function seatStyle(seat: Pick<Seat, 'availability' | 'category'>, isSelected: boolean): React.CSSProperties {
-  const base: React.CSSProperties = { transition: 'transform 0.1s ease' };
+  // Single source of truth for the seat's transition (previously also
+  // duplicated as a Tailwind transition-transform class on the button
+  // itself, which fought with this inline style for the same property --
+  // inline style always won, so the className's declared duration/easing
+  // was silently dead). emil-design-eng's strong ease-out curve, in the
+  // 100-160ms press-feedback band.
+  const base: React.CSSProperties = { transition: 'transform 150ms cubic-bezier(0.23, 1, 0.32, 1)' };
 
   if (isSelected) {
     return { ...base, background: 'var(--accent)', color: 'var(--accent-ink)', boxShadow: '0 2px 8px -1px var(--accent)' };
