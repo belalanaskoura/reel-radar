@@ -23,9 +23,9 @@ const UPDATES: ProductUpdate[] = [
   {
     id: 'cinema-follow',
     icon: CinemaIcon,
-    title: 'Follow a whole cinema',
+    title: 'Track a whole cinema',
     description:
-      'Now you can follow a whole branch and get notified the moment a movie joins or leaves its lineup, not just a single movie.',
+      'Now you can track a whole branch and get notified the moment a movie joins or leaves its lineup, not just a single movie.',
     ctaLabel: 'Browse cinemas',
     ctaHref: '/cinemas',
   },

@@ -100,7 +100,7 @@ export async function notifyLineupAddedPush(
 ): Promise<number> {
   return sendToUser(supabase, userId, {
     title: `${notification.movieTitle} is now at ${notification.branchName}`,
-    body: `Just joined the lineup at a cinema you follow.`,
+    body: `Just joined the lineup at a cinema you track.`,
     url: notification.movieUrl,
   });
 }
@@ -112,7 +112,7 @@ export async function notifyLineupRemovedPush(
 ): Promise<number> {
   return sendToUser(supabase, userId, {
     title: `${notification.movieTitle} has left ${notification.branchName}`,
-    body: `No longer playing at a cinema you follow.`,
+    body: `No longer playing at a cinema you track.`,
     url: notification.cinemaUrl,
   });
 }

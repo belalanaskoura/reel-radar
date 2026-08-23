@@ -3,9 +3,14 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { MapPinIcon, ArrowRightIcon } from '@/components/icons';
 import { sortBranchesForDisplay, type VoxDayDetail } from '@/lib/branches';
+import { CinemaFollowButton } from '@/components/CinemaFollowButton';
 
 export default async function CinemasPage() {
   const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // Branches and bookable counts fetched concurrently rather than
   // sequentially, and the counts come from one query grouped client-side
@@ -20,7 +25,7 @@ export default async function CinemasPage() {
   // resolved cleanly) -- matching /cinemas/[id]'s rule exactly, since a
   // stricter filter here previously undercounted relative to what the
   // branch detail page actually showed for the same branch.
-  const [{ data: branches }, { data: bookableRows }] = await Promise.all([
+  const [{ data: branches }, { data: bookableRows }, followedRows] = await Promise.all([
     supabase
       .from('branches')
       .select('id, name, base_url, address, formats, chain, logo_url')
@@ -29,7 +34,12 @@ export default async function CinemasPage() {
       .from('showtimes_cache')
       .select('branch_id, raw_showtimes, movies(match_status)')
       .eq('bookable', true),
+    user
+      ? supabase.from('cinema_follows').select('branch_id').eq('user_id', user.id)
+      : Promise.resolve({ data: null }),
   ]);
+
+  const followedBranchIds = new Set((followedRows.data ?? []).map((r) => r.branch_id as string));
 
   const bookableCountByBranch = new Map<string, number>();
   // Scene's format tags come from branches.formats, populated by the
@@ -123,12 +133,22 @@ export default async function CinemasPage() {
                   >
                     {branch.name}
                   </h2>
-                  <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors duration-300"
-                    style={{ background: 'var(--bg-elevated)', color: 'var(--accent)' }}
-                  >
-                    <ArrowRightIcon size={16} />
-                  </div>
+                  {user ? (
+                    <div className="pointer-events-auto relative z-10">
+                      <CinemaFollowButton
+                        branchId={branch.id}
+                        isFollowing={followedBranchIds.has(branch.id)}
+                        variant="icon"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors duration-300"
+                      style={{ background: 'var(--bg-elevated)', color: 'var(--accent)' }}
+                    >
+                      <ArrowRightIcon size={16} />
+                    </div>
+                  )}
                 </div>
 
                 <p className="text-sm" style={{ color: 'var(--accent)' }}>

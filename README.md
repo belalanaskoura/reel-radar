@@ -78,9 +78,9 @@ now or coming soon across **Scene Cinemas** (Cairo Festival City, District 5)
 and **VOX Cinemas** (Mall of Egypt, City Center Alexandria, City Centre
 Almaza), watchlist a title before it's even listed, and get notified the
 moment tickets go on sale — by email and/or browser push — with a link
-straight to booking. Prefer to track a cinema instead of a specific movie?
-Follow a whole branch and get notified whenever a movie joins or leaves
-its lineup.
+straight to booking. Prefer to track a whole cinema instead of a
+specific movie? Get notified whenever a movie joins or leaves a
+branch's lineup.
 
 **Live at:** [reelradar.online](https://reelradar.online)
 
@@ -164,7 +164,7 @@ title across any supported branch and get notified the moment it opens.
   one subscription per device). Either channel failing doesn't block the
   other. A movie notifies once per bookable "episode" — if it goes
   not-bookable and later reopens, watchers are notified again.
-- **Follow a cinema** to get notified about the branch itself rather than
+- **Track a cinema** to get notified about the branch itself rather than
   one title — a movie joining or leaving that branch's lineup triggers
   its own notification, independent of the per-movie watchlist above and
   gated by its own opt-in toggle. Detecting a lineup change reuses the
@@ -283,9 +283,9 @@ to be called on a real interval by an external scheduler (e.g.
 | Route | Purpose | Suggested interval |
 |---|---|---|
 | `POST /api/sync-movies` | Pulls upcoming movies from TMDB into the catalog | Daily |
-| `POST /api/scrape-scene?branch=<id>` | Scrapes a Scene branch's listings and bookability, notifying cinema-followers of any movie newly added to that branch | Every 15–30 min per branch |
-| `POST /api/scrape-scene-delist` | Clears bookability for Scene movies no longer listed at all, notifying cinema-followers of the removal | Every 15–30 min |
-| `POST /api/scrape-vox` | Scrapes VOX showtimes (via elCinema) for all 3 branches, including delisting movies whose run has ended and notifying cinema-followers of both additions and removals | Daily (full-detail fetch, more expensive per run) |
+| `POST /api/scrape-scene?branch=<id>` | Scrapes a Scene branch's listings and bookability, notifying cinema-trackers of any movie newly added to that branch | Every 15–30 min per branch |
+| `POST /api/scrape-scene-delist` | Clears bookability for Scene movies no longer listed at all, notifying cinema-trackers of the removal | Every 15–30 min |
+| `POST /api/scrape-vox` | Scrapes VOX showtimes (via elCinema) for all 3 branches, including delisting movies whose run has ended and notifying cinema-trackers of both additions and removals | Daily (full-detail fetch, more expensive per run) |
 | `POST /api/scrape-formats` | Records which showtime formats (Standard, IMAX, etc.) are available per Scene branch, for `/cinemas` | Every 30 min |
 | `POST /api/match-movies` | Matches new listings to TMDB entries | After each scrape run |
 | `POST /api/poll` | Checks bookability for watched (movie, branch) pairs and notifies | Every 15–30 min |

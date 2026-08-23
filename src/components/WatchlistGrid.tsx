@@ -187,8 +187,8 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
                   <button
                     type="button"
                     onClick={() => handleRemove(movie.id)}
-                    aria-label="Remove from watchlist"
-                    title="Remove from watchlist"
+                    aria-label="Remove from radar"
+                    title="Remove from radar"
                     className="absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-sm transition-opacity hover:opacity-80"
                     style={{ background: 'color-mix(in srgb, var(--bg) 65%, transparent)', color: 'var(--ink)' }}
                   >

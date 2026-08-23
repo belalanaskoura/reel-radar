@@ -71,7 +71,7 @@ export default async function WatchlistPage() {
         {followedCinemas.length > 0 && (
           <div className="mb-10 flex flex-col gap-3">
             <h2 className="font-display text-xl tracking-wide uppercase" style={{ color: 'var(--ink)' }}>
-              Following
+              Tracking
             </h2>
             <div className="flex flex-col gap-2">
               {followedCinemas.map((branch) => (
