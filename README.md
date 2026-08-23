@@ -40,6 +40,7 @@
     <li>
       <a href="#about-the-project">About The Project</a>
       <ul>
+        <li><a href="#why-this-exists">Why This Exists</a></li>
         <li><a href="#built-with">Built With</a></li>
       </ul>
     </li>
@@ -79,12 +80,6 @@ Almaza), watchlist a title before it's even listed, and get notified the
 moment tickets go on sale — by email and/or browser push — with a link
 straight to booking.
 
-Cinemas don't notify you when booking opens for a movie you're waiting on.
-This app polls on your behalf and notifies you the instant a watchlisted
-title becomes bookable, so you stop manually refreshing their site. It
-started as a personal script that checked one cinema branch for one movie;
-this is the general version.
-
 **Live at:** [reelradar.online](https://reelradar.online)
 
 <!-- SCREENSHOTS -->
@@ -94,6 +89,20 @@ this is the general version.
     <img src="docs/screenshot-watchlist.png" alt="Watchlist screen" width="80%">
   </p>
 -->
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Why This Exists
+
+Cinemas don't notify you when booking opens for a movie you're waiting on.
+You either check back manually every day or find out too late that your
+preferred showtime and format are already sold out. ReelRadar polls on
+your behalf and notifies you the instant a watchlisted title becomes
+bookable, so you stop manually refreshing their site.
+
+It started as a personal script that checked one cinema branch for one
+movie; this is the general version — anyone can watchlist any upcoming
+title across any supported branch and get notified the moment it opens.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
