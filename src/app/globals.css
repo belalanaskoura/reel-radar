@@ -140,6 +140,18 @@ body {
   --tw-ring-color: var(--accent);
 }
 
+/* Text inputs that use plain `border` + `borderColor: var(--rule)` (not
+   FeedbackForm's textarea, which swaps its border to --accent via a JS
+   onFocus/onBlur handler since it's a Client Component) get the same
+   accent border on focus here instead -- apple-design's Familiarity
+   principle: visually similar inputs should behave the same. Scoped to
+   .input-accent-focus rather than every bare `border` element site-wide,
+   since some bordered elements (dropdown triggers, cards) shouldn't gain
+   a focus border they were never designed to show. */
+.input-accent-focus:focus {
+  border-color: var(--accent);
+}
+
 /* Marquee display face -- used for the wordmark and movie titles only. */
 .font-display {
   font-family: var(--font-marquee), var(--font-body), sans-serif;
@@ -195,6 +207,28 @@ body {
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* Flash-message banners (profile page, settings page) -- server-rendered,
+   so there's no mount effect to drive a React-side enter transition.
+   @starting-style is the CSS-native way to animate an element's first
+   frame without JS (emil-design-eng: "elements appearing or disappearing
+   without transition feel broken"). Guarded by the same
+   prefers-reduced-motion block as every other animation on this page --
+   @starting-style itself is inert without a transition/animation
+   declared outside the block, so this only needs the block for the
+   transition property, not a separate reduced-motion fallback. */
+@media (prefers-reduced-motion: no-preference) {
+  .flash-message {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 200ms ease-out, transform 200ms ease-out;
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

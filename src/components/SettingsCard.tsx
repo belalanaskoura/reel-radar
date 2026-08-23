@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDownIcon } from '@/components/icons';
+import { useReducedMotion } from '@/lib/useReducedMotion';
 
 // Collapsible settings row: closed by default, a plain header (no
 // border/fill) until tapped, expanding in place to reveal its content in
@@ -35,6 +36,11 @@ export function SettingsCard({
   const [open, setOpen] = useState(defaultOpen);
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
+  // apple-design §14: reduced motion means a gentler equivalent, not zero
+  // feedback -- so this collapses straight to open/closed with a quick
+  // opacity-only cross-fade instead of the height slide + translateY
+  // choreography below.
+  const reducedMotion = useReducedMotion();
 
   // Measures synchronously before paint so a defaultOpen card renders at
   // its real height on first frame instead of starting from 0 and
@@ -67,7 +73,7 @@ export function SettingsCard({
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-3 py-4 text-left transition-opacity hover:opacity-80"
+        className="flex w-full items-center gap-3 py-4 text-left transition-[opacity,transform] duration-150 ease-out hover:opacity-80 active:scale-[0.99]"
       >
         {icon && (
           <div className="shrink-0" style={{ color: 'var(--accent)' }}>
@@ -86,22 +92,22 @@ export function SettingsCard({
         </div>
         <ChevronDownIcon
           size={18}
-          className="shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.65,0,0.35,1)]"
+          className={`shrink-0 ${reducedMotion ? '' : 'transition-transform duration-300 ease-[cubic-bezier(0.65,0,0.35,1)]'}`}
           style={{ color: 'var(--ink-dim)', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
         />
       </button>
 
       <div
-        className="overflow-hidden transition-[height] duration-300 ease-[cubic-bezier(0.65,0,0.35,1)]"
+        className={`overflow-hidden ${reducedMotion ? 'transition-[height] duration-100 ease-out' : 'transition-[height] duration-300 ease-[cubic-bezier(0.65,0,0.35,1)]'}`}
         style={{ height: open ? height : 0 }}
       >
         <div
           ref={contentRef}
-          className="pb-5 transition-[opacity,transform] duration-200 ease-out"
+          className={`pb-5 ${reducedMotion ? 'transition-opacity duration-100 ease-out' : 'transition-[opacity,transform] duration-200 ease-out'}`}
           style={{
             opacity: open ? 1 : 0,
-            transform: open ? 'translateY(0)' : 'translateY(-4px)',
-            transitionDelay: open ? '100ms' : '0ms',
+            transform: reducedMotion ? undefined : open ? 'translateY(0)' : 'translateY(-4px)',
+            transitionDelay: reducedMotion ? '0ms' : open ? '100ms' : '0ms',
           }}
         >
           {children}

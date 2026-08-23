@@ -86,7 +86,7 @@ export default async function ProfilePage({
       {/* Flash messages */}
       {error && (
         <div className="mb-6">
-          <p role="alert" className="rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}>
+          <p role="alert" className="flash-message rounded-sm px-4 py-2.5 text-sm" style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}>
             {error}
           </p>
         </div>
@@ -118,7 +118,7 @@ export default async function ProfilePage({
           {/* Watchlist — prominent link, not just a stat */}
           <Link
             href="/watchlist"
-            className="flex items-center justify-between rounded-sm border px-3 py-3 transition-opacity hover:opacity-80"
+            className="flex items-center justify-between rounded-sm border px-3 py-3 transition-[opacity,transform] duration-150 ease-out hover:opacity-80 active:scale-[0.98]"
             style={{ borderColor: 'var(--accent)', background: 'var(--ok-bg)' }}
           >
             <div className="flex items-center gap-2.5">
@@ -140,7 +140,7 @@ export default async function ProfilePage({
               split across this page and that one. */}
           <Link
             href="/account/edit"
-            className="flex items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
+            className="flex items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-[opacity,transform] duration-150 ease-out hover:opacity-80 active:scale-[0.98]"
             style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
           >
             <SettingsIcon size={15} />
@@ -149,7 +149,7 @@ export default async function ProfilePage({
 
           <Link
             href="/feedback"
-            className="flex items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
+            className="flex items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-[opacity,transform] duration-150 ease-out hover:opacity-80 active:scale-[0.98]"
             style={{ borderColor: 'var(--rule)', color: 'var(--ink)' }}
           >
             <MessageIcon size={15} />
@@ -163,7 +163,7 @@ export default async function ProfilePage({
           <form action={signout}>
             <button
               type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
+              className="flex w-full items-center justify-center gap-2 rounded-sm border py-2.5 text-sm font-semibold tracking-wide transition-[opacity,transform] duration-150 ease-out hover:opacity-80 active:scale-[0.98]"
               style={{ borderColor: 'var(--rule)', color: 'var(--ink)' }}
             >
               <SignOutIcon size={15} />
@@ -247,7 +247,7 @@ function RecentCard({
             fill
             sizes="(max-width: 640px) 50vw, 200px"
             unoptimized
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className="object-cover transition-transform duration-200 ease-out group-hover:scale-105"
           />
         ) : (
           <div className="flex h-full items-center justify-center" style={{ color: 'var(--ink-dim)' }}>
