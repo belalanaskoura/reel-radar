@@ -216,7 +216,7 @@ export default async function SettingsPage({
 
         <SettingsCard
           title="Cinema lineup alerts"
-          description="A movie joins or leaves a cinema you follow"
+          description="A movie joins or leaves a cinema you track"
           icon={<CinemaIcon size={20} />}
         >
           <LineupAlertsToggle

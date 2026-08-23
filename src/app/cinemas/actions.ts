@@ -24,6 +24,7 @@ export async function followCinema(branchId: string) {
   if (!error) {
     logEvent({ type: 'cinema_follow_add', payload: { user_id: userId, branch_id: branchId } });
   }
+  revalidatePath('/cinemas');
   revalidatePath(`/cinemas/${branchId}`);
   revalidatePath('/watchlist');
 }
@@ -36,6 +37,7 @@ export async function unfollowCinema(branchId: string) {
     .eq('user_id', userId)
     .eq('branch_id', branchId);
   if (error) throw new Error(error.message);
+  revalidatePath('/cinemas');
   revalidatePath(`/cinemas/${branchId}`);
   revalidatePath('/watchlist');
 }

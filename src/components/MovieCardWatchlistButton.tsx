@@ -32,7 +32,7 @@ export function MovieCardWatchlistButton({
           : { background: 'var(--accent)', color: 'var(--accent-ink)', borderColor: 'var(--accent)' }
       }
     >
-      {optimisticWatchlisted ? 'Remove from watchlist' : 'Add to watchlist'}
+      {optimisticWatchlisted ? 'Remove from radar' : 'Add to radar'}
     </button>
   );
 }
