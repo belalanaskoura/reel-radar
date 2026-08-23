@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { posterUrl } from '@/lib/tmdb-image';
+import { TicketIcon } from '@/components/icons';
 import { MovieCardWatchlistButton } from '@/components/MovieCardWatchlistButton';
 
 export interface MovieCardData {
@@ -23,78 +24,92 @@ export function MovieCard({
   const poster = posterUrl(movie.poster_path);
   const isBookable = movie.branches?.some((b) => b.bookable) ?? false;
   const isListed = (movie.branches?.length ?? 0) > 0;
-  // Once bookable, adding to a watchlist no longer serves its purpose --
-  // the whole point was to get notified of this transition, which has
+  // Once bookable, adding to radar no longer serves its purpose -- the
+  // whole point was to get notified of this transition, which has
   // already happened. Still let existing watchers remove it, though.
   const showWatchlistControl = isSignedIn && (isWatchlisted || !isBookable);
 
   return (
     <div
-      className="poster-card group relative flex h-full flex-col gap-3 rounded-lg p-2"
+      className="poster-card flex h-full flex-col overflow-hidden rounded-lg"
       style={{ background: 'var(--surface)', boxShadow: '0 0 0 1px var(--rule)' }}
     >
-      <Link
-        href={`/movies/${movie.id}`}
-        className="absolute inset-0 z-0 rounded-lg"
-        aria-label={movie.title}
-      />
-      <div className="pointer-events-none relative aspect-[2/3] w-full overflow-hidden rounded-md" style={{ background: 'var(--listed-bg)' }}>
-        {poster ? (
-          <Image
-            src={poster}
-            alt={movie.title}
-            fill
-            sizes="200px"
-            unoptimized
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <div
-            className="flex h-full items-center justify-center px-3 text-center text-xs"
-            style={{ color: 'var(--ink-dim)' }}
-          >
-            No poster yet
+      <div className="relative">
+        <Link
+          href={`/movies/${movie.id}`}
+          className="group relative block aspect-[2/3] w-full overflow-hidden"
+          style={{ background: 'var(--listed-bg)' }}
+        >
+          {poster ? (
+            <Image
+              src={poster}
+              alt={movie.title}
+              fill
+              sizes="200px"
+              unoptimized
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <div
+              className="flex h-full items-center justify-center px-3 text-center text-xs"
+              style={{ color: 'var(--ink-dim)' }}
+            >
+              No poster yet
+            </div>
+          )}
+        </Link>
+        {showWatchlistControl && (
+          <div className="absolute top-2 right-2">
+            <MovieCardWatchlistButton movieId={movie.id} isWatchlisted={isWatchlisted} variant="icon" />
           </div>
-        )}
-        {isListed && (
-          <span
-            className="absolute top-2 right-2 rounded px-2 py-1 text-[10px] font-bold tracking-wider uppercase"
-            style={
-              isBookable
-                ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
-                : { background: 'var(--listed-bg)', color: 'var(--listed-ink)' }
-            }
-          >
-            {isBookable ? 'Bookable' : 'Listed'}
-          </span>
         )}
       </div>
-      <div className="pointer-events-none relative flex flex-1 flex-col gap-1 px-1 pb-1">
-        <h3
-          className="font-display line-clamp-2 text-lg leading-tight uppercase"
-          style={{ color: 'var(--ink)' }}
-        >
-          {movie.title}
-        </h3>
-        {(movie.release_date || !isBookable) && (
-          <p className="text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
+
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <div>
+          <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
+            <h3
+              className="font-display line-clamp-2 text-lg leading-tight uppercase"
+              style={{ color: 'var(--ink)' }}
+            >
+              {movie.title}
+            </h3>
+          </Link>
+          <p className="mt-1 text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
             {movie.release_date
-              ? `${isBookable ? 'Released on' : 'Release Date'} ${movie.release_date}`
+              ? `${isBookable ? 'Released' : 'Release'}: ${movie.release_date}`
               : 'Release date TBA'}
           </p>
-        )}
+        </div>
 
-        {!isListed && (
-          <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
-            Not listed yet
-          </p>
-        )}
+        <p
+          className="flex items-center gap-1.5 text-xs font-medium"
+          style={{ color: isBookable ? 'var(--accent)' : 'var(--ink-dim)' }}
+        >
+          <TicketIcon size={13} />
+          {isBookable ? 'Book Now' : isListed ? 'Coming Soon' : 'Not Listed Yet'}
+        </p>
 
-        {showWatchlistControl && (
-          <div className="relative z-10 mt-auto pointer-events-auto pt-2">
-            <MovieCardWatchlistButton movieId={movie.id} isWatchlisted={isWatchlisted} />
-          </div>
-        )}
+        <div className="mt-auto pt-1">
+          {isBookable ? (
+            <Link
+              href={`/movies/${movie.id}`}
+              className="block w-full rounded-sm px-3 py-2 text-center text-xs font-semibold transition-opacity hover:opacity-90"
+              style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+            >
+              View Showtimes
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="w-full cursor-not-allowed rounded-sm px-3 py-2 text-xs font-semibold"
+              style={{ background: 'var(--listed-bg)', color: 'var(--listed-ink)' }}
+            >
+              Coming Soon
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
