@@ -286,15 +286,15 @@ export async function notifyWelcomeByEmail(
       <div style="margin-top: 24px; padding: 14px 16px; border-radius: 6px; background: #eaf5f2; border: 1px solid #cfe9e2;">
         <p style="margin: 0; font-size: 14px; color: #00534c; font-weight: 600;">Notifications are already on</p>
         <p style="margin: 4px 0 0; font-size: 13px; color: #5c6b67; line-height: 1.5;">
-          You're fully set up — the moment a watchlisted title opens for booking, you'll get a push straight to your device (and an email too).
+          You're set. The moment something on your watchlist opens for booking, you'll get a push straight to your device, plus an email.
         </p>
       </div>
     `
     : `
       <div style="margin-top: 24px; padding: 16px; border-radius: 6px; background: #fbf3e6; border: 1px solid #eddcb8;">
-        <p style="margin: 0 0 4px; font-size: 14px; color: #14201d; font-weight: 600;">One more thing — notifications aren't on yet</p>
+        <p style="margin: 0 0 4px; font-size: 14px; color: #14201d; font-weight: 600;">One more thing: notifications aren't on yet</p>
         <p style="margin: 0 0 14px; font-size: 13px; color: #5c6b67; line-height: 1.5;">
-          Without them you'll need to check back manually. It takes about 10 seconds to turn on:
+          Without them you'll have to check back manually. Turning them on takes a couple of taps:
         </p>
 
         <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #00534c;">On Android</p>
@@ -309,7 +309,7 @@ export async function notifyWelcomeByEmail(
           <li>Open reelradar.online in Safari</li>
           <li>Tap the Share icon, then "Add to Home Screen"</li>
           <li>Open ReelRadar from the new icon (not from Safari)</li>
-          <li>Sign in again and tap "Enable notifications" — iOS only allows push from the installed app</li>
+          <li>Sign in again and tap "Enable notifications" (iOS only allows push from the installed app, not the browser tab)</li>
         </ol>
 
         <p style="margin-top: 16px;">
@@ -325,9 +325,9 @@ export async function notifyWelcomeByEmail(
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
       <h1 style="font-size: 22px; color: #14201d; margin-bottom: 4px;">Welcome to ReelRadar, ${safeFirstName}</h1>
       <p style="font-size: 15px; color: #5c6b67; line-height: 1.6;">
-        Thanks for signing up — genuinely. ReelRadar started as a script I wrote for myself so I'd stop
-        refreshing a cinema's booking page by hand, and I've built the rest of it hoping it's just as
-        useful for you. I really hope it doesn't disappoint.
+        Thanks for signing up. ReelRadar started as a script I wrote for myself so I'd stop refreshing a
+        cinema's booking page by hand, and I built the rest of it wanting it to be just as useful for
+        you. I hope it doesn't let you down.
       </p>
 
       <h2 style="font-size: 13px; color: #14201d; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 28px; margin-bottom: 14px;">
@@ -337,11 +337,11 @@ export async function notifyWelcomeByEmail(
       ${pushHtml}
 
       <p style="font-size: 13px; color: #5c6b67; margin-top: 28px; line-height: 1.6;">
-        If anything looks off, or you're missing something you'd expect, just reply to this email — it
-        comes straight to me, not a support queue, because there isn't one.
+        If anything looks off, or something's missing, reply to this email. It comes straight to me.
+        There's no support team behind this, just me.
       </p>
       <p style="font-size: 14px; color: #14201d; margin-top: 20px;">
-        — Belal<br />
+        Belal<br />
         <span style="color: #8ea19b; font-size: 12px;">Building ReelRadar solo</span>
       </p>
     </div>
@@ -350,7 +350,7 @@ export async function notifyWelcomeByEmail(
   const textLines = [
     `Welcome to ReelRadar, ${firstName}.`,
     '',
-    "Thanks for signing up. ReelRadar started as a script I wrote for myself so I'd stop refreshing a cinema's booking page by hand -- I hope it's just as useful for you. I really hope it doesn't disappoint.",
+    "Thanks for signing up. ReelRadar started as a script I wrote for myself so I'd stop refreshing a cinema's booking page by hand, and I built the rest of it wanting it to be just as useful for you. I hope it doesn't let you down.",
     '',
     "Where to start:",
     `- Browse what's playing: ${siteUrl}/browse`,
@@ -361,14 +361,14 @@ export async function notifyWelcomeByEmail(
 
   if (pushEnabled) {
     textLines.push(
-      "Notifications are already on -- you're fully set up. The moment a watchlisted title opens for booking, you'll get a push straight to your device (and an email too).",
+      "Notifications are already on. You're set. The moment something on your watchlist opens for booking, you'll get a push straight to your device, plus an email.",
     );
   } else {
     textLines.push(
-      "One more thing: notifications aren't on yet, so you'll need to check back manually. Takes about 10 seconds to turn on:",
+      "One more thing: notifications aren't on yet, so you'll have to check back manually. Turning them on takes a couple of taps:",
       '',
       'On Android: open reelradar.online in Chrome, tap "Enable notifications", then tap Allow.',
-      'On iPhone/iPad: open reelradar.online in Safari, tap Share, then "Add to Home Screen", open ReelRadar from the new icon (not Safari), sign in again, then tap "Enable notifications" -- iOS only allows push from the installed app.',
+      'On iPhone/iPad: open reelradar.online in Safari, tap Share, then "Add to Home Screen", open ReelRadar from the new icon (not Safari), sign in again, then tap "Enable notifications" (iOS only allows push from the installed app, not the browser tab).',
       '',
       `Turn it on here: ${siteUrl}/notifications`,
     );
@@ -376,9 +376,9 @@ export async function notifyWelcomeByEmail(
 
   textLines.push(
     '',
-    "If anything looks off, just reply to this email -- it comes straight to me, there's no team behind this.",
+    "If anything looks off, just reply to this email. It comes straight to me, there's no support team behind this, just me.",
     '',
-    '-- Belal',
+    'Belal',
   );
 
   const controller = new AbortController();
@@ -394,7 +394,7 @@ export async function notifyWelcomeByEmail(
         from: process.env.RESEND_FROM_EMAIL,
         to: toEmail,
         replyTo: process.env.FEEDBACK_TO_EMAIL,
-        subject: pushEnabled ? "Welcome to ReelRadar — you're all set" : 'Welcome to ReelRadar — one quick thing',
+        subject: pushEnabled ? "Welcome to ReelRadar, you're all set" : 'Welcome to ReelRadar, one more step',
         html,
         text: textLines.join('\n'),
       }),
