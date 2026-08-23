@@ -284,7 +284,7 @@ export async function notifyWelcomeByEmail(
   const featuresHtml = `
     ${featureRow(`${siteUrl}/browse`, "Browse what's playing", 'Everything bookable now or coming soon at Scene and VOX, across every branch.')}
     ${featureRow(`${siteUrl}/watchlist`, 'Start a watchlist', "Add a title before it's even listed and I'll watch it for you.")}
-    ${featureRow(`${siteUrl}/cinemas`, 'Follow a cinema', "Get alerts for a specific branch's showtimes, not just your watchlist.")}
+    ${featureRow(`${siteUrl}/cinemas`, 'Follow a cinema', "Get alerts when a movie joins or leaves a branch's lineup, not just your watchlist.")}
     ${featureRow(`${siteUrl}/account/edit`, 'Set your name and photo', "Add a display name and a profile picture so the app feels like yours.")}
   `;
 
@@ -362,7 +362,7 @@ export async function notifyWelcomeByEmail(
     "Where to start:",
     `- Browse what's playing: ${siteUrl}/browse`,
     `- Start a watchlist: ${siteUrl}/watchlist`,
-    `- Follow a cinema: ${siteUrl}/cinemas`,
+    `- Follow a cinema (get alerts when a movie joins or leaves its lineup): ${siteUrl}/cinemas`,
     `- Set your name and photo: ${siteUrl}/account/edit`,
     '',
   ];

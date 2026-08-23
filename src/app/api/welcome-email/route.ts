@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { User } from '@supabase/supabase-js';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { notifyWelcomeByEmail } from '@/lib/email';
 import { logEvent } from '@/lib/analytics';
@@ -31,9 +32,23 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   const supabase = createServiceRoleClient();
 
-  const { data: usersPage } = await supabase.auth.admin.listUsers();
+  // listUsers() defaults to 50 users per page with no guaranteed sort
+  // order exposed by the client -- can't assume newest-first and stop
+  // early, so every page must be walked or signups past the first 50
+  // users ever silently stop being scanned at all, with no error thrown
+  // to surface it.
+  const allUsers: User[] = [];
+  let page = 1;
+  for (;;) {
+    const { data: usersPage, error: listError } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (listError) throw listError;
+    allUsers.push(...usersPage.users);
+    if (!usersPage.nextPage) break;
+    page = usersPage.nextPage;
+  }
+
   const now = Date.now();
-  const candidates = (usersPage?.users ?? []).filter((u) => {
+  const candidates = allUsers.filter((u) => {
     if (!u.email) return false;
     const age = now - new Date(u.created_at).getTime();
     return age >= WELCOME_DELAY_MS && age <= CANDIDATE_WINDOW_MS;
