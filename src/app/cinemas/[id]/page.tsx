@@ -7,6 +7,7 @@ import { parseSceneDate, filterFutureDates, formatSceneDateLabel } from '@/lib/s
 import { voxBranchShowtimesUrl, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { logPageView } from '@/lib/analytics';
 import { hidePosterlessMovies } from '@/lib/movie-visibility';
+import { CinemaFollowButton } from '@/components/CinemaFollowButton';
 
 export default async function CinemaDetailPage({
   params,
@@ -16,10 +17,14 @@ export default async function CinemaDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  // All three filter on `id` alone (the route param, known upfront) --
-  // none actually depends on another's result, so they run concurrently
-  // instead of as three sequential round-trips.
-  const [{ data: branch }, { data: slugRows }, { data: cacheRows }] = await Promise.all([
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // All filter on `id` alone (the route param, known upfront) -- none
+  // actually depends on another's result, so they run concurrently
+  // instead of as sequential round-trips.
+  const [{ data: branch }, { data: slugRows }, { data: cacheRows }, followRow] = await Promise.all([
     supabase
       .from('branches')
       .select('id, name, base_url, address, formats, chain, logo_url')
@@ -37,9 +42,14 @@ export default async function CinemaDetailPage({
       .from('showtimes_cache')
       .select('movie_id, bookable, was_ever_bookable, raw_showtimes')
       .eq('branch_id', id),
+    user
+      ? supabase.from('cinema_follows').select('branch_id').eq('user_id', user.id).eq('branch_id', id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   if (!branch) notFound();
+
+  const isFollowing = !!followRow.data;
 
   logPageView(`/cinemas/${id}`, { branch_id: id });
 
@@ -155,12 +165,15 @@ export default async function CinemaDetailPage({
           className="mb-8 flex flex-col gap-1 rounded-lg p-6 sm:p-8"
           style={{ background: 'var(--surface)', boxShadow: '0 0 0 1px var(--rule)' }}
         >
-          <h1
-            className="font-display text-4xl leading-none uppercase sm:text-6xl"
-            style={{ color: 'var(--ink)' }}
-          >
-            {branch.name}
-          </h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1
+              className="font-display text-4xl leading-none uppercase sm:text-6xl"
+              style={{ color: 'var(--ink)' }}
+            >
+              {branch.name}
+            </h1>
+            {user && <CinemaFollowButton branchId={branch.id} isFollowing={isFollowing} />}
+          </div>
           <p className="mt-2 text-sm" style={{ color: 'var(--ink-dim)' }}>
             {bookableCount} movie{bookableCount === 1 ? '' : 's'} bookable now
           </p>

@@ -6,13 +6,25 @@ import { markAsRead, markAllAsRead } from './actions';
 
 type LogRow = {
   id: string;
-  kind: 'showtime' | 'new_release';
+  kind: 'showtime' | 'new_release' | 'lineup_added' | 'lineup_removed';
   title: string | null;
   message: string | null;
   url: string | null;
   sent_at: string;
   read_at: string | null;
 };
+
+const KIND_LABELS: Record<LogRow['kind'], string> = {
+  showtime: 'Showtime',
+  new_release: 'Release date',
+  lineup_added: 'New at cinema',
+  lineup_removed: 'Left cinema',
+};
+
+// Kinds whose url points at an internal page rather than an external
+// booking link -- rendered as a Next Link instead of a plain <a target=
+// "_blank">, same as new_release always has.
+const INTERNAL_LINK_KINDS: LogRow['kind'][] = ['new_release', 'lineup_added', 'lineup_removed'];
 
 export default async function NotificationsHistoryPage() {
   const supabase = await createClient();
@@ -108,7 +120,7 @@ function NotificationRow({ notification }: { notification: LogRow }) {
         {notification.message ?? notification.title ?? 'Notification'}
       </p>
       <p className="mt-1 text-xs" style={{ color: 'var(--ink-dim)' }}>
-        {notification.kind === 'new_release' ? 'Release date' : 'Showtime'} &middot; {dateLabel}
+        {KIND_LABELS[notification.kind]} &middot; {dateLabel}
       </p>
     </div>
   );
@@ -126,7 +138,7 @@ function NotificationRow({ notification }: { notification: LogRow }) {
         style={{ background: isUnread ? 'var(--accent)' : 'transparent' }}
         aria-hidden="true"
       />
-      {notification.url && notification.kind === 'new_release' ? (
+      {notification.url && INTERNAL_LINK_KINDS.includes(notification.kind) ? (
         <Link href={notification.url} className="min-w-0 flex-1 transition-opacity hover:opacity-80">
           {body}
         </Link>

@@ -4,6 +4,7 @@ import { fetchAllListings, checkBookability, sleep, REQUEST_DELAY_MS } from '@/l
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { logEvent } from '@/lib/analytics';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
+import { notifyLineupAdditions } from '@/lib/matching/notify-cinema-lineup';
 
 const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
       const listings = await fetchAllListings(branch);
       const batch = listings.slice(offset, offset + BATCH_SIZE);
       let bookableCount = 0;
+      const newlyLinkedMovieIds: string[] = [];
 
       for (const listing of batch) {
         const { data: existingLink } = await supabase
@@ -157,6 +159,11 @@ export async function POST(request: Request) {
               }
             }
           }
+
+          // Reached only when this slug had no existing movie_branch_slugs
+          // row for this branch -- i.e. it's new to this branch's lineup
+          // this run, regardless of which sub-path resolved movieId.
+          newlyLinkedMovieIds.push(movieId);
         }
 
         await sleep(REQUEST_DELAY_MS);
@@ -182,6 +189,10 @@ export async function POST(request: Request) {
           },
           { onConflict: 'movie_id,branch_id' },
         );
+      }
+
+      if (newlyLinkedMovieIds.length > 0) {
+        await notifyLineupAdditions(supabase, branch, newlyLinkedMovieIds);
       }
 
       results[branch] = { listed: listings.length, batchSize: batch.length, bookable: bookableCount };

@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchAllListings } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { logEvent } from '@/lib/analytics';
+import { notifyLineupRemovals } from '@/lib/matching/notify-cinema-lineup';
 
 const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 
@@ -64,6 +65,15 @@ export async function POST(request: Request) {
           .in('movie_id', delistedMovieIds)
           .select('movie_id');
         delistedCount = cleared?.length ?? 0;
+
+        // Only movies that just transitioned bookable -> gone this run
+        // (the rows the update above actually touched), not every
+        // historically-delisted movie still linked to this branch --
+        // otherwise a movie gone for weeks would renotify on every sweep.
+        const justRemovedMovieIds = (cleared ?? []).map((row) => row.movie_id as string);
+        if (justRemovedMovieIds.length > 0) {
+          await notifyLineupRemovals(supabase, branch, justRemovedMovieIds);
+        }
 
         // A delisted movie that was already bookable: false is skipped by
         // the update above (the .eq('bookable', true) filter), so its

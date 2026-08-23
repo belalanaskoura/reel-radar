@@ -1,4 +1,10 @@
-import { formatCheckedTimestamp, type BookableNotification, type NewReleaseNotification } from '@/lib/notifications';
+import {
+  formatCheckedTimestamp,
+  type BookableNotification,
+  type NewReleaseNotification,
+  type LineupAddedNotification,
+  type LineupRemovedNotification,
+} from '@/lib/notifications';
 import type { DataQualityIssue } from '@/lib/matching/data-quality';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
@@ -443,6 +449,92 @@ export async function notifyNewReleaseByEmail(
         from: process.env.RESEND_FROM_EMAIL,
         to: toEmail,
         subject: `${notification.movieTitle} is coming to Egypt`,
+        html,
+        text,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Resend request failed: ${res.status}`);
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function notifyLineupAddedByEmail(
+  toEmail: string,
+  notification: LineupAddedNotification,
+): Promise<void> {
+  const text = `${notification.movieTitle} was just added to ${notification.branchName}'s lineup.\n${notification.movieUrl}`;
+  const html = `
+    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
+      <h1 style="font-size: 20px; color: #14201d;">${notification.movieTitle} is now at ${notification.branchName}</h1>
+      <p style="font-size: 15px; color: #5c6b67;">
+        It just joined the lineup at a cinema you follow.
+      </p>
+      <p>
+        <a href="${notification.movieUrl}"
+           style="display: inline-block; margin-top: 8px; padding: 10px 20px; border-radius: 4px; background: #00534c; color: #ffffff; text-decoration: none; font-weight: 600;">
+          View movie
+        </a>
+      </p>
+    </div>
+  `;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: toEmail,
+        subject: `${notification.movieTitle} just landed at ${notification.branchName}`,
+        html,
+        text,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Resend request failed: ${res.status}`);
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function notifyLineupRemovedByEmail(
+  toEmail: string,
+  notification: LineupRemovedNotification,
+): Promise<void> {
+  const text = `${notification.movieTitle} has left ${notification.branchName}'s lineup.`;
+  const html = `
+    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
+      <h1 style="font-size: 20px; color: #14201d;">${notification.movieTitle} has left ${notification.branchName}</h1>
+      <p style="font-size: 15px; color: #5c6b67;">
+        It's no longer playing at a cinema you follow.
+      </p>
+    </div>
+  `;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: toEmail,
+        subject: `${notification.movieTitle} left ${notification.branchName}`,
         html,
         text,
       }),
