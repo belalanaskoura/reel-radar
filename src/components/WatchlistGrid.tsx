@@ -9,7 +9,10 @@ import { chainForBranch, voxBranchShowtimesUrl, type VoxBranchId } from '@/lib/b
 import { SearchIcon, TicketIcon, TrashIcon } from '@/components/icons';
 import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
 import { SortToggle, type SortDirection } from '@/components/SortToggle';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { removeFromWatchlist } from '@/app/watchlist/actions';
+import { updateWatchlistConfirmPreference } from '@/app/account/actions';
+import type { WatchlistBookingClickAction } from '@/components/useWatchlistBookingConfirm';
 
 export interface WatchedMovie {
   id: string;
@@ -56,18 +59,102 @@ function primaryBookingUrl(movie: WatchedMovie): string | null {
   return slugRow ? sceneMovieUrl(bookableCache.branch_id, slugRow.slug) : null;
 }
 
-export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
+export function WatchlistGrid({
+  movies,
+  initialBookingClickAction = 'ask',
+}: {
+  movies: WatchedMovie[];
+  initialBookingClickAction?: WatchlistBookingClickAction;
+}) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  // The user's remembered answer to "remove from watchlist?" -- 'ask'
+  // shows the dialog every time (default), the other two skip it and
+  // just do that action silently. Kept as local state (not re-read from
+  // the server) so checking "don't ask again" in the dialog takes
+  // effect for the rest of this session immediately, without waiting on
+  // the save round-trip or a page refresh.
+  const [bookingClickAction, setBookingClickAction] =
+    useState<WatchlistBookingClickAction>(initialBookingClickAction);
   const [, startTransition] = useTransition();
+  // Clicking "View Showtimes" probably means tickets are about to be
+  // booked, so the watchlist entry has served its purpose -- but a
+  // click alone isn't proof (they might just be checking times), so
+  // this asks first rather than silently removing (unless the user has
+  // already told it not to, via bookingClickAction). The link is never
+  // followed directly on click; confirmDialog holds where it should go
+  // (and whether it opens in a new tab, for VOX/Scene's external
+  // booking links vs. the internal Showtimes-tab fallback) so either
+  // dialog choice can still complete the navigation afterward.
+  const [confirmDialog, setConfirmDialog] = useState<{
+    movieId: string;
+    title: string;
+    href: string;
+    newTab: boolean;
+  } | null>(null);
 
   function handleRemove(movieId: string) {
     startTransition(async () => {
       setRemovedIds((prev) => new Set(prev).add(movieId));
       await removeFromWatchlist(movieId);
     });
+  }
+
+  function navigateTo(href: string, newTab: boolean) {
+    if (newTab) {
+      window.open(href, '_blank', 'noopener,noreferrer');
+    } else {
+      window.location.assign(href);
+    }
+  }
+
+  function removeAndNavigate(movieId: string, href: string, newTab: boolean) {
+    startTransition(async () => {
+      setRemovedIds((prev) => new Set(prev).add(movieId));
+      await removeFromWatchlist(movieId);
+    });
+    navigateTo(href, newTab);
+  }
+
+  function openShowtimesConfirm(e: React.MouseEvent, movie: WatchedMovie, href: string, newTab: boolean) {
+    e.preventDefault();
+    if (bookingClickAction === 'always_remove') {
+      removeAndNavigate(movie.id, href, newTab);
+      return;
+    }
+    if (bookingClickAction === 'always_keep') {
+      navigateTo(href, newTab);
+      return;
+    }
+    setConfirmDialog({ movieId: movie.id, title: movie.title, href, newTab });
+  }
+
+  function saveBookingClickAction(next: WatchlistBookingClickAction) {
+    setBookingClickAction(next);
+    // Best-effort -- if this fails, bookingClickAction still updated
+    // locally for the rest of the session, and the setting page's own
+    // save can be retried from there.
+    startTransition(async () => {
+      await updateWatchlistConfirmPreference(next);
+    });
+  }
+
+  function handleConfirmRemoval(dontAskAgain: boolean) {
+    if (!confirmDialog) return;
+    const { movieId, href, newTab } = confirmDialog;
+    setConfirmDialog(null);
+    if (dontAskAgain) saveBookingClickAction('always_remove');
+    removeAndNavigate(movieId, href, newTab);
+  }
+
+  function handleKeepWatching(dontAskAgain: boolean) {
+    if (!confirmDialog) return;
+    const { href, newTab } = confirmDialog;
+    setConfirmDialog(null);
+    if (dontAskAgain) saveBookingClickAction('always_keep');
+    navigateTo(href, newTab);
   }
 
   const filteredMovies = useMemo(() => {
@@ -160,6 +247,15 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
           {sortedMovies.map((movie) => {
             const isBookable = movie.showtimes_cache.some((c) => c.bookable);
             const bookingUrl = isBookable ? primaryBookingUrl(movie) : null;
+            // Fallback destination when a real external booking link
+            // couldn't be resolved (e.g. a missing Scene slug row) --
+            // still worth landing on the movie's own Showtimes tab
+            // rather than Overview, same ?from= mechanism the cinema-
+            // scoped showtimes feature already uses.
+            const firstBookableBranchId = movie.showtimes_cache.find((c) => c.bookable)?.branch_id;
+            const showtimesFallbackHref = firstBookableBranchId
+              ? `/movies/${movie.id}?from=${firstBookableBranchId}`
+              : `/movies/${movie.id}`;
 
             return (
               <div
@@ -228,6 +324,7 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
                           href={bookingUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => openShowtimesConfirm(e, movie, bookingUrl, true)}
                           className="block w-full rounded-sm px-3 py-2 text-center text-xs font-semibold transition-opacity hover:opacity-90"
                           style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                         >
@@ -235,7 +332,8 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
                         </a>
                       ) : (
                         <Link
-                          href={`/movies/${movie.id}`}
+                          href={showtimesFallbackHref}
+                          onClick={(e) => openShowtimesConfirm(e, movie, showtimesFallbackHref, false)}
                           className="block w-full rounded-sm px-3 py-2 text-center text-xs font-semibold transition-opacity hover:opacity-90"
                           style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                         >
@@ -258,6 +356,18 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
             );
           })}
         </div>
+      )}
+
+      {confirmDialog && (
+        <ConfirmDialog
+          title="Remove from watchlist?"
+          description={`You're about to view showtimes for "${confirmDialog.title}". If you're booking tickets, we can take it off your watchlist for you.`}
+          confirmLabel="Remove"
+          cancelLabel="Keep watching"
+          dontAskAgainLabel="Don't ask me again (change anytime in Settings)"
+          onConfirm={handleConfirmRemoval}
+          onCancel={handleKeepWatching}
+        />
       )}
     </>
   );

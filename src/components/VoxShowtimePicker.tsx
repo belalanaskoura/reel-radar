@@ -5,6 +5,8 @@ import { DateTabStrip } from '@/components/DateTabStrip';
 import { formatIsoDateLabel } from '@/lib/scene/dates';
 import type { VoxDayDetail } from '@/lib/branches';
 import { InfoIcon } from '@/components/icons';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useWatchlistBookingConfirm, type WatchlistBookingClickAction } from '@/components/useWatchlistBookingConfirm';
 
 // Unlike ShowtimePicker (Scene), every day's real showtime detail is
 // already in hand from scrape-vox's own scheduled run -- no per-day
@@ -16,11 +18,28 @@ import { InfoIcon } from '@/components/icons';
 export function VoxShowtimePicker({
   days,
   branchShowtimesUrl,
+  movieId,
+  movieTitle,
+  isWatchlisted = false,
+  initialBookingClickAction = 'ask',
 }: {
   days: VoxDayDetail[];
   branchShowtimesUrl: string;
+  // Only present (and only asks to remove) when this movie is actually
+  // on the viewer's watchlist -- movieId is required by the confirm
+  // hook, but the hook itself is only invoked/used when isWatchlisted is
+  // true, so a non-watchlisted movie's time slots behave exactly as
+  // before (plain link, no dialog).
+  movieId?: string;
+  movieTitle?: string;
+  isWatchlisted?: boolean;
+  initialBookingClickAction?: WatchlistBookingClickAction;
 }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const { confirmDialog, openBookingLink, confirmRemoval, keepWatching } = useWatchlistBookingConfirm(
+    movieId ?? '',
+    initialBookingClickAction,
+  );
 
   const dateTabs = days.map((d) => ({ date: d.date, label: formatIsoDateLabel(d.date) }));
   const selectedDay = days.find((d) => d.date === selectedDate);
@@ -84,6 +103,11 @@ export function VoxShowtimePicker({
                           href={branchShowtimesUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={
+                            isWatchlisted && movieId
+                              ? (e) => openBookingLink(e, branchShowtimesUrl, true)
+                              : undefined
+                          }
                           className="showtime-pill inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold"
                         >
                           {s.time}
@@ -107,6 +131,22 @@ export function VoxShowtimePicker({
             </p>
           </div>
         </div>
+      )}
+
+      {confirmDialog && (
+        <ConfirmDialog
+          title="Remove from watchlist?"
+          description={
+            movieTitle
+              ? `You're about to view showtimes for "${movieTitle}". If you're booking tickets, we can take it off your watchlist for you.`
+              : "If you're booking tickets, we can take this off your watchlist for you."
+          }
+          confirmLabel="Remove"
+          cancelLabel="Keep watching"
+          dontAskAgainLabel="Don't ask me again (change anytime in Settings)"
+          onConfirm={confirmRemoval}
+          onCancel={keepWatching}
+        />
       )}
     </div>
   );

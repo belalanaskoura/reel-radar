@@ -5,6 +5,7 @@ import {
   updateAlertPreferences,
   updateCinemaAlerts,
   updateLineupAlerts,
+  updateWatchlistConfirmPreference,
   updateDisplayName,
   updateEmail,
 } from '../actions';
@@ -13,10 +14,11 @@ import { SettingsCard } from '@/components/SettingsCard';
 import { CinemaAlertsCard } from '@/components/CinemaAlertsCard';
 import { NewReleaseToggle } from '@/components/NewReleaseToggle';
 import { LineupAlertsToggle } from '@/components/LineupAlertsToggle';
+import { WatchlistConfirmPreference } from '@/components/WatchlistConfirmPreference';
 import { PushSubscribeButton } from '@/components/PushSubscribeButton';
 import { ThemeSettings } from '@/components/ThemeSettings';
 import { sortBranchesForDisplay } from '@/lib/branches';
-import { ArrowLeftIcon, BellIcon, CinemaIcon, SmartphoneIcon, SunIcon, UserIcon } from '@/components/icons';
+import { ArrowLeftIcon, BellIcon, CinemaIcon, SmartphoneIcon, SunIcon, TicketIcon, UserIcon } from '@/components/icons';
 
 export default async function SettingsPage({
   searchParams,
@@ -35,7 +37,7 @@ export default async function SettingsPage({
     supabase
       .from('profiles')
       .select(
-        'display_name, avatar_url, notify_new_releases, notify_cinema_showtimes, subscribed_branch_ids, notify_cinema_lineup',
+        'display_name, avatar_url, notify_new_releases, notify_cinema_showtimes, subscribed_branch_ids, notify_cinema_lineup, watchlist_booking_click_action',
       )
       .eq('id', user.id)
       .single(),
@@ -224,6 +226,17 @@ export default async function SettingsPage({
           <LineupAlertsToggle
             initialValue={profile?.notify_cinema_lineup ?? true}
             updateLineupAlerts={updateLineupAlerts}
+          />
+        </SettingsCard>
+
+        <SettingsCard
+          title="Watchlist booking prompt"
+          description="Ask before removing a movie you just clicked View Showtimes on"
+          icon={<TicketIcon size={20} />}
+        >
+          <WatchlistConfirmPreference
+            initialValue={profile?.watchlist_booking_click_action ?? 'ask'}
+            updateWatchlistConfirmPreference={updateWatchlistConfirmPreference}
           />
         </SettingsCard>
 

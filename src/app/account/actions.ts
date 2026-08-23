@@ -66,6 +66,40 @@ export async function updateLineupAlerts(values: {
   return { error: null };
 }
 
+// Remembers the user's answer to WatchlistGrid's "Remove from
+// watchlist?" confirm dialog (shown when clicking View Showtimes on a
+// tracked movie) so it stops asking once they've told it what they
+// want -- 'ask' (default, keep asking every time), 'always_remove'
+// (auto-remove with no dialog), or 'always_keep' (never remove, no
+// dialog). Changing your mind later means editing this setting
+// directly on /account/edit, not re-triggering the dialog somehow.
+export async function updateWatchlistConfirmPreference(
+  value: 'ask' | 'always_remove' | 'always_keep',
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/signin');
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ watchlist_booking_click_action: value })
+    .eq('id', user.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/account');
+  revalidatePath('/account/edit');
+  revalidatePath('/watchlist');
+  return { error: null };
+}
+
 export async function updateCinemaAlerts(values: {
   notify_cinema_showtimes: boolean;
   subscribed_branch_ids: string[] | null;

@@ -18,7 +18,7 @@ export default async function WatchlistPage() {
 
   logPageView('/watchlist');
 
-  const [{ data: watchlistRows }, { data: followRows }] = await Promise.all([
+  const [{ data: watchlistRows }, { data: followRows }, { data: profile }] = await Promise.all([
     supabase
       .from('watchlist')
       .select(
@@ -30,6 +30,7 @@ export default async function WatchlistPage() {
       )
       .eq('user_id', user.id),
     supabase.from('cinema_follows').select('branch_id, branches (id, name)').eq('user_id', user.id),
+    supabase.from('profiles').select('watchlist_booking_click_action').eq('id', user.id).single(),
   ]);
 
   const watchedMovies = (watchlistRows ?? [])
@@ -101,7 +102,10 @@ export default async function WatchlistPage() {
           </div>
         )}
 
-        <WatchlistGrid movies={watchedMovies} />
+        <WatchlistGrid
+          movies={watchedMovies}
+          initialBookingClickAction={profile?.watchlist_booking_click_action ?? 'ask'}
+        />
       </div>
     </main>
   );
