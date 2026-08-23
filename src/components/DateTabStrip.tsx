@@ -28,7 +28,7 @@ export function DateTabStrip({
             type="button"
             onClick={() => onSelect(d.date)}
             aria-pressed={isSelected}
-            className="flex h-20 min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl transition-colors"
+            className="flex h-20 min-w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.96]"
             style={
               isSelected
                 ? { background: 'var(--accent)', color: 'var(--accent-ink)' }

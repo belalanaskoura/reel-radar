@@ -71,7 +71,7 @@ export function VoxShowtimePicker({
       <DateTabStrip dates={dateTabs} selectedDate={selectedDate} onSelect={selectDate} />
 
       {selectedDay && (
-        <div className="rounded-sm border p-3" style={{ borderColor: 'var(--rule)' }}>
+        <div className="panel-reveal rounded-sm border p-3" style={{ borderColor: 'var(--rule)' }}>
           <div className="flex flex-col gap-3">
             {selectedDay.formats.map((f) => {
               // Price is constant across every showtime within a format on

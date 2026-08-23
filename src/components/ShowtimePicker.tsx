@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { getDayShowtimes } from '@/app/movies/[id]/actions';
 import { DateTabStrip } from '@/components/DateTabStrip';
+import { Skeleton } from '@/components/Skeleton';
 import { formatSceneDateLabel } from '@/lib/scene/dates';
 import { findTemplateRowForFormat, type ScenePriceTemplateRow } from '@/lib/scene/price-template';
 import type { BranchId, SceneShowtime } from '@/lib/scene/types';
@@ -62,11 +63,9 @@ export function ShowtimePicker({
       <DateTabStrip dates={dateTabs} selectedDate={selectedDate} onSelect={selectDate} />
 
       {selectedDate && (
-        <div className="rounded-sm border p-3" style={{ borderColor: 'var(--rule)' }}>
+        <div className="panel-reveal rounded-sm border p-3" style={{ borderColor: 'var(--rule)' }}>
           {loadingDate === selectedDate ? (
-            <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
-              Loading showtimes...
-            </p>
+            <DayShowtimesSkeleton />
           ) : errorDate === selectedDate ? (
             <p className="text-xs" style={{ color: 'var(--error-ink)' }}>
               Couldn&apos;t load showtimes. Try again.
@@ -140,6 +139,29 @@ export function ShowtimePicker({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Echoes the real final shape (a format label + price pill, then a row
+// of time pills) rather than a bare "Loading showtimes..." line -- this
+// component's own fetch is a live network round-trip that can take a
+// beat, and a plain text line reads as less finished than the seats
+// page's own SeatGridSkeleton right next door for the same kind of wait.
+function DayShowtimesSkeleton() {
+  return (
+    <div className="flex flex-col gap-4" aria-hidden="true">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-4 w-12 rounded-full" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-7 w-16 rounded-full" />
+          <Skeleton className="h-7 w-16 rounded-full" />
+          <Skeleton className="h-7 w-16 rounded-full" />
+        </div>
+      </div>
     </div>
   );
 }
