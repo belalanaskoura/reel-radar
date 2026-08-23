@@ -65,14 +65,19 @@ export default async function MovieDetailPage({
   logPageView(`/movies/${id}`, { movie_id: id });
 
   let isWatchlisted = false;
+  let watchlistBookingClickAction: 'ask' | 'always_remove' | 'always_keep' = 'ask';
   if (user) {
-    const { data: watchlistRow } = await supabase
-      .from('watchlist')
-      .select('movie_id')
-      .eq('user_id', user.id)
-      .eq('movie_id', movie.id)
-      .maybeSingle();
+    const [{ data: watchlistRow }, { data: profile }] = await Promise.all([
+      supabase
+        .from('watchlist')
+        .select('movie_id')
+        .eq('user_id', user.id)
+        .eq('movie_id', movie.id)
+        .maybeSingle(),
+      supabase.from('profiles').select('watchlist_booking_click_action').eq('id', user.id).single(),
+    ]);
     isWatchlisted = !!watchlistRow;
+    watchlistBookingClickAction = profile?.watchlist_booking_click_action ?? 'ask';
   }
 
   const [details, tmdbCredits, movieImdbId, reviews] = movie.tmdb_id
@@ -238,6 +243,10 @@ export default async function MovieDetailPage({
                       <VoxShowtimePicker
                         days={voxDays}
                         branchShowtimesUrl={voxBranchShowtimesUrl(cache.branch_id as VoxBranchId)}
+                        movieId={movie.id}
+                        movieTitle={movie.title}
+                        isWatchlisted={isWatchlisted}
+                        initialBookingClickAction={watchlistBookingClickAction}
                       />
                     ) : (
                       <a

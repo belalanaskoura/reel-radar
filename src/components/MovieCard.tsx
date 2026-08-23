@@ -24,6 +24,15 @@ export function MovieCard({
   const poster = posterUrl(movie.poster_path);
   const isBookable = movie.branches?.some((b) => b.bookable) ?? false;
   const isListed = (movie.branches?.length ?? 0) > 0;
+  // Same ?from=<branchId> mechanism the cinema-scoped showtimes feature
+  // already uses (see /cinemas/[id] and movies/[id]/page.tsx's
+  // fromBranchBookable) -- passing a real bookable branch here opens
+  // the movie page straight to its Showtimes tab instead of Overview,
+  // which is what "View Showtimes" should actually do.
+  const firstBookableBranchId = movie.branches?.find((b) => b.bookable)?.branch_id;
+  const showtimesHref = firstBookableBranchId
+    ? `/movies/${movie.id}?from=${firstBookableBranchId}`
+    : `/movies/${movie.id}`;
   // Once bookable, adding to radar no longer serves its purpose -- the
   // whole point was to get notified of this transition, which has
   // already happened. Still let existing watchers remove it, though.
@@ -94,7 +103,7 @@ export function MovieCard({
         <div className="mt-auto pt-1">
           {isBookable ? (
             <Link
-              href={`/movies/${movie.id}`}
+              href={showtimesHref}
               className="block w-full rounded-sm px-3 py-2 text-center text-xs font-semibold transition-opacity hover:opacity-90"
               style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
             >
