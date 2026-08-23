@@ -31,7 +31,8 @@ export function MovieCard({
 
   return (
     <div
-      className="poster-card flex h-full flex-col overflow-hidden rounded-lg"
+      data-movie-card
+      className="poster-card flex flex-col overflow-hidden rounded-lg"
       style={{ background: 'var(--surface)', boxShadow: '0 0 0 1px var(--rule)' }}
     >
       <div className="relative">
@@ -65,17 +66,17 @@ export function MovieCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-3">
+      <div className="flex flex-col gap-1.5 p-2.5">
         <div>
-          <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
+          <Link href={`/movies/${movie.id}`} className="block hover:opacity-80">
             <h3
-              className="font-display line-clamp-2 text-lg leading-tight uppercase"
+              className="font-display line-clamp-1 text-lg leading-tight uppercase"
               style={{ color: 'var(--ink)' }}
             >
               {movie.title}
             </h3>
           </Link>
-          <p className="mt-1 text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
+          <p className="mt-0.5 text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
             {movie.release_date
               ? `${isBookable ? 'Released' : 'Release'}: ${movie.release_date}`
               : 'Release date TBA'}

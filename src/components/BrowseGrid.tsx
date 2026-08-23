@@ -5,6 +5,7 @@ import { MovieCard, type MovieCardData } from '@/components/MovieCard';
 import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
 import { CinemaFilterDropdown, type CinemaOption } from '@/components/CinemaFilterDropdown';
 import { useSearchQuery } from '@/components/SearchProvider';
+import { useEqualRowHeights } from '@/components/useEqualRowHeights';
 
 // Matches each word of the query independently against the start of any
 // word in the title, not a substring search. This does two things at
@@ -112,6 +113,13 @@ export function BrowseGrid({
   const visibleItems = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
 
+  // Re-measures whenever the visible set changes (a new search/filter,
+  // or "load more" appending rows) or the grid's own size changes (a
+  // breakpoint's column count switching, or the window resizing) --
+  // see the hook's own comment for why row membership can't be computed
+  // once.
+  const gridRef = useEqualRowHeights<HTMLDivElement>('data-movie-card', [visibleItems.length]);
+
   function updateStatusFilter(value: StatusFilter) {
     setStatusFilter(value);
   }
@@ -143,7 +151,10 @@ export function BrowseGrid({
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <div
+            ref={gridRef}
+            className="grid grid-cols-2 items-start gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+          >
             {visibleItems.map((movie) => (
               <MovieCard
                 key={movie.id}
