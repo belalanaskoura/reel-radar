@@ -6,7 +6,7 @@ import { SearchProvider } from "@/components/SearchProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { PageTransition } from "@/components/PageTransition";
 import { PushPrompt } from "@/components/PushPrompt";
-import { FeatureAnnouncement } from "@/components/FeatureAnnouncement";
+import { ProductUpdates } from "@/components/ProductUpdates";
 import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 
@@ -80,7 +80,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <SearchProvider>
             <NavBar />
             <PageTransition>{children}</PageTransition>
-            {showPushPrompt ? <PushPrompt /> : user ? <FeatureAnnouncement /> : null}
+            {showPushPrompt ? <PushPrompt /> : user ? <ProductUpdates /> : null}
           </SearchProvider>
         </ThemeProvider>
       </body>
