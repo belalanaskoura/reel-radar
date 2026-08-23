@@ -114,7 +114,7 @@ export function ProductUpdates() {
           type="button"
           onClick={dismiss}
           aria-label="Dismiss"
-          className="absolute top-3 right-3 rounded-sm p-1 transition-opacity hover:opacity-70"
+          className="absolute top-1.5 right-1.5 rounded-sm p-2.5 transition-opacity hover:opacity-70"
           style={{ color: 'var(--ink-dim)' }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

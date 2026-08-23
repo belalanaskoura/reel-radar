@@ -5,9 +5,9 @@ import { useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { UserIcon } from '@/components/icons';
 
-function CameraIcon() {
+function CameraIcon({ size = 18 }: { size?: number }) {
   return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
       <circle cx="12" cy="13" r="4" />
     </svg>
@@ -105,9 +105,14 @@ export function AvatarUpload({
         {/* Hover overlay -- Tailwind's hover:/group-hover: variants are
             already wrapped in @media (hover: hover) as of v3.4+ (verified
             against this project's installed v4), so this doesn't ghost-
-            flash on a touch tap the way a bare :hover selector would. */}
+            flash on a touch tap the way a bare :hover selector would.
+            Below `sm:` there's no hover to reveal it at all though, so a
+            touch user had zero visible cue this was tappable besides the
+            invisible aria-label -- a small always-on badge in the corner
+            covers that case without needing the full-overlay treatment
+            hover gives on desktop. */}
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+          className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 transition-opacity duration-150 sm:group-hover:opacity-100"
           style={{ background: 'rgba(12,15,14,0.7)', color: '#ffffff' }}
         >
           {uploading ? (
@@ -116,6 +121,17 @@ export function AvatarUpload({
             />
           ) : (
             <CameraIcon />
+          )}
+        </div>
+        <div
+          className="absolute right-0 bottom-0 flex h-6 w-6 items-center justify-center rounded-full sm:hidden"
+          style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+          aria-hidden="true"
+        >
+          {uploading ? (
+            <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : (
+            <CameraIcon size={13} />
           )}
         </div>
       </button>

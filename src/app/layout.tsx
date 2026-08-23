@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Bebas_Neue, Inter } from "next/font/google";
 import { NavBar } from "@/components/NavBar";
@@ -63,6 +63,11 @@ export const metadata: Metadata = {
     siteName: "ReelRadar",
     type: "website",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
