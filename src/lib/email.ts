@@ -177,10 +177,10 @@ export async function notifyAdminDigestByEmail(issues: DataQualityIssue[]): Prom
 
   const textLines = [
     `${issues.length} data quality issue(s) found.`,
-    ...noPoster.map((i) => `[no poster] ${i.title} — ${siteUrl}/movies/${i.movieId}`),
-    ...noOverview.map((i) => `[no synopsis] ${i.title} (tmdb ${i.tmdbId}) — ${siteUrl}/movies/${i.movieId}`),
+    ...noPoster.map((i) => `[no poster] ${i.title}: ${siteUrl}/movies/${i.movieId}`),
+    ...noOverview.map((i) => `[no synopsis] ${i.title} (tmdb ${i.tmdbId}): ${siteUrl}/movies/${i.movieId}`),
     ...stuckBacklog.map(
-      (i) => `[stuck ${i.matchStatus}, ${i.daysStuck}d] ${i.title} — ${siteUrl}/movies/${i.movieId}`,
+      (i) => `[stuck ${i.matchStatus}, ${i.daysStuck}d] ${i.title}: ${siteUrl}/movies/${i.movieId}`,
     ),
     ...priceMismatches.map(
       (i) =>

@@ -125,7 +125,7 @@ export default async function AdminUsagePage() {
       </section>
 
       <section>
-        <SectionHeader>Daily active users (30 days) — signup or watchlist_add events</SectionHeader>
+        <SectionHeader>Daily active users (30 days): signup or watchlist_add events</SectionHeader>
         {dauPoints.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
             No activity logged yet.

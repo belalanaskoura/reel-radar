@@ -36,7 +36,7 @@ export default async function AdminBroadcastPage() {
 
       <section>
         <p className="mb-6 text-sm" style={{ color: 'var(--ink-dim)' }}>
-          Sends immediately once confirmed — there&rsquo;s no undo or scheduling.
+          Sends immediately once confirmed. There&rsquo;s no undo or scheduling.
         </p>
         <BroadcastForm users={users} />
       </section>

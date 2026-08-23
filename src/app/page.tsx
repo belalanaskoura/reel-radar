@@ -81,9 +81,8 @@ export default async function LandingPage() {
             className="mb-10 max-w-lg text-base leading-relaxed sm:text-lg"
             style={{ color: 'var(--ink-dim)' }}
           >
-            Track upcoming releases across all Cairo cinemas. Curate your personal
-            watchlist and get notified the exact second booking opens for the
-            most anticipated films.
+            Track upcoming releases across Cairo cinemas, watchlist the ones
+            you care about, and get notified the second booking opens.
           </p>
 
           <div className="flex flex-col items-center gap-3 sm:flex-row">

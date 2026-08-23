@@ -65,7 +65,7 @@ export default async function AdminNotificationsPage() {
           <StatTile label="Total sent" value={totalSent} />
           <StatTile
             label="Overall success"
-            value={overallRate === null ? '—' : `${overallRate}%`}
+            value={overallRate === null ? '-' : `${overallRate}%`}
             tone={overallRate === null ? 'neutral' : overallRate < 90 ? 'error' : 'ok'}
             sublabel={totalSent > 0 ? `${totalSuccess} / ${totalSent}` : undefined}
           />
