@@ -179,6 +179,7 @@ export function WatchlistGrid({ movies }: { movies: WatchedMovie[] }) {
                         alt={movie.title}
                         fill
                         sizes="(max-width: 640px) 50vw, 220px"
+                        unoptimized
                         className="object-cover"
                       />
                     ) : null}

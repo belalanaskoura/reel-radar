@@ -304,6 +304,7 @@ function TrendingCard({
           alt={title}
           fill
           sizes="(max-width: 640px) 100vw, 33vw"
+          unoptimized
           className="object-cover transition-transform duration-500 group-hover:scale-105"
         />
       )}
