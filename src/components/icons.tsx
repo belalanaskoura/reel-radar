@@ -164,6 +164,27 @@ export function BookmarkIcon(props: IconProps) {
   );
 }
 
+// Simplified sibling to RadarLogo (that one's the decorative wordmark
+// mark, built for a much larger scale) -- concentric rings + a sweep
+// line + tracked dot, legible at nav-icon sizes (~16-17px) where
+// RadarLogo's reel-cutout detail would just turn to mud. Outer ring
+// sized to r=10.5 (not the more conservative r=9 this started at) so it
+// fills the same 24x24 viewBox edge-to-edge the other nav icons
+// (FilmIcon, CinemaIcon, BellIcon) already do -- at r=9 this visibly
+// read smaller than its siblings even at the same `size` prop, since
+// the same bounding box had noticeably less ink in it.
+export function RadarIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <circle cx="12" cy="12" r="10.5" />
+      <circle cx="12" cy="12" r="6.5" />
+      <path d="M12 12L12 1.5" />
+      <path d="M12 12l6 -3.5" strokeDasharray="0.5 2.8" />
+      <circle cx="17" cy="7" r="1.15" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function ShareIcon(props: IconProps) {
   return (
     <svg {...svgProps(props)}>

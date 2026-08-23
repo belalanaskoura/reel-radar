@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { CinemaIcon, TicketIcon } from '@/components/icons';
+import { CinemaIcon } from '@/components/icons';
+import { RadarLogo } from '@/components/RadarLogo';
 import { WatchlistGrid, type WatchedMovie } from '@/components/WatchlistGrid';
 import { CinemaFollowButton } from '@/components/CinemaFollowButton';
+import { CollapsibleSection } from '@/components/CollapsibleSection';
 import { logPageView } from '@/lib/analytics';
 
 export default async function WatchlistPage() {
@@ -52,9 +54,9 @@ export default async function WatchlistPage() {
           <div className="mb-2 flex items-center gap-3">
             <div
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full"
-              style={{ background: 'var(--ok-bg)', color: 'var(--accent)' }}
+              style={{ background: 'var(--ok-bg)' }}
             >
-              <TicketIcon />
+              <RadarLogo size={26} />
             </div>
             <h1 className="font-display text-4xl leading-none sm:text-5xl" style={{ color: 'var(--ink)' }}>
               Your watchlist
@@ -69,30 +71,33 @@ export default async function WatchlistPage() {
 
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
         {followedCinemas.length > 0 && (
-          <div className="mb-10 flex flex-col gap-3">
-            <h2 className="font-display text-xl tracking-wide uppercase" style={{ color: 'var(--ink)' }}>
-              Tracking
-            </h2>
-            <div className="flex flex-col gap-2">
-              {followedCinemas.map((branch) => (
-                <div
-                  key={branch.id}
-                  className="flex items-center justify-between gap-3 rounded-lg p-4"
-                  style={{ background: 'var(--surface)', boxShadow: '0 0 0 1px var(--rule)' }}
-                >
-                  <Link
-                    href={`/cinemas/${branch.id}`}
-                    className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
+          <div className="mb-6">
+            <CollapsibleSection
+              title="Tracked cinemas"
+              description={`${followedCinemas.length} branch${followedCinemas.length === 1 ? '' : 'es'}`}
+              icon={<CinemaIcon size={20} />}
+            >
+              <div className="flex flex-col gap-2">
+                {followedCinemas.map((branch) => (
+                  <div
+                    key={branch.id}
+                    className="flex items-center justify-between gap-3 rounded-lg p-3"
+                    style={{ background: 'var(--bg)', boxShadow: '0 0 0 1px var(--rule)' }}
                   >
-                    <CinemaIcon size={18} style={{ color: 'var(--accent)' }} />
-                    <span className="truncate text-sm font-medium" style={{ color: 'var(--ink)' }}>
-                      {branch.name}
-                    </span>
-                  </Link>
-                  <CinemaFollowButton branchId={branch.id} isFollowing />
-                </div>
-              ))}
-            </div>
+                    <Link
+                      href={`/cinemas/${branch.id}`}
+                      className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
+                    >
+                      <CinemaIcon size={18} style={{ color: 'var(--accent)' }} />
+                      <span className="truncate text-sm font-medium" style={{ color: 'var(--ink)' }}>
+                        {branch.name}
+                      </span>
+                    </Link>
+                    <CinemaFollowButton branchId={branch.id} isFollowing />
+                  </div>
+                ))}
+              </div>
+            </CollapsibleSection>
           </div>
         )}
 
