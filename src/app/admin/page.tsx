@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { listAllUsers } from '@/lib/list-all-users';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
 import { SectionHeader } from '@/components/admin/SectionHeader';
 import { AlertCard } from '@/components/admin/AlertCard';
@@ -108,12 +109,15 @@ export default async function AdminOverviewPage() {
     // Sign-in-derived DAU proxy -- Supabase Auth already tracks this, no
     // new instrumentation needed for it specifically.
     (async () => {
-      const { data, error } = await supabase.auth.admin.listUsers();
-      if (error || !data) return { count: 0 };
-      const count = data.users.filter(
-        (u) => u.last_sign_in_at && new Date(u.last_sign_in_at) > new Date(oneDayAgo),
-      ).length;
-      return { count };
+      try {
+        const allUsers = await listAllUsers(supabase);
+        const count = allUsers.filter(
+          (u) => u.last_sign_in_at && new Date(u.last_sign_in_at) > new Date(oneDayAgo),
+        ).length;
+        return { count };
+      } catch {
+        return { count: 0 };
+      }
     })(),
     // Cheap-only data quality checks (no poster, stuck backlog) -- safe
     // on every dashboard load since both are plain column queries; the

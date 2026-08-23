@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { listAllUsers } from '@/lib/list-all-users';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
 import { SectionHeader } from '@/components/admin/SectionHeader';
 import { StatTile } from '@/components/admin/StatTile';
 import { LineChart, type LinePoint } from '@/components/admin/LineChart';
+import { CollapsibleSection } from '@/components/CollapsibleSection';
+import { UserIcon } from '@/components/icons';
 
 type PageViewPayload = { path: string; movie_id?: string; branch_id?: string };
 
@@ -12,7 +15,16 @@ export default async function AdminUsagePage() {
   const thirtyDaysAgo = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const sevenDaysAgo = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: dauEvents }, { data: pageViews }, { data: signups }, { data: watchlistAdds }] = await Promise.all([
+  const [
+    { data: dauEvents },
+    { data: pageViews },
+    { data: signups },
+    { data: watchlistAdds },
+    allUsers,
+    { data: pushRows },
+    { count: watchlistTotal },
+    { count: cinemaFollowTotal },
+  ] = await Promise.all([
     supabase
       .from('analytics_events')
       .select('occurred_at, payload')
@@ -25,7 +37,33 @@ export default async function AdminUsagePage() {
       .gte('occurred_at', sevenDaysAgo),
     supabase.from('analytics_events').select('id', { count: 'exact', head: true }).eq('event_type', 'signup').gte('occurred_at', thirtyDaysAgo),
     supabase.from('analytics_events').select('id', { count: 'exact', head: true }).eq('event_type', 'watchlist_add').gte('occurred_at', thirtyDaysAgo),
+    // Total user count and the recent-signups list both need the real
+    // auth.users table, not analytics_events -- that table only has
+    // events logged since instrumentation was added, so it would miss
+    // anyone who signed up before that and can't answer "how many users
+    // are there, total" at all.
+    listAllUsers(supabase),
+    // user_id only -- a user can have several rows (one per device), so
+    // "how many people have push enabled" is the distinct user_id count,
+    // not the raw row count. Same pattern as /admin/broadcast.
+    supabase.from('push_subscriptions').select('user_id'),
+    supabase.from('watchlist').select('user_id', { count: 'exact', head: true }),
+    supabase.from('cinema_follows').select('user_id', { count: 'exact', head: true }),
   ]);
+
+  const pushEnabledUserIds = new Set((pushRows ?? []).map((r) => r.user_id));
+  const pushEnabledCount = allUsers.filter((u) => pushEnabledUserIds.has(u.id)).length;
+
+  const recentSignups = [...allUsers]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 15);
+  const recentSignupIds = recentSignups.map((u) => u.id);
+  const { data: recentProfiles } = recentSignupIds.length > 0
+    ? await supabase.from('profiles').select('id, display_name').in('id', recentSignupIds)
+    : { data: [] };
+  const displayNameById = new Map(
+    (recentProfiles ?? []).map((p) => [p.id as string, p.display_name as string | null]),
+  );
 
   // DAU per day: distinct user_id per day across signup/watchlist_add.
   const usersByDay = new Map<string, Set<string>>();
@@ -69,6 +107,24 @@ export default async function AdminUsagePage() {
   return (
     <AdminPageShell title="Usage">
       <section>
+        <SectionHeader>Overview</SectionHeader>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label="Total users" value={allUsers.length} />
+          <StatTile
+            label="Push enabled"
+            value={pushEnabledCount}
+            sublabel={
+              allUsers.length > 0
+                ? `${Math.round((pushEnabledCount / allUsers.length) * 100)}% of users`
+                : undefined
+            }
+          />
+          <StatTile label="Watchlist items" value={watchlistTotal ?? 0} />
+          <StatTile label="Tracked cinemas" value={cinemaFollowTotal ?? 0} />
+        </div>
+      </section>
+
+      <section>
         <SectionHeader>Daily active users (30 days) — signup or watchlist_add events</SectionHeader>
         {dauPoints.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
@@ -77,6 +133,37 @@ export default async function AdminUsagePage() {
         ) : (
           <LineChart points={dauPoints} />
         )}
+      </section>
+
+      <section>
+        <CollapsibleSection
+          title="Recent signups"
+          description={`${recentSignups.length} most recent`}
+          icon={<UserIcon size={20} />}
+        >
+          {recentSignups.length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+              No signups yet.
+            </p>
+          ) : (
+            <ol className="flex flex-col">
+              {recentSignups.map((u) => (
+                <RankedRow key={u.id}>
+                  <span className="min-w-0 truncate" style={{ color: 'var(--ink)' }}>
+                    {displayNameById.get(u.id) || u.email || u.id}
+                  </span>
+                  <span className="shrink-0" style={{ color: 'var(--ink-dim)' }}>
+                    {new Date(u.created_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </RankedRow>
+              ))}
+            </ol>
+          )}
+        </CollapsibleSection>
       </section>
 
       <section>

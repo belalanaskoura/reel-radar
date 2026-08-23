@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { listAllUsers } from '@/lib/list-all-users';
 import { isAdminEmail } from '@/lib/admin';
 import { notifyBroadcastByEmail } from '@/lib/email';
 import { notifyBroadcastPush } from '@/lib/push';
@@ -77,12 +78,14 @@ export async function sendBroadcast(
   const startedAt = Date.now();
   const supabase = createServiceRoleClient();
 
-  const { data: usersPage, error: listError } = await supabase.auth.admin.listUsers();
-  if (listError || !usersPage) {
-    return { ok: false, error: `Couldn't list users: ${listError?.message ?? 'unknown error'}` };
+  let allUsers;
+  try {
+    allUsers = await listAllUsers(supabase);
+  } catch (err) {
+    return { ok: false, error: `Couldn't list users: ${err instanceof Error ? err.message : 'unknown error'}` };
   }
   const recipientIdSet = recipientIds ? new Set(recipientIds) : null;
-  const users = usersPage.users
+  const users = allUsers
     .filter((u): u is typeof u & { email: string } => !!u.email)
     .filter((u) => !recipientIdSet || recipientIdSet.has(u.id));
 

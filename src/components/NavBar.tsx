@@ -51,7 +51,7 @@ export async function NavBar() {
               logo mark, not just against the font's own reported line
               height. */}
           <span
-            className="font-display translate-y-[3px] text-lg leading-none tracking-wider sm:translate-y-[4px] sm:text-2xl"
+            className="font-display text-lg leading-none tracking-wider sm:text-2xl"
             style={{ color: 'var(--ink)' }}
           >
             REELRADAR
@@ -127,15 +127,22 @@ function NavLink({
   return (
     <Link
       href={href}
-      className="relative inline-flex flex-col items-center gap-0.5 rounded-sm px-1.5 py-1 text-sm transition-colors hover:opacity-70 sm:flex-row sm:gap-1.5 sm:px-3 sm:py-1.5"
+      className="relative inline-flex items-center justify-center rounded-sm p-1.5 transition-colors hover:opacity-70 sm:gap-1.5 sm:px-3 sm:py-1.5"
       style={{ color: 'var(--ink-dim)' }}
+      aria-label={label}
     >
       <span className="relative">
         <Icon size={iconSize} className="sm:hidden" />
         <Icon size={iconSizeSm ?? iconSize + 1} className="hidden sm:block" />
         {!!badgeCount && <NavBadge />}
       </span>
-      <span className="text-[8px] leading-none font-medium tracking-wide whitespace-nowrap sm:text-xs">
+      {/* Label hidden below `sm:` entirely (icon-only, matching the
+          wordmark's own breakpoint) rather than the old tiny 8px text
+          under each icon -- with the wordmark now always visible and
+          Watchlist added as a 5th/6th nav element, keeping every label
+          text at every width no longer fits a real narrow phone (a real
+          iPhone screenshot showed the row wrapping to 2 lines). */}
+      <span className="hidden text-xs leading-none font-medium tracking-wide whitespace-nowrap sm:inline">
         {label}
       </span>
     </Link>
