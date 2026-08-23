@@ -127,6 +127,19 @@ body {
   color: var(--accent-ink);
 }
 
+/* Every focused input/button across the app uses Tailwind's bare
+   focus-visible:ring-2 utility with no explicit color, which falls back
+   to Tailwind's default blue ring -- off-brand and a real Color
+   Consistency Lock violation once enough components share the pattern
+   (NavSearch, SecurityPanel, ToggleSwitch, AvatarUpload, WatchlistGrid's
+   search input, at minimum). Overriding the ring color tokens globally
+   fixes every one of them at once and keeps future :ring-2 usage
+   correct by default, instead of hand-adding an arbitrary-value color
+   utility to each className individually. */
+*:focus-visible {
+  --tw-ring-color: var(--accent);
+}
+
 /* Marquee display face -- used for the wordmark and movie titles only. */
 .font-display {
   font-family: var(--font-marquee), var(--font-body), sans-serif;

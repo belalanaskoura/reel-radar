@@ -53,19 +53,15 @@ export default async function WatchlistPage() {
         />
         <div className="relative mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
           <div className="mb-2 flex items-center gap-3">
-            <div
-              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full"
-              style={{ background: 'var(--ok-bg)' }}
-            >
-              <RadarLogo size={26} />
-            </div>
+            <RadarLogo size={30} />
             <h1 className="font-display text-4xl leading-none sm:text-5xl" style={{ color: 'var(--ink)' }}>
               Your watchlist
             </h1>
           </div>
           <p className="max-w-xl text-sm sm:text-base" style={{ color: 'var(--ink-dim)' }}>
-            Every title you&apos;re tracking, with live showtimes and a direct
-            booking link the moment tickets go on sale.
+            {watchedMovies.length > 0
+              ? `Tracking ${watchedMovies.length} title${watchedMovies.length === 1 ? '' : 's'}, with live showtimes and a direct booking link the moment tickets go on sale.`
+              : "Every title you're tracking, with live showtimes and a direct booking link the moment tickets go on sale."}
           </p>
         </div>
       </div>
@@ -77,6 +73,7 @@ export default async function WatchlistPage() {
               title="Tracked cinemas"
               description={`${followedCinemas.length} branch${followedCinemas.length === 1 ? '' : 'es'}`}
               icon={<CinemaIcon size={20} />}
+              defaultOpen={followedCinemas.length <= 2}
             >
               <div className="flex flex-col gap-2">
                 {followedCinemas.map((branch) => (

@@ -239,9 +239,31 @@ export function WatchlistGrid({
       </div>
 
       {sortedMovies.length === 0 ? (
-        <p className="py-10 text-center text-sm" style={{ color: 'var(--ink-dim)' }}>
-          No movies match this filter.
-        </p>
+        <div
+          className="flex flex-col items-center gap-3 rounded-sm border py-16 text-center"
+          style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
+        >
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-full"
+            style={{ background: 'var(--listed-bg)', color: 'var(--ink-dim)' }}
+          >
+            <SearchIcon size={20} />
+          </div>
+          <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
+            No movies match this filter.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery('');
+              setStatusFilter('all');
+            }}
+            className="rounded-sm px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+          >
+            Clear filters
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {sortedMovies.map((movie) => {
@@ -296,7 +318,7 @@ export function WatchlistGrid({
                   <div>
                     <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
                       <h2
-                        className="font-display line-clamp-2 text-lg leading-tight uppercase"
+                        className="font-display line-clamp-1 text-lg leading-tight uppercase"
                         style={{ color: 'var(--ink)' }}
                       >
                         {movie.title}
