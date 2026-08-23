@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { listAllUsers } from '@/lib/list-all-users';
 import { AdminPageShell } from '@/components/admin/AdminPageShell';
 import { SectionHeader } from '@/components/admin/SectionHeader';
 import { StatTile } from '@/components/admin/StatTile';
@@ -6,8 +7,8 @@ import { BroadcastForm } from '@/components/admin/BroadcastForm';
 
 export default async function AdminBroadcastPage() {
   const supabase = createServiceRoleClient();
-  const [{ data: usersPage }, { data: pushRows }] = await Promise.all([
-    supabase.auth.admin.listUsers(),
+  const [allUsers, { data: pushRows }] = await Promise.all([
+    listAllUsers(supabase),
     // user_id only -- a user can have several rows (one per device), so
     // "how many people have push enabled" is the distinct user_id count,
     // not the raw row count.
@@ -15,7 +16,7 @@ export default async function AdminBroadcastPage() {
   ]);
 
   const pushEnabledUserIds = new Set((pushRows ?? []).map((r) => r.user_id));
-  const users = (usersPage?.users ?? [])
+  const users = allUsers
     .flatMap((u) => (u.email ? [{ id: u.id, email: u.email, hasPush: pushEnabledUserIds.has(u.id) }] : []))
     .sort((a, b) => a.email.localeCompare(b.email));
 

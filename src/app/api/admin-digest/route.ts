@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { listAllUsers } from '@/lib/list-all-users';
 import { findDataQualityIssues } from '@/lib/matching/data-quality';
 import { notifyAdminDigestByEmail } from '@/lib/email';
 import { notifyAdminDigestPush } from '@/lib/push';
@@ -54,8 +55,8 @@ export async function POST(request: Request) {
         .split(',')
         .map((e) => e.trim())
         .filter(isAdminEmail);
-      const { data: usersPage } = await supabase.auth.admin.listUsers();
-      const adminUserIds = (usersPage?.users ?? [])
+      const allUsers = await listAllUsers(supabase);
+      const adminUserIds = allUsers
         .filter((u) => u.email && adminEmails.includes(u.email))
         .map((u) => u.id);
 
