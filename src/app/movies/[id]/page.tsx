@@ -302,6 +302,7 @@ export default async function MovieDetailPage({
             fill
             priority
             sizes="100vw"
+            unoptimized
             className="object-cover object-top opacity-60"
           />
         )}
@@ -325,7 +326,7 @@ export default async function MovieDetailPage({
             className="relative aspect-[2/3] w-20 flex-shrink-0 overflow-hidden rounded-sm shadow-lg sm:w-36"
             style={{ background: 'var(--listed-bg)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
           >
-            {poster && <Image src={poster} alt={movie.title} fill sizes="150px" className="object-cover" />}
+            {poster && <Image src={poster} alt={movie.title} fill sizes="150px" unoptimized className="object-cover" />}
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col gap-1.5 pb-1">
