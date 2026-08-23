@@ -64,6 +64,18 @@ type AnalyticsEvent =
         pushFailed: number;
         duration_ms: number;
       };
+    }
+  | {
+      type: 'welcome_email_run';
+      payload: { candidates: number; sent: number; duration_ms: number };
+    }
+  // Per-user idempotency record for the welcome email job (see
+  // src/app/api/welcome-email/route.ts) -- there's no dedicated DB table
+  // for "have we welcomed this user yet", so this reuses analytics_events
+  // the same way admin-digest reuses it for its own last-run cursor.
+  | {
+      type: 'welcome_email_sent';
+      payload: { user_id: string; push_enabled: boolean };
     };
 
 // Fire-and-forget: analytics must never fail or slow down the request
