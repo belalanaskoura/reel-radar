@@ -2,7 +2,6 @@
 
 import { useOptimistic, useTransition } from 'react';
 import { addToWatchlist, removeFromWatchlist } from '@/app/watchlist/actions';
-import { BookmarkIcon } from '@/components/icons';
 
 export function MovieCardWatchlistButton({
   movieId,
@@ -38,6 +37,11 @@ export function MovieCardWatchlistButton({
     // sized small on purpose (originally even tighter, nudged up
     // slightly after that felt too small) so it doesn't eat much of the
     // poster on a 2-column mobile card.
+    //
+    // The glyph itself is CinemaAlertsCard/CinemaFollowButton's own
+    // "signal dot" (filled + pulsing when tracked, hollow ring when
+    // not) rather than a bookmark icon, so every radar-tracking control
+    // in the app reads as the same visual language.
     return (
       <button
         type="button"
@@ -45,15 +49,30 @@ export function MovieCardWatchlistButton({
         aria-pressed={optimisticWatchlisted}
         aria-label={optimisticWatchlisted ? 'Remove from radar' : 'Add to radar'}
         title={optimisticWatchlisted ? 'Remove from radar' : 'Add to radar'}
-        className="flex items-center gap-1 rounded-full py-1 pr-2 pl-1.5 text-[11px] font-semibold backdrop-blur-sm transition-opacity hover:opacity-85"
+        className="flex items-center gap-1.5 rounded-full py-1 pr-2 pl-1.5 text-[11px] font-semibold backdrop-blur-sm transition-opacity hover:opacity-85"
         style={
           optimisticWatchlisted
             ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
             : { background: 'color-mix(in srgb, var(--accent) 22%, var(--bg) 78%)', color: 'var(--accent)' }
         }
       >
-        <BookmarkIcon size={12} style={{ fill: optimisticWatchlisted ? 'currentColor' : 'none' }} />
-        {optimisticWatchlisted ? 'Radar' : 'Track'}
+        <span className="relative flex h-3 w-3 shrink-0 items-center justify-center">
+          {optimisticWatchlisted && (
+            <span
+              className="signal-ping absolute inset-0 rounded-full"
+              style={{ background: 'currentColor', opacity: 0.5 }}
+            />
+          )}
+          <span
+            className="relative h-1.5 w-1.5 rounded-full"
+            style={
+              optimisticWatchlisted
+                ? { background: 'currentColor' }
+                : { boxShadow: 'inset 0 0 0 1.5px currentColor' }
+            }
+          />
+        </span>
+        {optimisticWatchlisted ? 'Tracked' : 'Track'}
       </button>
     );
   }

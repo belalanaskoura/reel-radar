@@ -24,10 +24,14 @@ export function CinemaFollowButton({
   }
 
   if (variant === 'icon') {
-    // Compact radar "signal" toggle for a tight slot (the /cinemas card
-    // header, in place of the old purely-decorative arrow icon there) --
-    // same filled/pulsing-dot visual language CinemaAlertsCard already
-    // uses for "this branch is being watched", just at button scale.
+    // Compact radar "signal" toggle for the /cinemas card header, in
+    // place of the old purely-decorative arrow icon there. Originally
+    // shipped as a bare dot with no label -- same clarity problem the
+    // movie-card radar toggle had (an unlabeled control gave no hint
+    // what clicking it does), so this now carries the same short label
+    // treatment: solid/high-contrast pill instead of a translucent
+    // circle, with the label always visible (not hover-only, since this
+    // app gets real mobile traffic).
     return (
       <button
         type="button"
@@ -35,24 +39,30 @@ export function CinemaFollowButton({
         aria-pressed={optimisticFollowing}
         aria-label={optimisticFollowing ? 'Untrack this cinema' : 'Track this cinema'}
         title={optimisticFollowing ? 'Untrack this cinema' : 'Track this cinema'}
-        className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors duration-300"
-        style={{ background: 'var(--bg-elevated)' }}
+        className="flex shrink-0 items-center gap-1.5 rounded-full py-1.5 pr-2.5 pl-2 text-[11px] font-semibold transition-opacity hover:opacity-85"
+        style={
+          optimisticFollowing
+            ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
+            : { background: 'color-mix(in srgb, var(--accent) 22%, var(--bg) 78%)', color: 'var(--accent)' }
+        }
       >
-        {optimisticFollowing && (
+        <span className="relative flex h-3 w-3 shrink-0 items-center justify-center">
+          {optimisticFollowing && (
+            <span
+              className="signal-ping absolute inset-0 rounded-full"
+              style={{ background: 'currentColor', opacity: 0.5 }}
+            />
+          )}
           <span
-            className="absolute inset-0 rounded-full"
-            style={{ background: 'var(--accent)', opacity: 0.35 }}
-          >
-            <span className="signal-ping absolute inset-0 rounded-full" style={{ background: 'var(--accent)', opacity: 0.6 }} />
-          </span>
-        )}
-        <span
-          className="relative flex h-3.5 w-3.5 items-center justify-center rounded-full transition-all duration-200"
-          style={{
-            background: optimisticFollowing ? 'var(--accent)' : 'transparent',
-            boxShadow: optimisticFollowing ? 'none' : 'inset 0 0 0 1.5px var(--ink-dim)',
-          }}
-        />
+            className="relative h-1.5 w-1.5 rounded-full"
+            style={
+              optimisticFollowing
+                ? { background: 'currentColor' }
+                : { boxShadow: 'inset 0 0 0 1.5px currentColor' }
+            }
+          />
+        </span>
+        {optimisticFollowing ? 'Tracking' : 'Track'}
       </button>
     );
   }
