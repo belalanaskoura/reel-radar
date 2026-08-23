@@ -49,9 +49,10 @@ export async function NavBar() {
               line box even at leading-none -- a small manual nudge down
               is needed on top of that to actually center against the
               logo mark, not just against the font's own reported line
-              height. */}
+              height. First attempt (3px/4px) was too much per direct
+              user feedback -- this is a smaller correction. */}
           <span
-            className="font-display text-lg leading-none tracking-wider sm:text-2xl"
+            className="font-display translate-y-[1px] text-lg leading-none tracking-wider sm:translate-y-[2px] sm:text-2xl"
             style={{ color: 'var(--ink)' }}
           >
             REELRADAR
@@ -63,20 +64,20 @@ export async function NavBar() {
             stays on the same row as the wordmark and theme/auth instead
             of wrapping to its own line -- a 3rd row here was the
             previous mobile layout, which read as too tall/cluttered. */}
-        <div className="ml-auto flex min-w-0 items-center gap-0.5 sm:gap-1">
-          <NavLink href="/browse" iconSize={16} label="Browse" icon={FilmIcon} />
+        <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-1">
+          <NavLink href="/browse" iconSize={21} label="Browse" icon={FilmIcon} />
           {user && (
             <NavLink
               href="/notifications-history"
-              iconSize={16}
+              iconSize={21}
               label="Notifications"
               icon={BellIcon}
               badgeCount={unreadCount}
             />
           )}
-          <NavLink href="/cinemas" iconSize={16} label="Cinemas" icon={CinemaIcon} />
+          <NavLink href="/cinemas" iconSize={21} label="Cinemas" icon={CinemaIcon} />
           {isAdminEmail(user?.email) && (
-            <NavLink href="/admin" iconSize={16} label="Admin" icon={SettingsIcon} />
+            <NavLink href="/admin" iconSize={21} label="Admin" icon={SettingsIcon} />
           )}
         </div>
 
@@ -88,7 +89,7 @@ export async function NavBar() {
             above, just positioned here instead of in that group. */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {user && (
-            <NavLink href="/watchlist" iconSize={17} iconSizeSm={18} label="Watchlist" icon={RadarIcon} />
+            <NavLink href="/watchlist" iconSize={22} iconSizeSm={18} label="Watchlist" icon={RadarIcon} />
           )}
           <AuthSlot user={user} avatarUrl={avatarUrl} />
         </div>
@@ -127,7 +128,7 @@ function NavLink({
   return (
     <Link
       href={href}
-      className="relative inline-flex items-center justify-center rounded-sm p-1.5 transition-colors hover:opacity-70 sm:gap-1.5 sm:px-3 sm:py-1.5"
+      className="relative inline-flex items-center justify-center rounded-sm p-2 transition-colors hover:opacity-70 sm:gap-1.5 sm:px-3 sm:py-1.5"
       style={{ color: 'var(--ink-dim)' }}
       aria-label={label}
     >
