@@ -83,12 +83,9 @@ straight to booking.
 **Live at:** [reelradar.online](https://reelradar.online)
 
 <!-- SCREENSHOTS -->
-<!--
-  TODO: drop product screenshots/GIFs here, e.g.:
-  <p align="center">
-    <img src="docs/screenshot-watchlist.png" alt="Watchlist screen" width="80%">
-  </p>
--->
+<p align="center">
+  <img src="docs/screenshots/browse.jpg" alt="Browse screen showing bookable and upcoming movies" width="90%">
+</p>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -241,10 +238,11 @@ branch, and watchlist a title — you'll get an email and/or browser push
 the moment it becomes bookable, with a link straight to the cinema's
 booking page.
 
-<!--
-  TODO: add a short GIF/screenshot walkthrough of sign-up → browse →
-  watchlist → notification here.
--->
+<p align="center">
+  <img src="docs/screenshots/showtimes.jpg" alt="Movie page with showtimes by branch and format" width="80%">
+  <br /><br />
+  <img src="docs/screenshots/notifications.jpg" alt="Notifications page showing a bookable alert" width="80%">
+</p>
 
 ### Scheduled Jobs
 
