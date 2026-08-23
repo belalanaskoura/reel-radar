@@ -52,7 +52,7 @@ export function PushBanner() {
         type="button"
         onClick={dismiss}
         aria-label="Dismiss"
-        className="absolute top-2 right-2 rounded-sm p-1 transition-opacity hover:opacity-70"
+        className="absolute top-0.5 right-0.5 rounded-sm p-2.5 transition-opacity hover:opacity-70"
         style={{ color: 'var(--ink-dim)' }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

@@ -70,7 +70,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
         <button
           type="button"
           onClick={handleExpand}
-          className="w-fit min-h-[36px] rounded-sm border px-3 py-1.5 text-xs font-semibold tracking-wide transition-opacity hover:opacity-80"
+          className="w-fit min-h-11 rounded-sm border px-3 py-1.5 text-xs font-semibold tracking-wide transition-opacity hover:opacity-80"
           style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
         >
           Resolve
@@ -96,7 +96,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="min-h-[32px] text-xs transition-opacity hover:opacity-70"
+          className="min-h-11 text-xs transition-opacity hover:opacity-70"
           style={{ color: 'var(--ink-dim)' }}
         >
           Cancel
@@ -162,7 +162,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
         <button
           type="button"
           onClick={() => setIdSearchOpen((v) => !v)}
-          className="flex min-h-[36px] w-full items-center justify-between gap-2 text-xs font-medium"
+          className="flex min-h-11 w-full items-center justify-between gap-2 text-xs font-medium"
           style={{ color: 'var(--ink-dim)' }}
           aria-expanded={idSearchOpen}
         >
@@ -181,7 +181,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                   setIdSearchMode('tmdb');
                   setResult(null);
                 }}
-                className="min-h-[32px] rounded-l-sm px-3 py-1.5 transition-opacity"
+                className="min-h-11 rounded-l-sm px-3 py-1.5 transition-opacity"
                 style={
                   idSearchMode === 'tmdb'
                     ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
@@ -196,7 +196,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                   setIdSearchMode('imdb');
                   setResult(null);
                 }}
-                className="min-h-[32px] rounded-r-sm px-3 py-1.5 transition-opacity"
+                className="min-h-11 rounded-r-sm px-3 py-1.5 transition-opacity"
                 style={
                   idSearchMode === 'imdb'
                     ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
@@ -218,7 +218,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                     setResult(null);
                   }}
                   placeholder="e.g. 1232569"
-                  className="min-h-[36px] w-full rounded-sm border px-2 py-1.5 text-xs xs:w-32"
+                  className="min-h-11 w-full rounded-sm border px-2 py-1.5 text-xs xs:w-32"
                   style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
                 />
                 <button
@@ -230,7 +230,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                     }
                   }}
                   disabled={isPending || !manualTmdbId.trim()}
-                  className="min-h-[36px] w-full rounded-sm border px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 xs:w-auto"
+                  className="min-h-11 w-full rounded-sm border px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 xs:w-auto"
                   style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
                 >
                   Use this id
@@ -246,7 +246,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                     setResult(null);
                   }}
                   placeholder="tt1232569 or an imdb.com link"
-                  className="min-h-[36px] w-full rounded-sm border px-2 py-1.5 text-xs xs:w-48"
+                  className="min-h-11 w-full rounded-sm border px-2 py-1.5 text-xs xs:w-48"
                   style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
                 />
                 <button
@@ -256,7 +256,7 @@ export function ResolveMatchPanel({ movieId }: { movieId: string }) {
                     if (id) setPendingChoice({ imdbId: id, label: `IMDb id ${id}` });
                   }}
                   disabled={isPending || !manualImdbId.trim()}
-                  className="min-h-[36px] w-full rounded-sm border px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 xs:w-auto"
+                  className="min-h-11 w-full rounded-sm border px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 xs:w-auto"
                   style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
                 >
                   Use this id

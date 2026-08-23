@@ -45,13 +45,17 @@ export function CinemaFollowButton({
     // circle, with the label always visible (not hover-only, since this
     // app gets real mobile traffic).
     return (
+      // before:-inset-2 pads the real tap target out beyond the visible
+      // pill (same fix as MovieCardWatchlistButton's icon variant) --
+      // safe here since the caller already isolates this button in its
+      // own relative/z-10 wrapper to escape the card's own outer link.
       <button
         type="button"
         onClick={toggle}
         aria-pressed={optimisticFollowing}
         aria-label={optimisticFollowing ? 'Untrack this cinema' : 'Track this cinema'}
         title={optimisticFollowing ? 'Untrack this cinema' : 'Track this cinema'}
-        className="flex shrink-0 items-center gap-1.5 rounded-full border py-1.5 pr-2.5 pl-2 text-[11px] font-semibold transition-[opacity,transform] duration-150 ease-out hover:opacity-85 active:scale-[0.95]"
+        className="relative flex shrink-0 items-center gap-1.5 rounded-full border py-1.5 pr-2.5 pl-2 text-[11px] font-semibold transition-[opacity,transform] duration-150 ease-out before:absolute before:-inset-2 before:content-[''] hover:opacity-85 active:scale-[0.95]"
         style={
           optimisticFollowing
             ? { background: 'var(--accent)', color: 'var(--accent-ink)', borderColor: 'var(--accent)' }

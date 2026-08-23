@@ -60,13 +60,19 @@ export function MovieCardWatchlistButton({
     // stops across every card in a grid reads as ambient noise, not
     // feedback for the action the user just took.
     return (
+      // The visible chip stays deliberately small (see above -- it
+      // shouldn't eat much of the poster on a 2-column mobile card), but
+      // that leaves a real tap target well under 44px. before:-inset-2
+      // extends the actual clickable hit area (an invisible pseudo-
+      // element layered over the button, still part of the same
+      // clickable element) without growing what's visually drawn.
       <button
         type="button"
         onClick={toggle}
         aria-pressed={optimisticWatchlisted}
         aria-label={optimisticWatchlisted ? 'Remove from radar' : 'Add to radar'}
         title={optimisticWatchlisted ? 'Remove from radar' : 'Add to radar'}
-        className="flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-1.5 text-[11px] font-semibold transition-[opacity,transform] duration-150 ease-out hover:opacity-85 active:scale-[0.95]"
+        className="relative flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-1.5 text-[11px] font-semibold transition-[opacity,transform] duration-150 ease-out before:absolute before:-inset-2 before:content-[''] hover:opacity-85 active:scale-[0.95]"
         style={
           optimisticWatchlisted
             ? { background: 'var(--accent)', color: 'var(--accent-ink)', borderColor: 'var(--accent)' }

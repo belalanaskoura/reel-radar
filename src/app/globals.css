@@ -183,7 +183,8 @@ body {
   color: var(--ink);
 }
 .showtime-pill:hover,
-.showtime-pill:focus-visible {
+.showtime-pill:focus-visible,
+.showtime-pill:active {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--accent-ink);
@@ -196,6 +197,19 @@ body {
    itself warranted. */
 .admin-table-row:hover {
   background: var(--bg-elevated);
+}
+
+/* iOS Safari auto-zooms the whole page on focus for any text input/
+   textarea/select rendered under 16px -- every form site-wide uses
+   Tailwind's text-sm (14px), so focusing search, sign-in, or any
+   settings field on an iPhone forced an unwanted page zoom that then
+   stuck around after blur. Bumped to 16px only below `sm:` so desktop's
+   text-sm sizing is untouched; :where() keeps this from out-specificity-
+   ing a component's own explicit font-size utility if one is ever added. */
+@media (max-width: 639px) {
+  :where(input, textarea, select) {
+    font-size: 16px;
+  }
 }
 
 /* Horizontal scroll strips (e.g. the cinema date picker) where the
