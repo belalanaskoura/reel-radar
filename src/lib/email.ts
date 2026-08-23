@@ -250,6 +250,166 @@ export async function notifyBroadcastByEmail(
   }
 }
 
+// One-time welcome email for a new signup -- see
+// src/app/api/welcome-email/route.ts, the scheduled job that decides who
+// qualifies and whether their push subscription is on yet by the time it
+// runs. Content branches on that: a push-enabled user just gets pointed
+// at what to do next, a push-disabled one also gets the Android/iOS
+// steps to turn it on, since without push they'd otherwise have no way
+// to know a watchlisted title opened for booking. Signed as a person,
+// not "the ReelRadar team" -- there isn't one -- and replies go to
+// FEEDBACK_TO_EMAIL, the same personal inbox every other reply-to in
+// this file already points at.
+export async function notifyWelcomeByEmail(
+  toEmail: string,
+  { displayName, pushEnabled }: { displayName: string; pushEnabled: boolean },
+): Promise<void> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const firstName = displayName.trim().split(/\s+/)[0] || 'there';
+  const safeFirstName = escapeHtml(firstName);
+
+  const featureRow = (href: string, title: string, description: string) => `
+    <div style="margin-bottom: 16px;">
+      <a href="${href}" style="font-size: 15px; font-weight: 600; color: #00534c; text-decoration: none;">${title} &rarr;</a>
+      <p style="margin: 2px 0 0; font-size: 13px; color: #5c6b67; line-height: 1.5;">${description}</p>
+    </div>
+  `;
+
+  const featuresHtml = `
+    ${featureRow(`${siteUrl}/browse`, "Browse what's playing", 'Everything bookable now or coming soon at Scene and VOX, across every branch.')}
+    ${featureRow(`${siteUrl}/watchlist`, 'Start a watchlist', "Add a title before it's even listed and I'll watch it for you.")}
+    ${featureRow(`${siteUrl}/cinemas`, 'Follow a cinema', "Get alerts for a specific branch's showtimes, not just your watchlist.")}
+    ${featureRow(`${siteUrl}/account/edit`, 'Set your name and photo', "Add a display name and a profile picture so the app feels like yours.")}
+  `;
+
+  const pushHtml = pushEnabled
+    ? `
+      <div style="margin-top: 24px; padding: 14px 16px; border-radius: 6px; background: #eaf5f2; border: 1px solid #cfe9e2;">
+        <p style="margin: 0; font-size: 14px; color: #00534c; font-weight: 600;">Notifications are already on</p>
+        <p style="margin: 4px 0 0; font-size: 13px; color: #5c6b67; line-height: 1.5;">
+          You're set. The moment something on your watchlist opens for booking, you'll get a push straight to your device, plus an email.
+        </p>
+      </div>
+    `
+    : `
+      <div style="margin-top: 24px; padding: 16px; border-radius: 6px; background: #fbf3e6; border: 1px solid #eddcb8;">
+        <p style="margin: 0 0 4px; font-size: 14px; color: #14201d; font-weight: 600;">One more thing: notifications aren't on yet</p>
+        <p style="margin: 0 0 14px; font-size: 13px; color: #5c6b67; line-height: 1.5;">
+          Without them you'll have to check back manually. Turning them on takes a couple of taps:
+        </p>
+
+        <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #00534c;">On Android</p>
+        <ol style="margin: 0 0 14px; padding-left: 18px; font-size: 13px; color: #14201d; line-height: 1.6;">
+          <li>Open reelradar.online in Chrome</li>
+          <li>Tap "Enable notifications" below</li>
+          <li>Tap Allow when Chrome asks</li>
+        </ol>
+
+        <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #00534c;">On iPhone/iPad</p>
+        <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #14201d; line-height: 1.6;">
+          <li>Open reelradar.online in Safari</li>
+          <li>Tap the Share icon, then "Add to Home Screen"</li>
+          <li>Open ReelRadar from the new icon (not from Safari)</li>
+          <li>Sign in again and tap "Enable notifications" (iOS only allows push from the installed app, not the browser tab)</li>
+        </ol>
+
+        <p style="margin-top: 16px;">
+          <a href="${siteUrl}/notifications"
+             style="display: inline-block; padding: 10px 20px; border-radius: 4px; background: #00534c; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 13px;">
+            Turn on notifications
+          </a>
+        </p>
+      </div>
+    `;
+
+  const html = `
+    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
+      <h1 style="font-size: 22px; color: #14201d; margin-bottom: 4px;">Welcome to ReelRadar, ${safeFirstName}</h1>
+      <p style="font-size: 15px; color: #5c6b67; line-height: 1.6;">
+        Thanks for signing up. ReelRadar started as a script I wrote for myself so I'd stop refreshing a
+        cinema's booking page by hand, and I built the rest of it wanting it to be just as useful for
+        you. I hope it doesn't let you down.
+      </p>
+
+      <h2 style="font-size: 13px; color: #14201d; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 28px; margin-bottom: 14px;">
+        Here's where to start
+      </h2>
+      ${featuresHtml}
+      ${pushHtml}
+
+      <p style="font-size: 13px; color: #5c6b67; margin-top: 28px; line-height: 1.6;">
+        If anything looks off, or something's missing, reply to this email. It comes straight to me.
+        There's no support team behind this, just me.
+      </p>
+      <p style="font-size: 14px; color: #14201d; margin-top: 20px;">
+        Belal<br />
+        <span style="color: #8ea19b; font-size: 12px;">Building ReelRadar solo</span>
+      </p>
+    </div>
+  `;
+
+  const textLines = [
+    `Welcome to ReelRadar, ${firstName}.`,
+    '',
+    "Thanks for signing up. ReelRadar started as a script I wrote for myself so I'd stop refreshing a cinema's booking page by hand, and I built the rest of it wanting it to be just as useful for you. I hope it doesn't let you down.",
+    '',
+    "Where to start:",
+    `- Browse what's playing: ${siteUrl}/browse`,
+    `- Start a watchlist: ${siteUrl}/watchlist`,
+    `- Follow a cinema: ${siteUrl}/cinemas`,
+    `- Set your name and photo: ${siteUrl}/account/edit`,
+    '',
+  ];
+
+  if (pushEnabled) {
+    textLines.push(
+      "Notifications are already on. You're set. The moment something on your watchlist opens for booking, you'll get a push straight to your device, plus an email.",
+    );
+  } else {
+    textLines.push(
+      "One more thing: notifications aren't on yet, so you'll have to check back manually. Turning them on takes a couple of taps:",
+      '',
+      'On Android: open reelradar.online in Chrome, tap "Enable notifications", then tap Allow.',
+      'On iPhone/iPad: open reelradar.online in Safari, tap Share, then "Add to Home Screen", open ReelRadar from the new icon (not Safari), sign in again, then tap "Enable notifications" (iOS only allows push from the installed app, not the browser tab).',
+      '',
+      `Turn it on here: ${siteUrl}/notifications`,
+    );
+  }
+
+  textLines.push(
+    '',
+    "If anything looks off, just reply to this email. It comes straight to me, there's no support team behind this, just me.",
+    '',
+    'Belal',
+  );
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: toEmail,
+        replyTo: process.env.FEEDBACK_TO_EMAIL,
+        subject: pushEnabled ? "Welcome to ReelRadar, you're all set" : 'Welcome to ReelRadar, one more step',
+        html,
+        text: textLines.join('\n'),
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Resend request failed: ${res.status}`);
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function notifyNewReleaseByEmail(
   toEmail: string,
   notification: NewReleaseNotification,
