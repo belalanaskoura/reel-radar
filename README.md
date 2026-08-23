@@ -147,11 +147,13 @@ title across any supported branch and get notified the moment it opens.
   real live read to catch drift; see
   [`src/lib/scene/price-template.ts`](src/lib/scene/price-template.ts).
 - **Title matching** links each cinema's own listings to the right TMDB
-  entry: English search first, Arabic fallback on zero results,
-  disambiguation via a confirmed Egypt theatrical release date when a
-  title collides with another movie of the same name. Anything that
-  can't be resolved confidently is left `unmatched`/`ambiguous`, never
-  auto-picked.
+  entry: English search first, Arabic fallback on zero results, then an
+  elCinema/IMDb cross-reference as a last resort for titles neither TMDB
+  search mode finds (elCinema's own transliteration is fuzzy-matched,
+  then its IMDb id resolves the real TMDB entry). Disambiguation uses a
+  confirmed Egypt theatrical release date when a title collides with
+  another movie of the same name. Anything that still can't be resolved
+  confidently is left `unmatched`/`ambiguous`, never auto-picked.
 - **Polling scales with watchlist size, not user count** — the poll job
   only re-checks (movie, branch) pairs that at least one user is
   watching, so cost stays flat as the user base grows.
@@ -162,6 +164,18 @@ title across any supported branch and get notified the moment it opens.
   not-bookable and later reopens, watchers are notified again.
 - **In-app feedback** (`/feedback`) — saved to the database and emailed
   directly to the maintainer.
+- **Sign-in** supports email/password and Google OAuth. New signups get a
+  one-time welcome email (~15 minutes after signup, so its copy can
+  correctly reflect whether they've already turned on push) with a short
+  feature tour and, for anyone without push enabled yet, setup steps.
+- **Admin dashboard** (`/admin`, allowlisted via `ADMIN_EMAILS`) surfaces
+  cache staleness per cinema chain, a manual resolve UI for
+  unmatched/ambiguous titles (search by TMDB or IMDb id), delivery stats
+  across email/push, and an opt-in broadcast tool for messaging all or
+  specific users. A scheduled data-quality digest
+  (`POST /api/admin-digest`) flags missing posters, un-synopsized matches,
+  and stuck backlog items proactively rather than requiring someone to
+  check the dashboard.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -205,8 +219,9 @@ aren't tracked as migration files in this repo — they're applied directly
 via Supabase's SQL Editor. If you're standing up a fresh project, you'll
 need to create the core tables yourself: `movies`, `branches`,
 `movie_branch_slugs`, `showtimes_cache`, `watchlist`, `notification_log`,
-`profiles`, `push_subscriptions`, `feedback`, `egypt_releases`,
-`egypt_distributors`, `scene_price_templates`.
+`notification_deliveries`, `profiles`, `push_subscriptions`, `feedback`,
+`egypt_releases`, `egypt_distributors`, `scene_price_templates`,
+`analytics_events`.
 
 ### Environment Variables
 
@@ -236,7 +251,12 @@ OAuth client — no additional env vars in this repo.
 Sign up, browse what's bookable now or coming soon at a Scene or VOX
 branch, and watchlist a title — you'll get an email and/or browser push
 the moment it becomes bookable, with a link straight to the cinema's
-booking page.
+booking page. Past alerts are kept on `/notifications-history`.
+
+Browser push works out of the box on desktop and Android. On iOS,
+Safari only allows push subscriptions from an installed
+(Add to Home Screen) PWA, not a plain browser tab — the app detects this
+and prompts accordingly instead of failing silently.
 
 <p align="center">
   <img src="docs/screenshots/showtimes.jpg" alt="Movie page with showtimes by branch and format" width="80%">
@@ -297,8 +317,9 @@ backfills / corrections, not part of the regular scheduled-job loop:
 
 - [ ] Direct VOX scraping if a reliable way around its bot protection is
       found (currently substituted via elCinema — see below)
-- [ ] Close the Arabic-title matching gap between differing
-      transliterations across cinemas and elCinema
+- [ ] Close the remaining Arabic-title matching gap where cinema and
+      elCinema transliterations differ too much for a confident fuzzy
+      match
 - [ ] Softer handling for unmatched distributors (confidence label
       instead of outright exclusion)
 - [ ] Resilience improvements for HTML-scraping breakage on selector
@@ -311,12 +332,12 @@ backfills / corrections, not part of the regular scheduled-job loop:
   alike. Showtimes instead come from elCinema, which has real per-branch
   listings for all 3 VOX branches — a reliable substitute, not a
   workaround with reduced accuracy.
-- **Arabic-title matching gap**: a cinema sometimes lists a movie only
-  under an English transliteration of its Arabic title, and elCinema may
-  use a different transliteration for the same film. Title matching
-  requires an exact normalized match as a safety guard against wrong
-  matches, so these can land as `unmatched` even when both sources have
-  the movie.
+- **Arabic-title matching gap**: an elCinema/IMDb cross-reference closes
+  most cases where TMDB's own English/Arabic search comes up empty, but
+  a cinema's transliteration and elCinema's can still differ enough that
+  the fuzzy match itself misses — title matching requires a confident
+  match as a safety guard against wrong matches, so these can land as
+  `unmatched` even when both sources have the movie.
 - **Distributor allowlist is strict, not permissive**: a movie with no
   popularity signal and no matched distributor history is excluded from
   the catalog outright, not shown with a lower-confidence label. This
