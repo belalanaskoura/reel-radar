@@ -6,6 +6,7 @@ import { CinemaMovieGrid, type CinemaMovie, type CinemaDate } from '@/components
 import { parseSceneDate, filterFutureDates, formatSceneDateLabel } from '@/lib/scene/dates';
 import { voxBranchShowtimesUrl, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { logPageView } from '@/lib/analytics';
+import { hidePosterlessMovies } from '@/lib/movie-visibility';
 
 export default async function CinemaDetailPage({
   params,
@@ -53,11 +54,14 @@ export default async function CinemaDetailPage({
   staleCutoff.setDate(staleCutoff.getDate() - STALE_LISTING_GRACE_DAYS);
   const staleCutoffStr = staleCutoff.toISOString().slice(0, 10);
 
+  const hidePosterless = hidePosterlessMovies();
+
   const movies: CinemaMovie[] = (slugRows ?? []).flatMap((row) => {
     const m = row.movies as unknown as
       | { id: string; title: string; poster_path: string | null; match_status: string; release_date: string | null }
       | null;
     if (!m) return [];
+    if (hidePosterless && !m.poster_path) return [];
     // 'ambiguous' is allowed through here too, matching /browse's rule:
     // a row reaching this point already has a real movie_branch_slugs
     // link for this branch, i.e. Scene genuinely lists it, regardless of
