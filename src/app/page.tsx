@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { posterUrl } from '@/lib/tmdb-image';
 import { RadarLogo } from '@/components/RadarLogo';
 import { logPageView } from '@/lib/analytics';
+import { hidePosterlessMovies } from '@/lib/movie-visibility';
 
 export default async function LandingPage() {
   const supabase = await createClient();
@@ -25,8 +26,11 @@ export default async function LandingPage() {
     .order('release_date', { ascending: true, nullsFirst: false })
     .limit(20);
 
+  const hidePosterless = hidePosterlessMovies();
+  const withPosters = (movies ?? []).filter((m) => !hidePosterless || m.poster_path);
+
   // Sort: bookable (most days) → coming soon
-  const sorted = (movies ?? []).sort((a, b) => {
+  const sorted = withPosters.sort((a, b) => {
     const aDays = (a.showtimes_cache ?? []).reduce(
       (sum, s) => sum + (s.bookable && Array.isArray(s.raw_showtimes) ? s.raw_showtimes.length : 0),
       0,
