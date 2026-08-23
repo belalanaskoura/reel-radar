@@ -4,6 +4,7 @@ import { PushBanner } from '@/components/PushBanner';
 import type { MovieCardData } from '@/components/MovieCard';
 import { sortBranchesForDisplay } from '@/lib/branches';
 import { logPageView } from '@/lib/analytics';
+import { hidePosterlessMovies } from '@/lib/movie-visibility';
 
 export default async function BrowsePage() {
   logPageView('/browse');
@@ -54,7 +55,11 @@ export default async function BrowsePage() {
   staleCutoff.setDate(staleCutoff.getDate() - STALE_LISTING_GRACE_DAYS);
   const staleCutoffStr = staleCutoff.toISOString().slice(0, 10);
 
+  const hidePosterless = hidePosterlessMovies();
+
   const visibleMovies = (movies ?? []).filter((m) => {
+    if (hidePosterless && !m.poster_path) return false;
+
     const branches = m.showtimes_cache ?? [];
 
     // A movie whose run has ended everywhere it was ever bookable (rather
