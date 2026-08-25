@@ -97,7 +97,6 @@ export default async function ProfilePage({
         {/* ── Left: Identity + account controls ──────────────────────── */}
         <aside className="flex flex-col gap-4">
           <AvatarUpload
-            userId={user.id}
             avatarUrl={profile?.avatar_url ?? null}
             size={120}
             shape="square"

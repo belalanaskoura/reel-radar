@@ -60,13 +60,12 @@ export function CinemaMovieGrid({
 
     if (resultsByDate[date]) return; // already cached, nothing to fetch
 
-    const bookableMovies = movies
-      .filter((m) => m.bookable)
-      .map((m) => ({ movieId: m.id, slug: m.slug }));
-
     startTransition(async () => {
       try {
-        const results = await getBranchShowtimesForDate(branchId, bookableMovies, date);
+        // The bookable movie/slug list is resolved server-side from the
+        // branch id now -- passing it from here made this action an
+        // arbitrary-length outbound-fetch amplifier for any caller.
+        const results = await getBranchShowtimesForDate(branchId, date);
         setResultsByDate((prev) => ({
           ...prev,
           [date]: new Set(results.filter((r) => r.hasShowtime).map((r) => r.movieId)),

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NavSearch } from '@/components/NavSearch';
 import { RadarLogo } from '@/components/RadarLogo';
 import { BellIcon, CinemaIcon, FilmIcon, RadarIcon, SettingsIcon, UserIcon } from '@/components/icons';
-import { isAdminEmail } from '@/lib/admin';
+import { isAdminUser } from '@/lib/admin';
 
 export async function NavBar() {
   const supabase = await createClient();
@@ -76,7 +76,7 @@ export async function NavBar() {
             />
           )}
           <NavLink href="/cinemas" iconSize={21} label="Cinemas" icon={CinemaIcon} />
-          {isAdminEmail(user?.email) && (
+          {isAdminUser(user) && (
             <NavLink href="/admin" iconSize={21} label="Admin" icon={SettingsIcon} />
           )}
         </div>
