@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchVoxShowtimes } from '@/lib/elcinema/vox-showtimes';
 import { fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '@/lib/elcinema/fetcher';
@@ -24,8 +25,7 @@ const DAYS_AHEAD = 5; // confirmed rolling window: today through +4 have real sh
 // be scheduled as 3 separate ?branch= jobs, same as scrape-scene's own
 // cfc/district5 split, not as one combined job.
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-sync-secret');
-  if (secret !== process.env.SYNC_SECRET) {
+  if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

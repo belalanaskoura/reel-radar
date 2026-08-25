@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { mergeSceneDuplicates } from '@/lib/matching/merge-scene-duplicates';
 import { matchScenesToTmdb } from '@/lib/matching/match-to-tmdb';
@@ -10,8 +11,7 @@ import { logEvent } from '@/lib/analytics';
 // then match each remaining Scene movie to a real TMDB entry (or flag it
 // ambiguous/unmatched for manual review; never guess).
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-sync-secret');
-  if (secret !== process.env.SYNC_SECRET) {
+  if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

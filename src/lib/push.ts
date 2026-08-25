@@ -7,6 +7,7 @@ import type {
   LineupRemovedNotification,
 } from '@/lib/notifications';
 import { formatCheckedTimestamp } from '@/lib/notifications';
+import { isAllowedPushEndpoint } from '@/lib/push-endpoint';
 
 const VAPID_SUBJECT = 'mailto:belalhamada489@gmail.com';
 
@@ -47,6 +48,11 @@ async function sendToUser(
 
   let sent = 0;
   for (const sub of subs) {
+    // Checked again on the way out, not just on the way in: rows stored
+    // before /api/push/subscribe validated endpoints are still in this
+    // table, and this is the point where an endpoint actually becomes an
+    // outbound request.
+    if (!isAllowedPushEndpoint(sub.endpoint)) continue;
     try {
       await webpush.sendNotification(
         {

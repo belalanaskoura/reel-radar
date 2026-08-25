@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 import { isAdminUser } from '@/lib/admin';
+import { buildCsp } from '@/lib/csp';
 
 // Header name AdminLayout trusts to skip its own getUser() call. A client
 // CAN send this header -- nothing about middleware strips it for us -- so
@@ -18,7 +19,18 @@ export async function proxy(request: NextRequest) {
   // honored, but that made the invariant incidental rather than real.
   request.headers.delete(ADMIN_VERIFIED_HEADER);
 
+  // Fresh per request. Set on the REQUEST's CSP header too, not just the
+  // response: that's how Next.js discovers the nonce and stamps it onto
+  // its own script tags (including the next/script theme-flash preventer
+  // in layout.tsx). Without the request-side header the bootstrap script
+  // goes out unnonced and the page dies under its own policy.
+  const nonce = crypto.randomUUID().replace(/-/g, '');
+  const csp = buildCsp(nonce);
+  request.headers.set('x-nonce', nonce);
+  request.headers.set('content-security-policy', csp);
+
   const { response, user } = await updateSession(request);
+  response.headers.set('content-security-policy', csp);
 
   const isAdminPath = request.nextUrl.pathname.startsWith('/admin');
   const isAdmin = isAdminUser(user);
@@ -29,7 +41,9 @@ export async function proxy(request: NextRequest) {
   // would briefly see real /admin content in the initial HTML. Middleware
   // runs before any rendering starts, so this redirect is a real one.
   if (isAdminPath && !isAdmin) {
-    return NextResponse.redirect(new URL('/', request.url));
+    const redirectResponse = NextResponse.redirect(new URL('/', request.url));
+    redirectResponse.headers.set('content-security-policy', csp);
+    return redirectResponse;
   }
 
   // AdminLayout's own redundant getUser() call (a second real network
@@ -42,7 +56,9 @@ export async function proxy(request: NextRequest) {
   // already true for an admin path (the redirect above handles false).
   if (isAdminPath) {
     request.headers.set(ADMIN_VERIFIED_HEADER, '1');
-    return NextResponse.next({ request });
+    const adminResponse = NextResponse.next({ request });
+    adminResponse.headers.set('content-security-policy', csp);
+    return adminResponse;
   }
 
   return response;
