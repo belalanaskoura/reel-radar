@@ -1,7 +1,9 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit, clientIp } from '@/lib/rate-limit';
 
 // Always redirects to the same success state regardless of whether the
 // email actually belongs to an account -- confirming/denying account
@@ -13,6 +15,22 @@ export async function requestPasswordReset(formData: FormData) {
 
   if (!email) {
     redirect(`/forgot-password?error=${encodeURIComponent('Enter your email address.')}`);
+  }
+
+  // Unthrottled, this endpoint is a free mail cannon: it sends a real
+  // email to any address supplied, spending Resend quota and putting the
+  // sending domain's reputation at risk one attempt at a time. Rejected
+  // attempts fall through to the same generic "sent" redirect below
+  // rather than saying they were rate limited, for the same
+  // non-enumeration reason as the rest of this action.
+  const ip = clientIp(await headers());
+  const normalizedEmail = email.trim().toLowerCase();
+  const [ipAllowed, emailAllowed] = await Promise.all([
+    checkRateLimit(`reset:ip:${ip}`, 5, 3600),
+    checkRateLimit(`reset:email:${normalizedEmail}`, 3, 3600),
+  ]);
+  if (!ipAllowed || !emailAllowed) {
+    redirect('/forgot-password?sent=1');
   }
 
   const supabase = await createClient();

@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { notifyFeedbackByEmail } from '@/lib/email';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 const MAX_MESSAGE_LENGTH = 4000;
 
@@ -12,6 +13,13 @@ export async function submitFeedback(message: string): Promise<{ error: string |
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect('/signin');
+
+  // Every call writes a row and sends a real email, so this is keyed per
+  // account rather than per IP -- the account is the thing that has to be
+  // spent to abuse it.
+  if (!(await checkRateLimit(`feedback:user:${user.id}`, 5, 3600))) {
+    return { error: 'You’ve sent a lot of feedback just now. Try again in an hour.' };
+  }
 
   const trimmed = message.trim();
   if (!trimmed) {

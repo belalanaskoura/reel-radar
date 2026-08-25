@@ -4,6 +4,7 @@ import { launchBrowser } from '@/lib/scene/browser';
 import { fetchSeatPlan } from '@/lib/scene/seat-plan';
 import { getScenePriceTemplate, matchPriceForCategory } from '@/lib/scene/price-template';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // Hobby's default function timeout is 10s; a full booking-hold browser
 // flow (page load + redirect + waiting for the seat-plan XHR) ran close to
@@ -23,6 +24,20 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // The most expensive endpoint in this app by a wide margin: every call
+  // launches a real Chromium and drives a live booking flow against
+  // Scene, with a 60s ceiling. "Signed in" was the only gate, which meant
+  // one account could exhaust the whole function budget in a loop and
+  // point sustained browser automation at a third party from our IP.
+  // Keyed per user, deliberately tight -- a person opening seat maps
+  // hits this a handful of times in a session, not thirty.
+  if (!(await checkRateLimit(`seat-plan:user:${user.id}`, 15, 3600))) {
+    return NextResponse.json(
+      { error: 'Too many seat map requests. Try again later.' },
+      { status: 429 },
+    );
   }
 
   const { showtimeUrl, branchId } = (await request.json()) as {

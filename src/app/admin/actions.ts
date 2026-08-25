@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { isAdminEmail } from '@/lib/admin';
+import { isAdminUser } from '@/lib/admin';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { searchMovies, getMovieById, findByImdbId, type TmdbMovie } from '@/lib/tmdb';
 import { applyTmdbMatch } from '@/lib/matching/match-to-tmdb';
@@ -28,7 +28,7 @@ async function requireAdmin() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || !isAdminEmail(user.email)) {
+  if (!isAdminUser(user)) {
     throw new Error('Not authorized');
   }
 }

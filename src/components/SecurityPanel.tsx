@@ -29,6 +29,24 @@ export function SecurityPanel({
 
   return (
     <form action={updatePassword} onSubmit={handleSubmit} className="flex flex-col gap-3">
+      {/* Holding a session is not proof of identity: without this, a
+          borrowed unlocked device or a stolen cookie becomes permanent
+          account takeover. Verified server-side in updatePassword. */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor="current_password" className="text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
+          CURRENT PASSWORD
+        </label>
+        <input
+          id="current_password"
+          name="current_password"
+          type="password"
+          required
+          autoComplete="current-password"
+          placeholder="Enter current password"
+          className="rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
+          style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
+        />
+      </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="new_password" className="text-xs font-medium" style={{ color: 'var(--ink-dim)' }}>
           NEW PASSWORD
