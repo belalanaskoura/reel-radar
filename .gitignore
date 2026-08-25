@@ -51,3 +51,8 @@ AGENTS.md
 .claude/
 
 /docs/HISTORY.md
+
+# Security audit record. Same treatment as HISTORY.md, and for one extra
+# reason: it lists the findings that are still OPEN, with file and line.
+# In a public repo fronting a live site that is a roadmap, not a changelog.
+/docs/SECURITY-CHANGES.md
