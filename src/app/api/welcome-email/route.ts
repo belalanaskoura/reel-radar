@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { listAllUsers } from '@/lib/list-all-users';
 import { notifyWelcomeByEmail } from '@/lib/email';
@@ -24,8 +25,7 @@ const CANDIDATE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 // DB column/table, since schema changes here go through Supabase's SQL
 // editor directly (see README) and this app has no migration tooling.
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-sync-secret');
-  if (secret !== process.env.SYNC_SECRET) {
+  if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

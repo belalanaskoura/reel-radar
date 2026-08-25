@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { isAllowedPushEndpoint, MAX_SUBSCRIPTIONS_PER_USER } from '@/lib/push-endpoint';
 
 // Stores a browser's push subscription against the signed-in user. Called
 // by PushSubscribeButton right after the browser grants permission and
@@ -21,6 +22,27 @@ export async function POST(request: Request) {
 
   if (!endpoint || !keys?.p256dh || !keys?.auth) {
     return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 });
+  }
+
+  if (!isAllowedPushEndpoint(endpoint)) {
+    return NextResponse.json({ error: 'Unrecognized push endpoint' }, { status: 400 });
+  }
+
+  // Counted before the upsert, and only blocking when this endpoint is a
+  // new one -- re-subscribing an already-stored browser must keep working
+  // even at the cap, or a user at the limit could never refresh a device
+  // they already have.
+  const { data: existing } = await supabase
+    .from('push_subscriptions')
+    .select('endpoint')
+    .eq('user_id', user.id);
+
+  const alreadyStored = (existing ?? []).some((row) => row.endpoint === endpoint);
+  if (!alreadyStored && (existing?.length ?? 0) >= MAX_SUBSCRIPTIONS_PER_USER) {
+    return NextResponse.json(
+      { error: 'Too many registered devices. Remove one first.' },
+      { status: 409 },
+    );
   }
 
   const { error } = await supabase.from('push_subscriptions').upsert(

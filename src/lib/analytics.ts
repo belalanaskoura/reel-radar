@@ -79,6 +79,25 @@ type AnalyticsEvent =
       payload: { user_id: string; push_enabled: boolean };
     };
 
+// Route params reach logPageView straight off the URL, so they're
+// attacker-chosen on any public page. Both id shapes this app uses are
+// narrow: movie ids are UUIDs, branch ids are short slugs from a fixed
+// set. Anything else is dropped rather than written -- an unbounded
+// attacker-controlled string has no business being persisted by a
+// service-role client.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BRANCH_ID_RE = /^[a-z0-9_-]{1,32}$/i;
+
+// Only this fraction of anonymous page views is recorded. Every view
+// previously wrote a row through the service-role client with no rate
+// limit and no bound, which on a 500 MB free tier is a cheap way for
+// anyone to fill the database -- and the first symptom would have been
+// writes to watchlist starting to fail. Sampling keeps the shape of the
+// traffic without recording every hit; the other event types (signup,
+// watchlist_add, the job runs) are all low-volume or authenticated and
+// stay unsampled.
+const PAGE_VIEW_SAMPLE_RATE = 0.1;
+
 // Fire-and-forget: analytics must never fail or slow down the request
 // it's instrumenting, so errors are swallowed rather than surfaced.
 export function logEvent(event: AnalyticsEvent) {
@@ -92,5 +111,11 @@ export function logEvent(event: AnalyticsEvent) {
 }
 
 export function logPageView(path: string, extra?: { movie_id?: string; branch_id?: string }) {
-  logEvent({ type: 'page_view', payload: { path, ...extra } });
+  if (Math.random() >= PAGE_VIEW_SAMPLE_RATE) return;
+
+  const payload: { path: string; movie_id?: string; branch_id?: string } = { path };
+  if (extra?.movie_id && UUID_RE.test(extra.movie_id)) payload.movie_id = extra.movie_id;
+  if (extra?.branch_id && BRANCH_ID_RE.test(extra.branch_id)) payload.branch_id = extra.branch_id;
+
+  logEvent({ type: 'page_view', payload });
 }
