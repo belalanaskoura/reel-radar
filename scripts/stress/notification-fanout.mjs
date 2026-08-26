@@ -1,18 +1,27 @@
 // Local, synthetic stress test -- no network, no DB, no external service.
-// Simulates the exact loop shape found in notifyWatchers / notifyLineupAdditions /
-// sendBroadcast: N users, each with a small number of sequential awaits
-// (profile lookup, email send, delivery log insert, push send, delivery log
-// insert, notification_log insert), at latencies representative of the real
-// calls those functions make (Supabase ~50-150ms, Resend ~200-500ms, web-push
-// ~100-300ms -- estimates documented in docs/SCALABILITY_AUDIT.md, not
-// measured against the real services here).
+// Simulates the exact loop shape notifyWatchers / notifyLineupAdditions /
+// sendBroadcast / notifyNewReleases / welcome-email all now use: N users,
+// each with a small number of sequential-per-user awaits (profile lookup,
+// email send, delivery log insert, push send, delivery log insert,
+// notification_log insert), run through a bounded-concurrency worker pool
+// at concurrency=10, matching every real call site's constant as of this
+// writing (grep NOTIFY_CONCURRENCY/BROADCAST_CONCURRENCY/WELCOME_CONCURRENCY
+// across src/ to confirm -- a future change to any one of those constants
+// would make this script's own hardcoded 10 drift from reality).
 //
-// Compares the app's actual pattern (fully sequential, no concurrency cap)
-// against a bounded-concurrency version using the same mapWithConcurrency
-// shape already duplicated in src/app/api/sync-movies/route.ts and
-// src/app/cinemas/[id]/actions.ts, to quantify the real wall-clock gap and
-// check it against real constraints: cron-job.org's 30s job timeout and
-// Vercel Hobby's default 10s serverless function timeout.
+// mapWithConcurrency is reimplemented inline below rather than imported
+// from src/lib/concurrency.ts, deliberately -- this script stays
+// dependency-free (no TS, no path aliases, no build step) the same way it
+// always has. Keep this copy in sync with src/lib/concurrency.ts by hand;
+// src/lib/concurrency.test.ts is the source of truth for its real behavior.
+//
+// This originally compared the app's actual pattern (fully sequential, no
+// concurrency cap) against a bounded-concurrency fix -- that finding
+// (docs/SCALABILITY_AUDIT.md #1/#11) has since been fixed everywhere the
+// audit flagged. This version instead answers the current question: at
+// concurrency=10, where is *today's* real breaking point against
+// cron-job.org's 30s job timeout and Vercel Hobby's 10s default function
+// timeout?
 //
 // Run with: node scripts/stress/notification-fanout.mjs
 
@@ -36,26 +45,20 @@ async function simulateNotifyOneUser() {
   await sleep(randDelay(50, 150)); // notification_log insert
 }
 
-async function mapWithConcurrency(items, concurrency, fn) {
-  const results = [];
-  let index = 0;
+async function mapWithConcurrency(items, size, fn) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
   async function worker() {
-    while (index < items.length) {
-      const i = index++;
-      results[i] = await fn(items[i], i);
+    while (nextIndex < items.length) {
+      const i = nextIndex++;
+      results[i] = await fn(items[i]);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
   return results;
 }
 
-async function runSequential(n) {
-  const start = performance.now();
-  for (let i = 0; i < n; i++) {
-    await simulateNotifyOneUser();
-  }
-  return performance.now() - start;
-}
+const REAL_CONCURRENCY = 10; // see NOTIFY_CONCURRENCY/BROADCAST_CONCURRENCY/etc. across src/
 
 async function runConcurrent(n, concurrency) {
   const start = performance.now();
@@ -66,17 +69,19 @@ async function runConcurrent(n, concurrency) {
 const CRON_JOB_TIMEOUT_MS = 30_000;
 const VERCEL_HOBBY_TIMEOUT_MS = 10_000;
 
-const scales = [10, 22, 50, 100];
+// Scaled past the audit's original 100 -- concurrency=10 pushed the real
+// breaking point out further than the old sequential-only scale showed.
+const scales = [10, 22, 50, 100, 250, 400];
 
-console.log('watchers | sequential (ms) | concurrency=10 (ms) | seq > cron 30s? | seq > vercel 10s?');
-console.log('---------|-----------------|----------------------|-----------------|-------------------');
+console.log(`Simulating the app's real fan-out pattern at concurrency=${REAL_CONCURRENCY}.\n`);
+console.log('watchers | wall time (ms) | exceeds cron 30s? | exceeds Vercel Hobby 10s?');
+console.log('---------|----------------|--------------------|---------------------------');
 
 for (const n of scales) {
-  const seqMs = await runSequential(n);
-  const concMs = await runConcurrent(n, 10);
-  const seqExceedsCron = seqMs > CRON_JOB_TIMEOUT_MS ? 'YES' : 'no';
-  const seqExceedsVercel = seqMs > VERCEL_HOBBY_TIMEOUT_MS ? 'YES' : 'no';
+  const ms = await runConcurrent(n, REAL_CONCURRENCY);
+  const exceedsCron = ms > CRON_JOB_TIMEOUT_MS ? 'YES' : 'no';
+  const exceedsVercel = ms > VERCEL_HOBBY_TIMEOUT_MS ? 'YES' : 'no';
   console.log(
-    `${String(n).padEnd(8)} | ${seqMs.toFixed(0).padEnd(15)} | ${concMs.toFixed(0).padEnd(20)} | ${seqExceedsCron.padEnd(15)} | ${seqExceedsVercel}`,
+    `${String(n).padEnd(8)} | ${ms.toFixed(0).padEnd(14)} | ${exceedsCron.padEnd(18)} | ${exceedsVercel}`,
   );
 }

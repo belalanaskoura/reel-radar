@@ -15,8 +15,8 @@ roughly by how soon each would actually bite.
 
 | # | Finding | Confirmed via | Rough threshold |
 |---|---|---|---|
-| 1 | Notification fan-out loops are fully sequential, no concurrency cap | Code + stress test | ~50 watchers on one movie exceeds cron-job.org's 30s timeout |
-| 2 | `notify-cinema-lineup.ts` runs a sequential double loop inline inside scrape jobs | Code | Couples scrape job runtime to follower count; same 30s risk |
+| 1 | ~~Notification fan-out loops are fully sequential, no concurrency cap~~ **FIXED 2026-08-27** | Code + stress test | Was ~50 watchers exceeding cron-job.org's 30s timeout; now ~350-380 at concurrency=10 |
+| 2 | `notify-cinema-lineup.ts` runs inline inside scrape jobs (concurrency fixed, architecture unchanged) | Code | Inner loop no longer sequential (see #1), but scrape job runtime is still coupled to follower count, not backgrounded |
 | 3 | `analytics_events` retention function exists but is never invoked | Code (grep, zero call sites) | Unbounded growth against Supabase's 500MB free-tier cap, no defined date |
 | 4 | `notification_deliveries` has no retention at all | Code | Fastest-growing table in the schema; fine today, no cleanup story |
 | 5 | `scrape-scene` needs a manually-added cron-job.org job per ~10 new listings | Code comment + CLAUDE.md history | Already crossed once at 22 listings; recurs as catalog grows |
@@ -24,8 +24,8 @@ roughly by how soon each would actually bite.
 | 7 | Browse page ships the entire catalog + filters client-side, no pagination | Code comment (limit deliberately set above expected catalog size) | Payload/filter-cost growth tracks catalog size directly |
 | 8 | `useEqualRowHeights`'s row-bucketing is O(cards²) | Code + stress test | Bounded today by `PAGE_SIZE=60`; would matter if that cap is ever raised |
 | 9 | No rate-limit/backoff handling for TMDB, Resend, or web-push | Code (grep, zero matches) | Speculative; no evidence of being hit yet |
-| 10 | Two minor missing indexes (`watchlist.movie_id`, `showtimes_cache.branch_id`) | Schema read | Fine at current row counts; worth adding before either table hits five figures |
-| 11 | `mapWithConcurrency` exists but is duplicated twice and unused by any notification path | Code | Not a bug — the fix for #1/#2 already exists in the codebase, just not applied there |
+| 10 | ~~Two minor missing indexes (`watchlist.movie_id`, `showtimes_cache.branch_id`)~~ **FIXED 2026-08-27** | Schema read | Both added via `supabase/migrations/0102_scale_indexes.sql` |
+| 11 | ~~`mapWithConcurrency` exists but is duplicated twice and unused by any notification path~~ **FIXED 2026-08-27** | Code | Extracted to `src/lib/concurrency.ts` (with its own unit tests) and applied at every fan-out call site: `poll`, `notify-cinema-lineup`, `notify-new-releases`, `sendBroadcast`, `welcome-email`, `sync-movies`, `match-to-tmdb` |
 
 ---
 
@@ -91,6 +91,37 @@ before total user count reaches the low thousands.
 it's just never been applied to any notification fan-out path. Worth
 extracting to a shared `src/lib/concurrency.ts` once applied to a second
 call site, rather than a third copy-paste.
+
+### Update, 2026-08-27: fixed
+
+`mapWithConcurrency` was extracted to `src/lib/concurrency.ts` (own unit
+tests in `src/lib/concurrency.test.ts`) and applied at concurrency=10 to
+every fan-out path this finding named: `notifyWatchers` (`poll`),
+`notifyLineupAdditions`/`notifyLineupRemovals`, `notifyNewReleases`,
+`sendBroadcast`, `/api/welcome-email`, plus `sync-movies` and
+`match-to-tmdb` (which had their own pre-existing duplicate
+implementations, now consolidated onto the same shared function).
+
+`scripts/stress/notification-fanout.mjs` was rewritten to simulate the
+*current* concurrency=10 pattern rather than sequential-vs-concurrent
+(the comparison this section's table made is no longer the live
+question). Rerun at higher scale to find today's real breaking point:
+
+| watchers | wall time | exceeds cron-job.org 30s? | exceeds Vercel Hobby 10s? |
+|---|---|---|---|
+| 10 | 1.1s | no | no |
+| 22 | 2.8s | no | no |
+| 50 | 5.5s | no | no |
+| 100 | 10.5s | no | **yes** |
+| 250 | 25.6s | no | **yes** |
+| 400 | 40.1s | **yes** | **yes** |
+
+Concurrency=10 pushes the safe zone from ~10 watchers (the old
+sequential number, at Vercel's 10s function timeout) out to roughly
+90-95, and the cron-job.org 30s ceiling from ~50 out to roughly
+350-380. Vercel Hobby's function timeout is still the tighter of the
+two constraints and is now the more relevant one to watch as watcher
+counts grow on a single popular title.
 
 ---
 
@@ -197,6 +228,22 @@ time by design, not as an accident — worth a pagination pass before the
 catalog gets meaningfully larger than it is now, since nothing currently
 signals when that threshold is crossed.
 
+### Update, 2026-08-27: limit lowered, pagination still not built
+
+The fetch limit is now `BROWSE_FETCH_LIMIT = 300`
+(`src/app/browse/page.tsx`), not the `2000` this finding originally
+described — its own comment says it was set relative to a real catalog
+size of 117 at the time, with "generous headroom... revisit once the
+catalog is materially closer to this," which is a narrower, more
+deliberately-bounded number than the original "sized for 2029" framing.
+The underlying finding is otherwise unchanged: still a whole-catalog
+fetch with no real pagination, still filtered client-side on every
+keystroke. `scripts/stress/browse-query-scale.ts` (see finding 10's
+update) measures this exact query's real latency up to 10,000 seeded
+movies against a test Supabase project, which is useful context for
+deciding when a pagination pass actually becomes worth doing — it does
+not fix or replace the need for one.
+
 ---
 
 ## 8. `useEqualRowHeights`'s row-bucketing algorithm is O(cards²)
@@ -267,6 +314,19 @@ Not urgent. Everything else checked (`movie_branch_slugs`,
 `notification_log`, `notification_deliveries`, `analytics_events`) has
 real, correctly-targeted indexes already.
 
+### Update, 2026-08-27: fixed
+
+Both indexes were added via `supabase/migrations/0102_scale_indexes.sql`:
+`watchlist_movie_id_idx` on `watchlist (movie_id)` and
+`showtimes_cache_branch_id_idx` on `showtimes_cache (branch_id, bookable)`
+(a composite covering the delisting sweep's exact filter shape, not just
+`branch_id` alone). `scripts/stress/browse-query-scale.ts` seeds
+synthetic rows in a dedicated test Supabase project at increasing scale
+(up to 10,000 movies) and times both the real browse-page query and a
+plain `branch_id` filter query against it, to confirm these indexes hold
+up under load rather than just trusting they were applied correctly —
+see `docs/LOAD_TESTING.md` for how to run it.
+
 ---
 
 ## 11. The fix for findings 1 and 2 already exists in this codebase
@@ -280,6 +340,12 @@ functions in findings 1-2, despite those having the exact same shape
 new pattern to invent — it's a known-working pattern in this codebase
 that just needs to be reused in three or four more places, and extracted
 to a shared module once it's used a third time.
+
+### Update, 2026-08-27: fixed
+
+See finding 1's update — `mapWithConcurrency` is now a single shared
+implementation (`src/lib/concurrency.ts`) applied everywhere this finding
+flagged.
 
 ---
 
