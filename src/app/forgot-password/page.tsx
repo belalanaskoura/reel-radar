@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { requestPasswordReset } from './actions';
+import { authErrorMessage } from '@/lib/auth-error-codes';
 
 export default async function ForgotPasswordPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; sent?: string }>;
 }) {
-  const { error, sent } = await searchParams;
+  const { error: errorCode, sent } = await searchParams;
+  const error = authErrorMessage(errorCode);
 
   return (
     <main className="relative overflow-hidden">

@@ -17,11 +17,17 @@
  * Meant to run once, before adding the real fix: a UNIQUE constraint on
  * movie_branch_slugs(branch_id, slug) -- see CLAUDE.md for the exact SQL,
  * given directly rather than as a migration file per the no-.sql-files
- * convention. Run with `npx tsx scripts/dedupe-slug-race-condition.ts`.
+ * convention.
+ *
+ * Dry run by default -- prints what would change without touching
+ * anything. Run with
+ * `npx tsx scripts/dedupe-slug-race-condition.ts --live` to actually
+ * apply the repoint + delete.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import { isDryRun, logDryRunBanner } from './_lib/dry-run';
 
 const envPath = path.resolve(__dirname, '../.env.local');
 fs.readFileSync(envPath, 'utf8')
@@ -32,6 +38,8 @@ fs.readFileSync(envPath, 'utf8')
   });
 
 async function main() {
+  logDryRunBanner('dedupe-slug-race-condition');
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -89,12 +97,21 @@ async function main() {
 
     for (const row of duplicateCache ?? []) {
       if (takenBranches.has(row.branch_id)) continue;
-      await supabase
-        .from('showtimes_cache')
-        .update({ movie_id: canonical.id })
-        .eq('movie_id', row.movie_id)
-        .eq('branch_id', row.branch_id);
+      if (!isDryRun()) {
+        await supabase
+          .from('showtimes_cache')
+          .update({ movie_id: canonical.id })
+          .eq('movie_id', row.movie_id)
+          .eq('branch_id', row.branch_id);
+      }
       takenBranches.add(row.branch_id);
+    }
+
+    if (isDryRun()) {
+      console.log(`  would remove ${duplicateIds.length} duplicate row(s)`);
+      groupsFixed += 1;
+      rowsDeleted += duplicateIds.length;
+      continue;
     }
 
     // Delete the duplicate slug links first (all point at the same

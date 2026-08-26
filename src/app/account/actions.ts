@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth-error-codes';
 
 // Verifies the caller actually knows the current password before a
 // credential change, rather than trusting that holding a session is
@@ -190,7 +191,7 @@ export async function updateDisplayName(formData: FormData) {
     .eq('id', user.id);
 
   if (error) {
-    redirect(`/account/edit?error=${encodeURIComponent(error.message)}`);
+    redirect('/account/edit?error=update_failed');
   }
 
   revalidatePath('/account');
@@ -223,13 +224,13 @@ export async function updateEmail(formData: FormData) {
   }
 
   if (!user.email || !(await verifyCurrentPassword(user.email, currentPassword, user.id))) {
-    redirect(`/account/edit?error=${encodeURIComponent('That password is incorrect.')}`);
+    redirect('/account/edit?error=wrong_password');
   }
 
   const { error } = await supabase.auth.updateUser({ email: newEmail });
 
   if (error) {
-    redirect(`/account/edit?error=${encodeURIComponent(error.message)}`);
+    redirect('/account/edit?error=update_failed');
   }
 
   redirect('/account/edit?email_pending=1');
@@ -239,8 +240,8 @@ export async function updatePassword(formData: FormData) {
   const newPassword = formData.get('new_password') as string;
   const currentPassword = (formData.get('current_password') as string) ?? '';
 
-  if (newPassword.length < 6) {
-    redirect(`/account/security?error=${encodeURIComponent('Password must be at least 6 characters.')}`);
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    redirect('/account/security?error=weak_password');
   }
 
   const supabase = await createClient();
@@ -253,13 +254,13 @@ export async function updatePassword(formData: FormData) {
   }
 
   if (!user.email || !(await verifyCurrentPassword(user.email, currentPassword, user.id))) {
-    redirect(`/account/security?error=${encodeURIComponent('That password is incorrect.')}`);
+    redirect('/account/security?error=wrong_password');
   }
 
   const { error } = await supabase.auth.updateUser({ password: newPassword });
 
   if (error) {
-    redirect(`/account/security?error=${encodeURIComponent(error.message)}`);
+    redirect('/account/security?error=update_failed');
   }
 
   redirect('/account/security?password_saved=1');
