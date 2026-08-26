@@ -7,6 +7,16 @@ import {
   notifyLineupAddedByEmail,
   notifyLineupRemovedByEmail,
 } from '@/lib/email';
+import { mapWithConcurrency } from '@/lib/concurrency';
+
+// Both notify functions below fan out over every (follower, newly-added-or-
+// removed movie) pair -- a scrape/delist run touching several movies at a
+// well-followed cinema can mean hundreds of these. Called inline from
+// scrape-scene/scrape-scene-delist/scrape-vox, so a fully sequential fan-out
+// here directly threatens those routes' own cron-job.org 30s timeout (which
+// scrape-scene has already hit once for an unrelated reason -- see its own
+// file comment). Same concurrency cap used elsewhere for this shape.
+const NOTIFY_CONCURRENCY = 10;
 
 // Notifies everyone following a cinema branch when a movie joins or
 // leaves that branch's lineup -- distinct from /api/poll's per-movie
@@ -52,92 +62,101 @@ export async function notifyLineupAdditions(
   );
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  let notified = 0;
 
-  for (const { user_id: userId } of followers) {
+  // One profile lookup per follower (not per follower×movie pair), fetched
+  // upfront so the concurrent fan-out below doesn't repeat it.
+  const profileByUserId = new Map<string, { email: string | null; notify_cinema_lineup: boolean | null }>();
+  await mapWithConcurrency(followers, NOTIFY_CONCURRENCY, async ({ user_id: userId }) => {
     const { data: profile } = await supabase
       .from('profiles')
       .select('email, notify_cinema_lineup')
       .eq('id', userId)
       .single();
+    if (profile) profileByUserId.set(userId as string, profile);
+  });
 
-    if (!profile?.notify_cinema_lineup) continue;
-    if (!profile.email) continue; // nothing to notify with, skip entirely
+  const pairs = followers.flatMap(({ user_id: userId }) =>
+    newMovieIds.map((movieId) => ({ userId: userId as string, movieId })),
+  );
 
-    for (const movieId of newMovieIds) {
-      const key = `${userId}:${movieId}`;
-      if (alreadyNotifiedKeys.has(key)) continue;
+  const results = await mapWithConcurrency(pairs, NOTIFY_CONCURRENCY, async ({ userId, movieId }) => {
+    const profile = profileByUserId.get(userId);
+    if (!profile?.notify_cinema_lineup) return false;
+    if (!profile.email) return false; // nothing to notify with, skip entirely
 
-      const movie = movieById.get(movieId);
-      if (!movie) continue;
+    const key = `${userId}:${movieId}`;
+    if (alreadyNotifiedKeys.has(key)) return false;
 
-      const payload = {
-        movieTitle: movie.title as string,
-        branchName: branchRow.name as string,
-        movieUrl: `${siteUrl}/movies/${movieId}`,
-      };
+    const movie = movieById.get(movieId);
+    if (!movie) return false;
 
-      // Email and push are independent, best-effort channels: one
-      // failing must never block the other or abort the rest of this
-      // loop (same isolation as /api/poll's notifyWatchers).
-      try {
-        await notifyLineupAddedByEmail(profile.email, payload);
-        await supabase.from('notification_deliveries').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          channel: 'email',
-          success: true,
-        });
-      } catch (err) {
-        await supabase.from('notification_deliveries').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          channel: 'email',
-          success: false,
-          error: String(err).slice(0, 500),
-        });
-      }
+    const payload = {
+      movieTitle: movie.title as string,
+      branchName: branchRow.name as string,
+      movieUrl: `${siteUrl}/movies/${movieId}`,
+    };
 
-      try {
-        await notifyLineupAddedPush(supabase, userId as string, payload);
-        await supabase.from('notification_deliveries').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          channel: 'push',
-          success: true,
-        });
-      } catch (err) {
-        await supabase.from('notification_deliveries').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          channel: 'push',
-          success: false,
-          error: String(err).slice(0, 500),
-        });
-      }
-
-      try {
-        await supabase.from('notification_log').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          kind: 'lineup_added',
-          title: payload.movieTitle,
-          message: `${payload.movieTitle} is now at ${payload.branchName}!`,
-          url: `/movies/${movieId}`,
-        });
-        notified += 1;
-      } catch {
-        // best-effort, swallow and continue
-      }
+    // Email and push are independent, best-effort channels: one failing
+    // must never block the other or abort any other pair being notified
+    // concurrently (same isolation as /api/poll's notifyWatchers).
+    try {
+      await notifyLineupAddedByEmail(profile.email, payload);
+      await supabase.from('notification_deliveries').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        channel: 'email',
+        success: true,
+      });
+    } catch (err) {
+      await supabase.from('notification_deliveries').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        channel: 'email',
+        success: false,
+        error: String(err).slice(0, 500),
+      });
     }
-  }
 
-  return { notified };
+    try {
+      await notifyLineupAddedPush(supabase, userId, payload);
+      await supabase.from('notification_deliveries').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        channel: 'push',
+        success: true,
+      });
+    } catch (err) {
+      await supabase.from('notification_deliveries').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        channel: 'push',
+        success: false,
+        error: String(err).slice(0, 500),
+      });
+    }
+
+    try {
+      await supabase.from('notification_log').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        kind: 'lineup_added',
+        title: payload.movieTitle,
+        message: `${payload.movieTitle} is now at ${payload.branchName}!`,
+        url: `/movies/${movieId}`,
+      });
+      return true;
+    } catch {
+      // best-effort, swallow and continue
+      return false;
+    }
+  });
+
+  return { notified: results.filter(Boolean).length };
 }
 
 export async function notifyLineupRemovals(
@@ -178,87 +197,96 @@ export async function notifyLineupRemovals(
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   const cinemaUrl = `${siteUrl}/cinemas/${branchId}`;
-  let notified = 0;
 
-  for (const { user_id: userId } of followers) {
+  // One profile lookup per follower (not per follower×movie pair), fetched
+  // upfront so the concurrent fan-out below doesn't repeat it.
+  const profileByUserId = new Map<string, { email: string | null; notify_cinema_lineup: boolean | null }>();
+  await mapWithConcurrency(followers, NOTIFY_CONCURRENCY, async ({ user_id: userId }) => {
     const { data: profile } = await supabase
       .from('profiles')
       .select('email, notify_cinema_lineup')
       .eq('id', userId)
       .single();
+    if (profile) profileByUserId.set(userId as string, profile);
+  });
 
-    if (!profile?.notify_cinema_lineup) continue;
-    if (!profile.email) continue; // nothing to notify with, skip entirely
+  const pairs = followers.flatMap(({ user_id: userId }) =>
+    removedMovieIds.map((movieId) => ({ userId: userId as string, movieId })),
+  );
 
-    for (const movieId of removedMovieIds) {
-      const key = `${userId}:${movieId}`;
-      if (alreadyNotifiedKeys.has(key)) continue;
+  const results = await mapWithConcurrency(pairs, NOTIFY_CONCURRENCY, async ({ userId, movieId }) => {
+    const profile = profileByUserId.get(userId);
+    if (!profile?.notify_cinema_lineup) return false;
+    if (!profile.email) return false; // nothing to notify with, skip entirely
 
-      const movie = movieById.get(movieId);
-      if (!movie) continue;
+    const key = `${userId}:${movieId}`;
+    if (alreadyNotifiedKeys.has(key)) return false;
 
-      const payload = {
-        movieTitle: movie.title as string,
-        branchName: branchRow.name as string,
-        cinemaUrl,
-      };
+    const movie = movieById.get(movieId);
+    if (!movie) return false;
 
-      try {
-        await notifyLineupRemovedByEmail(profile.email, payload);
-        await supabase.from('notification_deliveries').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          channel: 'email',
-          success: true,
-        });
-      } catch (err) {
-        await supabase.from('notification_deliveries').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          channel: 'email',
-          success: false,
-          error: String(err).slice(0, 500),
-        });
-      }
+    const payload = {
+      movieTitle: movie.title as string,
+      branchName: branchRow.name as string,
+      cinemaUrl,
+    };
 
-      try {
-        await notifyLineupRemovedPush(supabase, userId as string, payload);
-        await supabase.from('notification_deliveries').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          channel: 'push',
-          success: true,
-        });
-      } catch (err) {
-        await supabase.from('notification_deliveries').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          channel: 'push',
-          success: false,
-          error: String(err).slice(0, 500),
-        });
-      }
-
-      try {
-        await supabase.from('notification_log').insert({
-          user_id: userId,
-          movie_id: movieId,
-          branch_id: branchId,
-          kind: 'lineup_removed',
-          title: payload.movieTitle,
-          message: `${payload.movieTitle} has left ${payload.branchName}.`,
-          url: `/cinemas/${branchId}`,
-        });
-        notified += 1;
-      } catch {
-        // best-effort, swallow and continue
-      }
+    try {
+      await notifyLineupRemovedByEmail(profile.email, payload);
+      await supabase.from('notification_deliveries').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        channel: 'email',
+        success: true,
+      });
+    } catch (err) {
+      await supabase.from('notification_deliveries').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        channel: 'email',
+        success: false,
+        error: String(err).slice(0, 500),
+      });
     }
-  }
 
-  return { notified };
+    try {
+      await notifyLineupRemovedPush(supabase, userId, payload);
+      await supabase.from('notification_deliveries').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        channel: 'push',
+        success: true,
+      });
+    } catch (err) {
+      await supabase.from('notification_deliveries').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        channel: 'push',
+        success: false,
+        error: String(err).slice(0, 500),
+      });
+    }
+
+    try {
+      await supabase.from('notification_log').insert({
+        user_id: userId,
+        movie_id: movieId,
+        branch_id: branchId,
+        kind: 'lineup_removed',
+        title: payload.movieTitle,
+        message: `${payload.movieTitle} has left ${payload.branchName}.`,
+        url: `/cinemas/${branchId}`,
+      });
+      return true;
+    } catch {
+      // best-effort, swallow and continue
+      return false;
+    }
+  });
+
+  return { notified: results.filter(Boolean).length };
 }

@@ -9,34 +9,14 @@ import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
 import { notifyNewReleases } from '@/lib/matching/notify-new-releases';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 import { logEvent } from '@/lib/analytics';
+import { mapWithConcurrency } from '@/lib/concurrency';
 
-// Runs an array of async tasks with at most `size` in flight at once,
-// preserving input order in the returned results. Used below to keep
-// sync-movies within the free external scheduler's 30s job timeout (no
-// Vercel Cron on Hobby, see Phase 1) -- up to 100 fully sequential
-// per-candidate TMDB/elCinema lookups measured at ~36s in production,
-// over the cap. A modest batch size (not unlimited concurrency) keeps
-// this from hammering elCinema, which still has its own courtesy delay
-// per request inside getEgyptReleaseInfo.
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  size: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const i = nextIndex++;
-      results[i] = await fn(items[i]);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
-  return results;
-}
-
+// Keeps sync-movies within the free external scheduler's 30s job timeout
+// (no Vercel Cron on Hobby, see Phase 1) -- up to 100 fully sequential
+// per-candidate TMDB/elCinema lookups measured at ~36s in production, over
+// the cap. A modest batch size (not unlimited concurrency) keeps this from
+// hammering elCinema, which still has its own courtesy delay per request
+// inside getEgyptReleaseInfo.
 const SYNC_CONCURRENCY = 10;
 
 // Pulls upcoming movies from TMDB and upserts them into the `movies` table.
