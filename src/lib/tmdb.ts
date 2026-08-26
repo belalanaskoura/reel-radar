@@ -22,18 +22,28 @@ const TMDB_TIMEOUT_MS = 15_000;
 // the common case where it's never hit.
 const RATE_LIMIT_RETRY_DELAY_MS = 1_000;
 
-async function fetchOnce(url: string): Promise<Response> {
+// Takes `path` and `params` separately (rather than a pre-built URL
+// string) so the request's destination is always the literal
+// TMDB_BASE_URL -- every value that varies per call (movie/person ids,
+// search queries) only ever lands in the query string, never the host.
+function buildUrl(path: string, params: URLSearchParams): string {
+  const url = new URL(path, TMDB_BASE_URL);
+  url.search = params.toString();
+  return url.toString();
+}
+
+async function fetchOnce(path: string, params: URLSearchParams): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TMDB_TIMEOUT_MS);
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetch(buildUrl(path, params), { signal: controller.signal });
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function tmdbFetch(url: string): Promise<Response> {
-  const res = await fetchOnce(url);
+async function tmdbFetch(path: string, params: URLSearchParams): Promise<Response> {
+  const res = await fetchOnce(path, params);
   if (res.status !== 429) return res;
 
   const retryAfterHeader = res.headers.get('Retry-After');
@@ -41,7 +51,7 @@ async function tmdbFetch(url: string): Promise<Response> {
   const delayMs = Number.isFinite(retryAfterMs) ? retryAfterMs : RATE_LIMIT_RETRY_DELAY_MS;
 
   await new Promise((resolve) => setTimeout(resolve, delayMs));
-  return fetchOnce(url);
+  return fetchOnce(path, params);
 }
 
 export interface TmdbMovie {
@@ -165,7 +175,7 @@ export async function fetchUpcomingMovies(
 
   do {
     params.set('page', String(page));
-    const res = await tmdbFetch(`${TMDB_BASE_URL}/discover/movie?${params}`);
+    const res = await tmdbFetch('/discover/movie', params);
     if (!res.ok) {
       throw new Error(`TMDB discover request failed: ${res.status}`);
     }
@@ -190,7 +200,7 @@ export async function searchMovies(query: string, language: 'en-US' | 'ar'): Pro
     include_adult: 'false',
   });
 
-  const res = await tmdbFetch(`${TMDB_BASE_URL}/search/movie?${params}`);
+  const res = await tmdbFetch('/search/movie', params);
   if (!res.ok) {
     throw new Error(`TMDB search request failed: ${res.status}`);
   }
@@ -210,7 +220,8 @@ export async function searchMovies(query: string, language: 'en-US' | 'ar'): Pro
 export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string | null> {
   const apiKey = requireApiKey();
   const res = await tmdbFetch(
-    `${TMDB_BASE_URL}/movie/${tmdbId}/release_dates?api_key=${apiKey}`,
+    `/movie/${tmdbId}/release_dates`,
+    new URLSearchParams({ api_key: apiKey }),
   );
   if (!res.ok) {
     throw new Error(`TMDB release_dates request failed: ${res.status}`);
@@ -231,7 +242,8 @@ export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string
 export async function findByImdbId(imdbId: string): Promise<TmdbMovie | null> {
   const apiKey = requireApiKey();
   const res = await tmdbFetch(
-    `${TMDB_BASE_URL}/find/${imdbId}?api_key=${apiKey}&external_source=imdb_id`,
+    `/find/${imdbId}`,
+    new URLSearchParams({ api_key: apiKey, external_source: 'imdb_id' }),
   );
   if (!res.ok) {
     throw new Error(`TMDB find request failed: ${res.status}`);
@@ -246,7 +258,10 @@ export async function findByImdbId(imdbId: string): Promise<TmdbMovie | null> {
 // and a fuzzy title search would just risk landing on the wrong entry.
 export async function getMovieById(tmdbId: number): Promise<TmdbMovie | null> {
   const apiKey = requireApiKey();
-  const res = await tmdbFetch(`${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${apiKey}&language=en-US`);
+  const res = await tmdbFetch(
+    `/movie/${tmdbId}`,
+    new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
+  );
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(`TMDB movie request failed: ${res.status}`);
@@ -262,7 +277,8 @@ export async function getMovieById(tmdbId: number): Promise<TmdbMovie | null> {
 export async function fetchMovieDetails(tmdbId: number): Promise<TmdbMovieDetails> {
   const apiKey = requireApiKey();
   const res = await tmdbFetch(
-    `${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${apiKey}&language=en-US`,
+    `/movie/${tmdbId}`,
+    new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
   );
   if (!res.ok) {
     throw new Error(`TMDB movie details request failed: ${res.status}`);
@@ -275,7 +291,8 @@ export async function fetchMovieDetails(tmdbId: number): Promise<TmdbMovieDetail
 export async function fetchCredits(tmdbId: number): Promise<TmdbCredits> {
   const apiKey = requireApiKey();
   const res = await tmdbFetch(
-    `${TMDB_BASE_URL}/movie/${tmdbId}/credits?api_key=${apiKey}&language=en-US`,
+    `/movie/${tmdbId}/credits`,
+    new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
   );
   if (!res.ok) {
     throw new Error(`TMDB credits request failed: ${res.status}`);
@@ -291,7 +308,10 @@ export async function fetchCredits(tmdbId: number): Promise<TmdbCredits> {
 export async function fetchMovieImdbId(tmdbId: number): Promise<string | null> {
   const apiKey = requireApiKey();
   try {
-    const res = await tmdbFetch(`${TMDB_BASE_URL}/movie/${tmdbId}/external_ids?api_key=${apiKey}`);
+    const res = await tmdbFetch(
+      `/movie/${tmdbId}/external_ids`,
+      new URLSearchParams({ api_key: apiKey }),
+    );
     if (!res.ok) return null;
     const data: { imdb_id: string | null } = await res.json();
     return data.imdb_id || null;
@@ -330,7 +350,8 @@ interface TmdbReviewsResponse {
 export async function fetchMovieReviews(tmdbId: number): Promise<TmdbReview[]> {
   const apiKey = requireApiKey();
   const res = await tmdbFetch(
-    `${TMDB_BASE_URL}/movie/${tmdbId}/reviews?api_key=${apiKey}&language=en-US`,
+    `/movie/${tmdbId}/reviews`,
+    new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
   );
   if (!res.ok) {
     throw new Error(`TMDB reviews request failed: ${res.status}`);
@@ -357,7 +378,10 @@ export async function fetchMovieReviews(tmdbId: number): Promise<TmdbReview[]> {
 export async function fetchPersonImdbId(personId: number): Promise<string | null> {
   const apiKey = requireApiKey();
   try {
-    const res = await tmdbFetch(`${TMDB_BASE_URL}/person/${personId}?api_key=${apiKey}`);
+    const res = await tmdbFetch(
+      `/person/${personId}`,
+      new URLSearchParams({ api_key: apiKey }),
+    );
     if (!res.ok) return null;
     const data: { imdb_id: string | null } = await res.json();
     return data.imdb_id || null;
