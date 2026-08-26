@@ -9,34 +9,14 @@ import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
 import { notifyNewReleases } from '@/lib/matching/notify-new-releases';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 import { logEvent } from '@/lib/analytics';
+import { mapWithConcurrency } from '@/lib/concurrency';
 
-// Runs an array of async tasks with at most `size` in flight at once,
-// preserving input order in the returned results. Used below to keep
-// sync-movies within the free external scheduler's 30s job timeout (no
-// Vercel Cron on Hobby, see Phase 1) -- up to 100 fully sequential
-// per-candidate TMDB/elCinema lookups measured at ~36s in production,
-// over the cap. A modest batch size (not unlimited concurrency) keeps
-// this from hammering elCinema, which still has its own courtesy delay
-// per request inside getEgyptReleaseInfo.
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  size: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const i = nextIndex++;
-      results[i] = await fn(items[i]);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
-  return results;
-}
-
+// Keeps sync-movies within the free external scheduler's 30s job timeout
+// (no Vercel Cron on Hobby, see Phase 1) -- up to 100 fully sequential
+// per-candidate TMDB/elCinema lookups measured at ~36s in production, over
+// the cap. A modest batch size (not unlimited concurrency) keeps this from
+// hammering elCinema, which still has its own courtesy delay per request
+// inside getEgyptReleaseInfo.
 const SYNC_CONCURRENCY = 10;
 
 // Pulls upcoming movies from TMDB and upserts them into the `movies` table.
@@ -58,9 +38,36 @@ export async function POST(request: Request) {
   const fromDate = today.toISOString().slice(0, 10);
   const toDate = endOf2029.toISOString().slice(0, 10);
 
-  const candidates = await fetchUpcomingMovies(fromDate, toDate);
-
   const supabase = createServiceRoleClient();
+
+  try {
+    return await runSync(supabase, fromDate, toDate, startedAt);
+  } catch (err) {
+    // Previously, any failure anywhere in this route (including the final
+    // upsert, which could fail after placeholderUpdates had already
+    // written real rows -- a genuine partial-state case) produced a bare
+    // 500 with no logEvent at all, unlike every other scheduled job's
+    // try/catch-and-log pattern. The admin-digest's stuck-backlog check
+    // reads analytics_events for a sync_run row to know the pipeline is
+    // healthy; a silently-failed run left nothing for it to notice was
+    // missing.
+    const message = String(err).slice(0, 500);
+    console.error('sync-movies failed:', message);
+    logEvent({
+      type: 'sync_run',
+      payload: { accepted: 0, rejected: 0, duration_ms: Date.now() - startedAt, error: message },
+    });
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function runSync(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  fromDate: string,
+  toDate: string,
+  startedAt: number,
+) {
+  const candidates = await fetchUpcomingMovies(fromDate, toDate);
 
   // Every candidate is checked against the real Egypt-distributor history
   // (or the popularity safety net) before being stored; see
@@ -191,8 +198,14 @@ export async function POST(request: Request) {
     ignoreDuplicates: false,
   });
 
+  // Thrown, not returned directly: placeholderUpdates above already wrote
+  // real rows by this point, and a bare early return here (the previous
+  // behavior) skipped the logEvent call entirely, leaving no trace of a
+  // failed run with real partial side effects already applied. Throwing
+  // routes this through the outer try/catch's own log-and-500 handling
+  // instead, same as every other failure in this route now.
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    throw new Error(`Failed to upsert movies: ${error.message}`);
   }
 
   const newlyDatedTmdbIds = dedupedRows
@@ -218,7 +231,12 @@ export async function POST(request: Request) {
 
   logEvent({
     type: 'sync_run',
-    payload: { accepted: movies.length, rejected: rejectedCount, duration_ms: Date.now() - startedAt },
+    payload: {
+      accepted: movies.length,
+      rejected: rejectedCount,
+      duration_ms: Date.now() - startedAt,
+      error: null,
+    },
   });
 
   return NextResponse.json({
