@@ -40,12 +40,22 @@ const CANDIDATE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 // code: only one invocation's insert can win for a given user_id, and
 // the loser gets a real 23505 back and skips sending, same pattern
 // already used for cinema_follows/watchlist duplicate-insert races.
+//
+// welcome_email_log also carries an invocation_id (a fresh uuid per
+// request) and every lost claim logs a 'welcome_email_claim_lost'
+// analytics event -- so if a duplicate is ever reported again, it's a
+// direct query away to tell whether it was two invocations racing for
+// the same user (expected, harmless -- the loser's event will show up)
+// or something outside this route's own protection entirely (e.g. two
+// separate cron-job.org jobs configured against this endpoint), rather
+// than reasoning about it from timestamps alone.
 export async function POST(request: Request) {
   if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const startedAt = Date.now();
+  const invocationId = crypto.randomUUID();
   const supabase = createServiceRoleClient();
 
   const allUsers = await listAllUsers(supabase);
@@ -83,9 +93,14 @@ export async function POST(request: Request) {
         // risk a duplicate send.
         const { error: claimError } = await supabase
           .from('welcome_email_log')
-          .insert({ user_id: user.id });
+          .insert({ user_id: user.id, invocation_id: invocationId });
         if (claimError) {
-          if (claimError.code !== '23505') {
+          if (claimError.code === '23505') {
+            logEvent({
+              type: 'welcome_email_claim_lost',
+              payload: { user_id: user.id, invocation_id: invocationId },
+            });
+          } else {
             console.error('welcome_email_log claim failed', user.id, claimError);
           }
           continue;
@@ -114,7 +129,7 @@ export async function POST(request: Request) {
 
   logEvent({
     type: 'welcome_email_run',
-    payload: { candidates: candidates.length, sent, duration_ms: Date.now() - startedAt },
+    payload: { invocation_id: invocationId, candidates: candidates.length, sent, duration_ms: Date.now() - startedAt },
   });
 
   return NextResponse.json({ candidates: candidates.length, sent });
