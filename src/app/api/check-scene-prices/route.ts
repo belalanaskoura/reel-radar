@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { launchBrowser } from '@/lib/scene/browser';
 import { fetchDayShowtimes } from '@/lib/scene/fetcher';
@@ -31,8 +32,7 @@ export const maxDuration = 60;
 // file's git history) as it could mean a real price change, and only a
 // human should decide which.
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-sync-secret');
-  if (secret !== process.env.SYNC_SECRET) {
+  if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

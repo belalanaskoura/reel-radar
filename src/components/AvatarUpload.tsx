@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import { useRef, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { UserIcon } from '@/components/icons';
 
 function CameraIcon({ size = 18 }: { size?: number }) {
@@ -14,13 +13,14 @@ function CameraIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+// No userId prop: the destination path is derived from the session on
+// the server. Passing an id in from the client was only ever a hint the
+// server had no reason to trust.
 export function AvatarUpload({
-  userId,
   avatarUrl,
   size = 80,
   shape = 'circle',
 }: {
-  userId: string;
   avatarUrl: string | null;
   size?: number;
   shape?: 'circle' | 'square';
@@ -34,6 +34,9 @@ export function AvatarUpload({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // A courtesy check so an obviously oversized file fails instantly
+    // instead of after a long upload. The real limit is enforced on the
+    // bytes the server actually receives -- this one is trivially skipped.
     if (file.size > 5 * 1024 * 1024) {
       setError('Image must be under 5 MB.');
       return;
@@ -43,31 +46,24 @@ export function AvatarUpload({
     setUploading(true);
 
     try {
-      const supabase = createClient();
-      const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${userId}/avatar.${ext}`;
+      // Posted to our own route rather than straight to Supabase Storage:
+      // the extension, the stored content type, and the destination path
+      // all have to be decided somewhere the user can't reach. See
+      // src/app/api/avatar/route.ts.
+      const body = new FormData();
+      body.append('file', file);
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(path, file, { upsert: true, contentType: file.type });
+      const res = await fetch('/api/avatar', { method: 'POST', body });
+      const payload = (await res.json().catch(() => null)) as
+        | { avatarUrl?: string; error?: string }
+        | null;
 
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('avatars').getPublicUrl(path);
+      if (!res.ok || !payload?.avatarUrl) {
+        throw new Error(payload?.error ?? 'Upload failed.');
+      }
 
       // Cache-bust so the updated image shows immediately
-      const busted = `${publicUrl}?t=${Date.now()}`;
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', userId);
-
-      if (updateError) throw updateError;
-
-      setPreview(busted);
+      setPreview(`${payload.avatarUrl}?t=${Date.now()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed.');
     } finally {

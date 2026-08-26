@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { listAllUsers } from '@/lib/list-all-users';
 import { findDataQualityIssues } from '@/lib/matching/data-quality';
@@ -15,8 +16,7 @@ import { logEvent } from '@/lib/analytics';
 // (email/push) are best-effort and independent -- one failing doesn't
 // block the other, same as every other notification path in this app.
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-sync-secret');
-  if (secret !== process.env.SYNC_SECRET) {
+  if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { fetchUpcomingMovies } from '@/lib/tmdb';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { isLikelyEgyptRelease } from '@/lib/matching/egypt-distributor-filter';
@@ -42,8 +43,7 @@ const SYNC_CONCURRENCY = 10;
 // Matched on tmdb_id so re-running is idempotent. Does not touch Scene
 // Cinemas at all; that's Phase 4/5.
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-sync-secret');
-  if (secret !== process.env.SYNC_SECRET) {
+  if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

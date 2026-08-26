@@ -1,3 +1,18 @@
+// Shape check for a Scene date before it's interpolated into an outbound
+// URL. Both public showtime server actions take a date straight from the
+// caller and splice it into `?business_day=`, so this bounds what can end
+// up in that query string to literally DD-MM-YYYY.
+export function isValidShowtimeDate(date: string): boolean {
+  return /^\d{2}-\d{2}-\d{4}$/.test(date);
+}
+
+// Shape check for a Scene movie slug, for the same reason: a slug is
+// spliced into the URL path. Scene's own slugs are lowercase words joined
+// by hyphens, sometimes with digits (a year or a sequel number).
+export function isValidSceneSlug(slug: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(slug) && slug.length <= 120;
+}
+
 // Scene's own date format throughout this app: DD-MM-YYYY, matching the
 // `business_day` param its AJAX showtime endpoint expects (see
 // fetchDayShowtimes). Shared here since both the per-cinema page and the
