@@ -8,6 +8,7 @@ import {
   notifyLineupRemovedByEmail,
 } from '@/lib/email';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { logEvent } from '@/lib/analytics';
 
 // Both notify functions below fan out over every (follower, newly-added-or-
 // removed movie) pair -- a scrape/delist run touching several movies at a
@@ -79,6 +80,7 @@ export async function notifyLineupAdditions(
     newMovieIds.map((movieId) => ({ userId: userId as string, movieId })),
   );
 
+  const fanoutStartedAt = Date.now();
   const results = await mapWithConcurrency(pairs, NOTIFY_CONCURRENCY, async ({ userId, movieId }) => {
     const profile = profileByUserId.get(userId);
     if (!profile?.notify_cinema_lineup) return false;
@@ -156,7 +158,13 @@ export async function notifyLineupAdditions(
     }
   });
 
-  return { notified: results.filter(Boolean).length };
+  const notified = results.filter(Boolean).length;
+  logEvent({
+    type: 'fanout_run',
+    payload: { kind: 'lineup_added', recipientCount: pairs.length, notified, duration_ms: Date.now() - fanoutStartedAt },
+  });
+
+  return { notified };
 }
 
 export async function notifyLineupRemovals(
@@ -214,6 +222,7 @@ export async function notifyLineupRemovals(
     removedMovieIds.map((movieId) => ({ userId: userId as string, movieId })),
   );
 
+  const fanoutStartedAt = Date.now();
   const results = await mapWithConcurrency(pairs, NOTIFY_CONCURRENCY, async ({ userId, movieId }) => {
     const profile = profileByUserId.get(userId);
     if (!profile?.notify_cinema_lineup) return false;
@@ -288,5 +297,11 @@ export async function notifyLineupRemovals(
     }
   });
 
-  return { notified: results.filter(Boolean).length };
+  const notified = results.filter(Boolean).length;
+  logEvent({
+    type: 'fanout_run',
+    payload: { kind: 'lineup_removed', recipientCount: pairs.length, notified, duration_ms: Date.now() - fanoutStartedAt },
+  });
+
+  return { notified };
 }
