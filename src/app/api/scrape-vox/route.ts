@@ -6,6 +6,7 @@ import { fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '@/lib/elcinema/fetche
 import { VOX_ELCINEMA_THEATER_IDS, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { logEvent } from '@/lib/analytics';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
+import { normalizeTitle } from '@/lib/matching/normalize';
 import { notifyLineupAdditions, notifyLineupRemovals } from '@/lib/matching/notify-cinema-lineup';
 
 const VOX_BRANCHES = Object.keys(VOX_ELCINEMA_THEATER_IDS) as VoxBranchId[];
@@ -110,14 +111,41 @@ export async function POST(request: Request) {
         } else {
           const { data: newMovie, error: insertError } = await supabase
             .from('movies')
-            .insert({ title, match_status: 'unmatched' })
+            .insert({ title, match_status: 'unmatched', normalized_title: normalizeTitle(title) })
             .select('id')
             .single();
 
-          if (insertError || !newMovie) {
-            throw new Error(`Failed to insert placeholder movie: ${insertError?.message}`);
+          // Tracks whether movieId points at a placeholder this run just
+          // created (safe to delete if the slug-insert race below is lost)
+          // versus an existing row found via the title-race recovery path
+          // (never delete another row's real movie).
+          let ownsFreshPlaceholder: boolean;
+
+          if (insertError) {
+            // 23505 = unique violation on normalized_title: a concurrent
+            // scrape run (this route's own 3 branch jobs, or scrape-scene
+            // picking up the same movie on the other chain) won the
+            // title-insert race first, same shape as the slug-insert race
+            // below. Use its row instead of inserting a duplicate -- see
+            // migration 0103's comment for the full reasoning.
+            if (insertError.code !== '23505') {
+              throw new Error(`Failed to insert placeholder movie: ${insertError.message}`);
+            }
+            const existingByNormalizedTitle = await findExistingMovieByTitle(supabase, title);
+            if (!existingByNormalizedTitle) {
+              throw new Error(
+                `Lost the title-insert race for "${title}" but couldn't find the winning row`,
+              );
+            }
+            movieId = existingByNormalizedTitle;
+            ownsFreshPlaceholder = false;
+          } else {
+            if (!newMovie) {
+              throw new Error(`Failed to insert placeholder movie: no row returned`);
+            }
+            movieId = newMovie.id;
+            ownsFreshPlaceholder = true;
           }
-          movieId = newMovie.id;
 
           const { error: slugInsertError } = await supabase
             .from('movie_branch_slugs')
@@ -126,7 +154,11 @@ export async function POST(request: Request) {
           if (slugInsertError) {
             // 23505 = unique violation on (branch_id, slug): a concurrent
             // scrape run won the insert first, same race scrape-scene
-            // handles. Use its link instead, delete our orphaned movie row.
+            // handles. Use its link instead, and delete the placeholder
+            // `movies` row this run just created for it -- only when this
+            // run actually created one; the title-race recovery path above
+            // resolves movieId to an existing row that must never be
+            // deleted.
             if (slugInsertError.code === '23505') {
               const { data: winningLink } = await supabase
                 .from('movie_branch_slugs')
@@ -135,7 +167,9 @@ export async function POST(request: Request) {
                 .eq('slug', slug)
                 .single();
 
-              await supabase.from('movies').delete().eq('id', movieId);
+              if (ownsFreshPlaceholder) {
+                await supabase.from('movies').delete().eq('id', movieId);
+              }
 
               if (!winningLink) {
                 throw new Error(`Lost the slug-insert race for ${branch}/${slug} but couldn't find the winning link`);

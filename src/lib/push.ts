@@ -26,6 +26,15 @@ interface PushPayload {
   url: string;
 }
 
+// Every other external call in this codebase (Scene, elCinema, TMDB,
+// Resend) aborts a hanging request rather than letting it run until
+// Vercel's own hard function limit -- web-push's sendNotification was the
+// one outlier, relying entirely on the library's/Node's default socket
+// behavior. A hang here (not a rejection) stalls one mapWithConcurrency
+// worker slot in whichever fan-out is running until that hard limit,
+// silently reducing effective concurrency below the configured cap.
+const REQUEST_TIMEOUT_MS = 15_000;
+
 // Sends one push message to every subscription a user has (multiple
 // devices/browsers each register their own). A subscription that the
 // push service reports as gone (410) or not found (404) is deleted
@@ -58,6 +67,7 @@ async function sendToUser(
           keys: { p256dh: sub.p256dh, auth: sub.auth },
         },
         JSON.stringify(payload),
+        { timeout: REQUEST_TIMEOUT_MS },
       );
       sent += 1;
     } catch (err) {
