@@ -5,6 +5,7 @@ import { fetchAllListings, checkBookability, sleep, REQUEST_DELAY_MS } from '@/l
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { logEvent } from '@/lib/analytics';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
+import { normalizeTitle } from '@/lib/matching/normalize';
 import { notifyLineupAdditions } from '@/lib/matching/notify-cinema-lineup';
 
 const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
@@ -113,14 +114,55 @@ export async function POST(request: Request) {
           } else {
             const { data: newMovie, error: insertError } = await supabase
               .from('movies')
-              .insert({ title: listing.title, match_status: 'unmatched' })
+              .insert({
+                title: listing.title,
+                match_status: 'unmatched',
+                normalized_title: normalizeTitle(listing.title),
+              })
               .select('id')
               .single();
 
-            if (insertError || !newMovie) {
-              throw new Error(`Failed to insert placeholder movie: ${insertError?.message}`);
+            // Tracks whether movieId points at a placeholder this run just
+            // created (safe to delete if the slug-insert race below is
+            // lost) versus an existing row found via the title-race
+            // recovery path (never delete another row's real movie).
+            let ownsFreshPlaceholder: boolean;
+
+            if (insertError) {
+              // 23505 = unique violation on normalized_title: a concurrent
+              // scrape run (scrape-scene's own staggered offset jobs, or
+              // scrape-vox picking up the same movie on a different chain)
+              // won the title-insert race first, same shape as the
+              // slug-insert race below. Use its row instead of inserting a
+              // duplicate -- see migration 0103's comment for the full
+              // reasoning behind this constraint.
+              if (insertError.code !== '23505') {
+                throw new Error(`Failed to insert placeholder movie: ${insertError.message}`);
+              }
+              const existingByNormalizedTitle = await findExistingMovieByTitle(
+                supabase,
+                listing.title,
+              );
+              if (!existingByNormalizedTitle) {
+                throw new Error(
+                  `Lost the title-insert race for "${listing.title}" but couldn't find the winning row`,
+                );
+              }
+              movieId = existingByNormalizedTitle;
+              const { data: movieRow } = await supabase
+                .from('movies')
+                .select('poster_path')
+                .eq('id', movieId)
+                .maybeSingle();
+              currentPosterPath = movieRow?.poster_path ?? null;
+              ownsFreshPlaceholder = false;
+            } else {
+              if (!newMovie) {
+                throw new Error(`Failed to insert placeholder movie: no row returned`);
+              }
+              movieId = newMovie.id;
+              ownsFreshPlaceholder = true;
             }
-            movieId = newMovie.id;
 
             const { error: slugInsertError } = await supabase
               .from('movie_branch_slugs')
@@ -132,9 +174,11 @@ export async function POST(request: Request) {
               // 30 min, overlapping runs are real, not hypothetical -- this
               // exact race produced 4 duplicate "Toy Story 5 DUB" placeholder
               // rows before the unique constraint existed) won the insert
-              // first. Use its link instead of ours, and delete the orphaned
-              // `movies` row this run just created for it, since nothing
-              // points at it and it would otherwise sit as a duplicate.
+              // first. Use its link instead of ours, and delete the
+              // placeholder `movies` row this run just created for it --
+              // only when this run actually created one; the title-race
+              // recovery path above resolves movieId to an existing row
+              // that must never be deleted.
               if (slugInsertError.code === '23505') {
                 const { data: winningLink } = await supabase
                   .from('movie_branch_slugs')
@@ -143,7 +187,9 @@ export async function POST(request: Request) {
                   .eq('slug', listing.slug)
                   .single();
 
-                await supabase.from('movies').delete().eq('id', movieId);
+                if (ownsFreshPlaceholder) {
+                  await supabase.from('movies').delete().eq('id', movieId);
+                }
 
                 if (!winningLink) {
                   throw new Error(

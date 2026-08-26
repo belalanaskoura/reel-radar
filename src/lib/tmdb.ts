@@ -2,6 +2,25 @@ import { containsSpoilers } from '@/lib/spoiler-detection';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
+// Every other external fetch in this codebase (Scene, elCinema, Resend)
+// already aborts a hanging request rather than letting it run until
+// Vercel's own hard function limit -- this file was the one outlier, with
+// every one of its ~10 fetch() calls left bare. sync-movies and
+// match-movies make the most external calls of any scheduled job, so a
+// slow/hanging TMDB response there could burn an entire cron slot with no
+// partial-progress logging.
+const TMDB_TIMEOUT_MS = 15_000;
+
+async function tmdbFetch(url: string): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TMDB_TIMEOUT_MS);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export interface TmdbMovie {
   id: number;
   title: string;
@@ -123,7 +142,7 @@ export async function fetchUpcomingMovies(
 
   do {
     params.set('page', String(page));
-    const res = await fetch(`${TMDB_BASE_URL}/discover/movie?${params}`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/discover/movie?${params}`);
     if (!res.ok) {
       throw new Error(`TMDB discover request failed: ${res.status}`);
     }
@@ -148,7 +167,7 @@ export async function searchMovies(query: string, language: 'en-US' | 'ar'): Pro
     include_adult: 'false',
   });
 
-  const res = await fetch(`${TMDB_BASE_URL}/search/movie?${params}`);
+  const res = await tmdbFetch(`${TMDB_BASE_URL}/search/movie?${params}`);
   if (!res.ok) {
     throw new Error(`TMDB search request failed: ${res.status}`);
   }
@@ -167,7 +186,7 @@ export async function searchMovies(query: string, language: 'en-US' | 'ar'): Pro
 // "this is the one actually playing in Egypt's cinemas."
 export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string | null> {
   const apiKey = requireApiKey();
-  const res = await fetch(
+  const res = await tmdbFetch(
     `${TMDB_BASE_URL}/movie/${tmdbId}/release_dates?api_key=${apiKey}`,
   );
   if (!res.ok) {
@@ -188,7 +207,7 @@ export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string
 // movie for that IMDb ID.
 export async function findByImdbId(imdbId: string): Promise<TmdbMovie | null> {
   const apiKey = requireApiKey();
-  const res = await fetch(
+  const res = await tmdbFetch(
     `${TMDB_BASE_URL}/find/${imdbId}?api_key=${apiKey}&external_source=imdb_id`,
   );
   if (!res.ok) {
@@ -204,7 +223,7 @@ export async function findByImdbId(imdbId: string): Promise<TmdbMovie | null> {
 // and a fuzzy title search would just risk landing on the wrong entry.
 export async function getMovieById(tmdbId: number): Promise<TmdbMovie | null> {
   const apiKey = requireApiKey();
-  const res = await fetch(`${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${apiKey}&language=en-US`);
+  const res = await tmdbFetch(`${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${apiKey}&language=en-US`);
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(`TMDB movie request failed: ${res.status}`);
@@ -219,7 +238,7 @@ export async function getMovieById(tmdbId: number): Promise<TmdbMovie | null> {
 // most of them will never need rendered.
 export async function fetchMovieDetails(tmdbId: number): Promise<TmdbMovieDetails> {
   const apiKey = requireApiKey();
-  const res = await fetch(
+  const res = await tmdbFetch(
     `${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${apiKey}&language=en-US`,
   );
   if (!res.ok) {
@@ -232,7 +251,7 @@ export async function fetchMovieDetails(tmdbId: number): Promise<TmdbMovieDetail
 // store" reasoning as fetchMovieDetails.
 export async function fetchCredits(tmdbId: number): Promise<TmdbCredits> {
   const apiKey = requireApiKey();
-  const res = await fetch(
+  const res = await tmdbFetch(
     `${TMDB_BASE_URL}/movie/${tmdbId}/credits?api_key=${apiKey}&language=en-US`,
   );
   if (!res.ok) {
@@ -249,7 +268,7 @@ export async function fetchCredits(tmdbId: number): Promise<TmdbCredits> {
 export async function fetchMovieImdbId(tmdbId: number): Promise<string | null> {
   const apiKey = requireApiKey();
   try {
-    const res = await fetch(`${TMDB_BASE_URL}/movie/${tmdbId}/external_ids?api_key=${apiKey}`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/movie/${tmdbId}/external_ids?api_key=${apiKey}`);
     if (!res.ok) return null;
     const data: { imdb_id: string | null } = await res.json();
     return data.imdb_id || null;
@@ -287,7 +306,7 @@ interface TmdbReviewsResponse {
 // the closest available proxy rather than the API's fixed return order.
 export async function fetchMovieReviews(tmdbId: number): Promise<TmdbReview[]> {
   const apiKey = requireApiKey();
-  const res = await fetch(
+  const res = await tmdbFetch(
     `${TMDB_BASE_URL}/movie/${tmdbId}/reviews?api_key=${apiKey}&language=en-US`,
   );
   if (!res.ok) {
@@ -315,7 +334,7 @@ export async function fetchMovieReviews(tmdbId: number): Promise<TmdbReview[]> {
 export async function fetchPersonImdbId(personId: number): Promise<string | null> {
   const apiKey = requireApiKey();
   try {
-    const res = await fetch(`${TMDB_BASE_URL}/person/${personId}?api_key=${apiKey}`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/person/${personId}?api_key=${apiKey}`);
     if (!res.ok) return null;
     const data: { imdb_id: string | null } = await res.json();
     return data.imdb_id || null;
