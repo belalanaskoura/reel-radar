@@ -79,16 +79,56 @@ export async function notifyNewReleases(
         movieUrl: `${siteUrl}/movies/${movieId}`,
       };
 
+      // Email and push are independent, best-effort channels: one failing
+      // must never block the other. Logged to notification_deliveries same
+      // as every other fan-out path (notifyWatchers, notifyLineupAdditions/
+      // Removals) -- this function previously swallowed send errors with no
+      // delivery row at all, so a new_release failure was invisible on
+      // /admin/notifications' success-rate chart and failure list, unlike
+      // every other notification kind.
       try {
         await notifyNewReleaseByEmail(profile.email, payload);
-      } catch {
-        // best-effort, swallow and continue
+        await supabase.from('notification_deliveries').insert({
+          user_id: userId,
+          movie_id: movieId,
+          branch_id: null,
+          channel: 'email',
+          success: true,
+        });
+      } catch (err) {
+        await supabase.from('notification_deliveries').insert({
+          user_id: userId,
+          movie_id: movieId,
+          branch_id: null,
+          channel: 'email',
+          success: false,
+          error: String(err).slice(0, 500),
+        });
       }
 
       try {
-        await notifyNewReleasePush(supabase, userId as string, payload);
-      } catch {
-        // best-effort, swallow and continue
+        const sentCount = await notifyNewReleasePush(supabase, userId as string, payload);
+        // sentCount === 0 means zero push_subscriptions rows for this user
+        // -- no real send was attempted, so nothing to log (same
+        // convention sendBroadcast's push channel already uses).
+        if (sentCount > 0) {
+          await supabase.from('notification_deliveries').insert({
+            user_id: userId,
+            movie_id: movieId,
+            branch_id: null,
+            channel: 'push',
+            success: true,
+          });
+        }
+      } catch (err) {
+        await supabase.from('notification_deliveries').insert({
+          user_id: userId,
+          movie_id: movieId,
+          branch_id: null,
+          channel: 'push',
+          success: false,
+          error: String(err).slice(0, 500),
+        });
       }
 
       try {
