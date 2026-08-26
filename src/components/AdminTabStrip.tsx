@@ -10,6 +10,7 @@ const TABS = [
   { href: '/admin/broadcast', label: 'Broadcast' },
   { href: '/admin/matching', label: 'Matching' },
   { href: '/admin/usage', label: 'Usage' },
+  { href: '/admin/performance', label: 'Performance' },
 ];
 
 export function AdminTabStrip() {

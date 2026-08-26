@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyNewReleasePush } from '@/lib/push';
 import { notifyNewReleaseByEmail } from '@/lib/email';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { logEvent } from '@/lib/analytics';
 
 const NOTIFY_CONCURRENCY = 10;
 
@@ -52,6 +53,7 @@ export async function notifyNewReleases(
   // Bounded concurrency instead of fully sequential -- a movie watched by
   // many users used to mean that many sequential email+push round trips in
   // one call (same risk as /api/poll's notifyWatchers).
+  const fanoutStartedAt = Date.now();
   const results = await mapWithConcurrency(
     watchedRows,
     NOTIFY_CONCURRENCY,
@@ -107,5 +109,11 @@ export async function notifyNewReleases(
     },
   );
 
-  return { notified: results.filter(Boolean).length };
+  const notified = results.filter(Boolean).length;
+  logEvent({
+    type: 'fanout_run',
+    payload: { kind: 'new_release', recipientCount: watchedRows.length, notified, duration_ms: Date.now() - fanoutStartedAt },
+  });
+
+  return { notified };
 }

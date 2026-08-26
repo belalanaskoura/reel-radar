@@ -273,6 +273,25 @@ async function notifyWatchers(
   // notifyLineupAdditions/Removals below, and /api/welcome-email's own
   // comment, for the same pattern already causing a real production
   // incident once). Same concurrency cap sync-movies uses for TMDB calls.
+  const fanoutStartedAt = Date.now();
   const results = await mapWithConcurrency(watchers, NOTIFY_CONCURRENCY, notifyOneWatcher);
-  return results.filter(Boolean).length;
+  const notified = results.filter(Boolean).length;
+
+  // One event per (movie, branch) pair that actually had watchers -- rare
+  // by nature (only when a movie transitions to bookable), so this is
+  // real signal, not per-poll-cycle noise. Lets /admin track the
+  // concurrency fix's real effect directly (recipientCount vs.
+  // duration_ms) instead of inferring it from poll_run's own aggregate
+  // duration, which also includes the bookability-check network calls.
+  logEvent({
+    type: 'fanout_run',
+    payload: {
+      kind: 'showtime',
+      recipientCount: watchers.length,
+      notified,
+      duration_ms: Date.now() - fanoutStartedAt,
+    },
+  });
+
+  return notified;
 }
