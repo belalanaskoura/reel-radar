@@ -18,11 +18,11 @@
  * all three tables per their ON DELETE CASCADE FKs).
  *
  * Runs ONLY against a dedicated test Supabase project -- see
- * scripts/stress/_lib/test-project-client.ts and docs/LOAD_TESTING.md.
+ * scripts/_lib/test-project-client.ts and docs/LOAD_TESTING.md.
  *
  * Run with: npx tsx scripts/stress/concurrent-write-load.ts
  */
-import { getTestProjectClient } from './_lib/test-project-client';
+import { getTestProjectServiceClient } from '../_lib/test-project-client';
 
 const RUN_TAG = `loadtest-${Date.now()}`;
 const USER_POOL_SIZE = 50;
@@ -45,7 +45,7 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-async function seedUsers(supabase: ReturnType<typeof getTestProjectClient>): Promise<string[]> {
+async function seedUsers(supabase: ReturnType<typeof getTestProjectServiceClient>): Promise<string[]> {
   const userIds: string[] = [];
   for (let i = 0; i < USER_POOL_SIZE; i++) {
     const { data, error } = await supabase.auth.admin.createUser({
@@ -61,7 +61,7 @@ async function seedUsers(supabase: ReturnType<typeof getTestProjectClient>): Pro
   return userIds;
 }
 
-async function seedOneMovie(supabase: ReturnType<typeof getTestProjectClient>): Promise<string> {
+async function seedOneMovie(supabase: ReturnType<typeof getTestProjectServiceClient>): Promise<string> {
   const { data, error } = await supabase
     .from('movies')
     .insert({
@@ -79,7 +79,7 @@ async function seedOneMovie(supabase: ReturnType<typeof getTestProjectClient>): 
 // the real shape notifyWatchers writes per watcher: a notification_log row
 // plus two notification_deliveries rows (email + push).
 async function writeNotificationRecordsForUser(
-  supabase: ReturnType<typeof getTestProjectClient>,
+  supabase: ReturnType<typeof getTestProjectServiceClient>,
   userId: string,
   movieId: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -103,7 +103,7 @@ async function writeNotificationRecordsForUser(
 }
 
 async function runAtConcurrency(
-  supabase: ReturnType<typeof getTestProjectClient>,
+  supabase: ReturnType<typeof getTestProjectServiceClient>,
   userIds: string[],
   movieId: string,
   concurrency: number,
@@ -130,7 +130,7 @@ async function runAtConcurrency(
 }
 
 async function cleanup(
-  supabase: ReturnType<typeof getTestProjectClient>,
+  supabase: ReturnType<typeof getTestProjectServiceClient>,
   userIds: string[],
   movieId: string,
 ) {
@@ -150,7 +150,7 @@ async function cleanup(
 }
 
 async function main() {
-  const supabase = getTestProjectClient();
+  const supabase = getTestProjectServiceClient();
   console.log(`Run tag: ${RUN_TAG}`);
   console.log(`Seeding ${USER_POOL_SIZE} throwaway test users...`);
 

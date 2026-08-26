@@ -15,21 +15,21 @@
  * negligible.
  *
  * Runs ONLY against a dedicated test Supabase project -- see
- * scripts/stress/_lib/test-project-client.ts and docs/LOAD_TESTING.md.
+ * scripts/_lib/test-project-client.ts and docs/LOAD_TESTING.md.
  * Every row this script creates is deleted again at the end of the run
  * (or immediately if seeding fails partway), scoped by a run-specific
  * tag so a killed/crashed run can be cleaned up by hand if needed.
  *
  * Run with: npx tsx scripts/stress/browse-query-scale.ts
  */
-import { getTestProjectClient } from './_lib/test-project-client';
+import { getTestProjectServiceClient } from '../_lib/test-project-client';
 
 const RUN_TAG = `loadtest-${Date.now()}`;
 const BROWSE_FETCH_LIMIT = 300; // must match src/app/browse/page.tsx
 
 const SCALES = [100, 300, 1000, 3000, 10000];
 
-async function seedBranches(supabase: ReturnType<typeof getTestProjectClient>) {
+async function seedBranches(supabase: ReturnType<typeof getTestProjectServiceClient>) {
   const branches = [
     { id: `${RUN_TAG}-cfc`, name: 'Cairo Festival City', base_url: 'https://cfc.example.com', chain: 'scene' },
     { id: `${RUN_TAG}-district5`, name: 'District 5', base_url: 'https://d5.example.com', chain: 'scene' },
@@ -41,7 +41,7 @@ async function seedBranches(supabase: ReturnType<typeof getTestProjectClient>) {
 }
 
 async function seedMoviesAndShowtimes(
-  supabase: ReturnType<typeof getTestProjectClient>,
+  supabase: ReturnType<typeof getTestProjectServiceClient>,
   branchIds: string[],
   count: number,
   alreadySeeded: number,
@@ -79,7 +79,7 @@ async function seedMoviesAndShowtimes(
   }
 }
 
-async function timeBrowseQuery(supabase: ReturnType<typeof getTestProjectClient>): Promise<number> {
+async function timeBrowseQuery(supabase: ReturnType<typeof getTestProjectServiceClient>): Promise<number> {
   const start = performance.now();
   const { error } = await supabase
     .from('movies')
@@ -95,7 +95,7 @@ async function timeBrowseQuery(supabase: ReturnType<typeof getTestProjectClient>
 }
 
 async function timeBranchFilterQuery(
-  supabase: ReturnType<typeof getTestProjectClient>,
+  supabase: ReturnType<typeof getTestProjectServiceClient>,
   branchId: string,
 ): Promise<number> {
   const start = performance.now();
@@ -108,7 +108,7 @@ async function timeBranchFilterQuery(
   return performance.now() - start;
 }
 
-async function cleanup(supabase: ReturnType<typeof getTestProjectClient>, branchIds: string[]) {
+async function cleanup(supabase: ReturnType<typeof getTestProjectServiceClient>, branchIds: string[]) {
   console.log('\nCleaning up seeded rows...');
   // movies has an ON DELETE CASCADE to showtimes_cache, so deleting the
   // tagged movies also clears their showtimes_cache rows.
@@ -121,7 +121,7 @@ async function cleanup(supabase: ReturnType<typeof getTestProjectClient>, branch
 }
 
 async function main() {
-  const supabase = getTestProjectClient();
+  const supabase = getTestProjectServiceClient();
   console.log(`Run tag: ${RUN_TAG}\n`);
 
   const branchIds = await seedBranches(supabase);

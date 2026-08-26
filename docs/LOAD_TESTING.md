@@ -26,9 +26,10 @@ node scripts/stress/row-bucketing-complexity.mjs
 ## Running the real-Supabase scripts
 
 These require a **dedicated test Supabase project** — never production.
-`scripts/stress/_lib/test-project-client.ts` refuses to run at all
-without one, and separately refuses if the test project's URL happens to
-match production's, as a second guard against a copy-paste mistake.
+`scripts/_lib/test-project-client.ts` (shared with the integration test
+suite, see `docs/INTEGRATION_TESTING.md`) refuses to run at all without
+one, and separately refuses if the test project's URL happens to match
+production's, as a second guard against a copy-paste mistake.
 
 ### One-time setup
 
@@ -49,10 +50,16 @@ match production's, as a second guard against a copy-paste mistake.
    → API) into a new `.env.test.local` file at the repo root:
    ```
    SUPABASE_TEST_URL=https://your-test-project.supabase.co
+   SUPABASE_TEST_ANON_KEY=your-test-project-anon-key
    SUPABASE_TEST_SERVICE_ROLE_KEY=your-test-project-service-role-key
    ```
-   This file is already covered by `.gitignore`'s `.env*` pattern — never
-   commit it, and never reuse production's service role key here.
+   The anon key is only required for the integration suite (real RLS
+   testing needs a real signed-in anon-key session, not the service-role
+   key, which bypasses RLS) — the load-test scripts in this directory
+   only use the service-role key. Filling in all three now means one
+   setup pass covers both. This file is already covered by
+   `.gitignore`'s `.env*` pattern — never commit it, and never reuse
+   production's keys here.
 
 ### Running
 
