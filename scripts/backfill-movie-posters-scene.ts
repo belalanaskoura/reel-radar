@@ -3,12 +3,17 @@
  * that still have none after the TMDB/elCinema fallbacks, using Scene
  * Cinemas' own movie-details page image as a last resort. Only movies
  * with a known movie_branch_slugs entry can be checked -- cfc is tried
- * before district5 when a movie is listed on both. Run once with
- * `npx tsx scripts/backfill-movie-posters-scene.ts`.
+ * before district5 when a movie is listed on both.
+ *
+ * Dry run by default -- prints what would be filled without writing
+ * anything. Run with
+ * `npx tsx scripts/backfill-movie-posters-scene.ts --live` to actually
+ * apply the updates.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import { isDryRun, logDryRunBanner } from './_lib/dry-run';
 
 const envPath = path.resolve(__dirname, '../.env.local');
 fs.readFileSync(envPath, 'utf8')
@@ -24,6 +29,8 @@ import { BRANCH_BASE_URLS, type BranchId } from '../src/lib/scene/types';
 const BRANCH_PRIORITY: BranchId[] = ['cfc', 'district5'];
 
 async function main() {
+  logDryRunBanner('backfill-movie-posters-scene');
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -67,8 +74,10 @@ async function main() {
       }
 
       if (posterUrl) {
-        await supabase.from('movies').update({ poster_path: posterUrl }).eq('id', movie.id);
-        console.log(`  filled: "${movie.title}" -> ${posterUrl}`);
+        if (!isDryRun()) {
+          await supabase.from('movies').update({ poster_path: posterUrl }).eq('id', movie.id);
+        }
+        console.log(`  ${isDryRun() ? 'would fill' : 'filled'}: "${movie.title}" -> ${posterUrl}`);
         filled += 1;
       } else {
         noPosterFound += 1;

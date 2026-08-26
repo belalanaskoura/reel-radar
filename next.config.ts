@@ -66,8 +66,14 @@ const nextConfig: NextConfig = {
     // default (they can embed scripts), so this needs an explicit opt-in.
     // Only ever used for our own local logo assets under public/, never a
     // remote/user-supplied source, so the usual SVG-XSS concern doesn't
-    // apply here.
+    // apply here. Still a global switch across the whole image pipeline
+    // though (every remotePattern below too), so it's paired with the two
+    // mitigations Next's own docs recommend for this flag: force download
+    // instead of inline render, and a CSP scoped to just the optimizer's
+    // image responses (separate from the app-wide CSP in proxy.ts).
     dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [
       {
         protocol: 'https',

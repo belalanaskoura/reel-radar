@@ -9,13 +9,11 @@ import type {
 import { formatCheckedTimestamp } from '@/lib/notifications';
 import { isAllowedPushEndpoint } from '@/lib/push-endpoint';
 
-const VAPID_SUBJECT = 'mailto:belalhamada489@gmail.com';
-
 let configured = false;
 function ensureConfigured() {
   if (configured) return;
   webpush.setVapidDetails(
-    VAPID_SUBJECT,
+    process.env.VAPID_SUBJECT!,
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
     process.env.VAPID_PRIVATE_KEY!,
   );
