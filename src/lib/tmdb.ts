@@ -1,6 +1,21 @@
+import { unstable_cache } from 'next/cache';
 import { containsSpoilers } from '@/lib/spoiler-detection';
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+
+// Movie metadata (overview, cast, reviews) changes on the order of days,
+// not minutes -- but every call in this file that's reachable from
+// src/app/movies/[id]/page.tsx was, until this, a fresh live TMDB
+// round-trip on every single page view, including two views of the same
+// movie back to back. A detail page view fires 4 calls up front plus up
+// to 13 more (one fetchPersonImdbId per cast/crew member) -- all
+// parallelized, so wall-clock cost is bounded by the slowest one, but
+// that's still a real external round-trip nobody needed to repeat.
+// 24h keeps this fresh enough for metadata that rarely changes at all,
+// while cutting the common case (the same handful of currently-bookable
+// movies getting most of the traffic) from N TMDB calls to ~1 per movie
+// per day across every viewer.
+const DETAIL_CACHE_REVALIDATE_SECONDS = 60 * 60 * 24;
 
 // Every other external fetch in this codebase (Scene, elCinema, Resend)
 // already aborts a hanging request rather than letting it run until
@@ -283,55 +298,71 @@ export async function getMovieById(tmdbId: number): Promise<TmdbMovie | null> {
 }
 
 // Fetches full movie details (overview, tagline, backdrop, runtime,
-// genres) for the detail page. Not stored in the DB: fetched live on
-// page view since detail pages are viewed far less often than the browse
-// grid, so there's no benefit to bloating every `movies` row with data
-// most of them will never need rendered.
-export async function fetchMovieDetails(tmdbId: number): Promise<TmdbMovieDetails> {
-  const apiKey = requireApiKey();
-  const res = await tmdbFetch(
-    `/movie/${tmdbId}`,
-    new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
-  );
-  if (!res.ok) {
-    throw new Error(`TMDB movie details request failed: ${res.status}`);
-  }
-  return res.json();
-}
+// genres) for the detail page. Not stored in the DB: fetched live (see
+// DETAIL_CACHE_REVALIDATE_SECONDS above for why "live" is now cached, not
+// per-request) since detail pages are viewed far less often than the
+// browse grid, so there's no benefit to bloating every `movies` row with
+// data most of them will never need rendered.
+export const fetchMovieDetails = unstable_cache(
+  async (tmdbId: number): Promise<TmdbMovieDetails> => {
+    const apiKey = requireApiKey();
+    const res = await tmdbFetch(
+      `/movie/${tmdbId}`,
+      new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
+    );
+    if (!res.ok) {
+      throw new Error(`TMDB movie details request failed: ${res.status}`);
+    }
+    return res.json();
+  },
+  ['tmdb-movie-details'],
+  { revalidate: DETAIL_CACHE_REVALIDATE_SECONDS },
+);
 
-// Fetches cast and crew for the detail page. Same "fetch live, don't
-// store" reasoning as fetchMovieDetails.
-export async function fetchCredits(tmdbId: number): Promise<TmdbCredits> {
-  const apiKey = requireApiKey();
-  const res = await tmdbFetch(
-    `/movie/${tmdbId}/credits`,
-    new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
-  );
-  if (!res.ok) {
-    throw new Error(`TMDB credits request failed: ${res.status}`);
-  }
-  return res.json();
-}
+// Fetches cast and crew for the detail page. Same caching reasoning as
+// fetchMovieDetails.
+export const fetchCredits = unstable_cache(
+  async (tmdbId: number): Promise<TmdbCredits> => {
+    const apiKey = requireApiKey();
+    const res = await tmdbFetch(
+      `/movie/${tmdbId}/credits`,
+      new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
+    );
+    if (!res.ok) {
+      throw new Error(`TMDB credits request failed: ${res.status}`);
+    }
+    return res.json();
+  },
+  ['tmdb-credits'],
+  { revalidate: DETAIL_CACHE_REVALIDATE_SECONDS },
+);
 
 // Looks up a movie's own IMDb id (distinct from fetchPersonImdbId, which
 // resolves a cast/crew member's id) -- needed to key the OMDb ratings
 // lookup (src/lib/omdb.ts), since OMDb has no TMDB-id lookup mode of its
 // own. Returns null (not thrown) on any failure so a ratings-fetch
-// failure never blocks the rest of the detail page.
-export async function fetchMovieImdbId(tmdbId: number): Promise<string | null> {
-  const apiKey = requireApiKey();
-  try {
-    const res = await tmdbFetch(
-      `/movie/${tmdbId}/external_ids`,
-      new URLSearchParams({ api_key: apiKey }),
-    );
-    if (!res.ok) return null;
-    const data: { imdb_id: string | null } = await res.json();
-    return data.imdb_id || null;
-  } catch {
-    return null;
-  }
-}
+// failure never blocks the rest of the detail page. Same caching
+// reasoning as fetchMovieDetails -- an IMDb id never changes once set, so
+// this could in principle cache forever, but shares the same 24h window
+// as the rest of the detail page rather than introducing a second policy.
+export const fetchMovieImdbId = unstable_cache(
+  async (tmdbId: number): Promise<string | null> => {
+    const apiKey = requireApiKey();
+    try {
+      const res = await tmdbFetch(
+        `/movie/${tmdbId}/external_ids`,
+        new URLSearchParams({ api_key: apiKey }),
+      );
+      if (!res.ok) return null;
+      const data: { imdb_id: string | null } = await res.json();
+      return data.imdb_id || null;
+    } catch {
+      return null;
+    }
+  },
+  ['tmdb-movie-imdb-id'],
+  { revalidate: DETAIL_CACHE_REVALIDATE_SECONDS },
+);
 
 export interface TmdbReview {
   id: string;
@@ -360,26 +391,32 @@ interface TmdbReviewsResponse {
 // signal exists in this endpoint (confirmed against TMDB's docs), so
 // callers sort by author_details.rating (when a reviewer left one) as
 // the closest available proxy rather than the API's fixed return order.
-export async function fetchMovieReviews(tmdbId: number): Promise<TmdbReview[]> {
-  const apiKey = requireApiKey();
-  const res = await tmdbFetch(
-    `/movie/${tmdbId}/reviews`,
-    new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
-  );
-  if (!res.ok) {
-    throw new Error(`TMDB reviews request failed: ${res.status}`);
-  }
-  const data: TmdbReviewsResponse = await res.json();
-  return data.results.map((r) => ({
-    id: r.id,
-    author: r.author,
-    content: r.content,
-    url: r.url,
-    created_at: r.created_at,
-    authorRating: r.author_details.rating,
-    hasSpoilers: containsSpoilers(r.content),
-  }));
-}
+// Same caching reasoning as fetchMovieDetails -- new reviews trickle in
+// slowly enough that a 24h window is imperceptible to a real reader.
+export const fetchMovieReviews = unstable_cache(
+  async (tmdbId: number): Promise<TmdbReview[]> => {
+    const apiKey = requireApiKey();
+    const res = await tmdbFetch(
+      `/movie/${tmdbId}/reviews`,
+      new URLSearchParams({ api_key: apiKey, language: 'en-US' }),
+    );
+    if (!res.ok) {
+      throw new Error(`TMDB reviews request failed: ${res.status}`);
+    }
+    const data: TmdbReviewsResponse = await res.json();
+    return data.results.map((r) => ({
+      id: r.id,
+      author: r.author,
+      content: r.content,
+      url: r.url,
+      created_at: r.created_at,
+      authorRating: r.author_details.rating,
+      hasSpoilers: containsSpoilers(r.content),
+    }));
+  },
+  ['tmdb-movie-reviews'],
+  { revalidate: DETAIL_CACHE_REVALIDATE_SECONDS },
+);
 
 // Looks up a single person's IMDb ID by their TMDB person ID, so the
 // detail page can link directly to e.g. imdb.com/name/nm0000138 instead
@@ -388,17 +425,25 @@ export async function fetchMovieReviews(tmdbId: number): Promise<TmdbReview[]> {
 // member, not their IMDb id -- this is the one extra per-person call
 // needed to get it. Returns null (not thrown) on any failure so one
 // missing/unmatched person doesn't break the rest of the cast's links.
-export async function fetchPersonImdbId(personId: number): Promise<string | null> {
-  const apiKey = requireApiKey();
-  try {
-    const res = await tmdbFetch(
-      `/person/${personId}`,
-      new URLSearchParams({ api_key: apiKey }),
-    );
-    if (!res.ok) return null;
-    const data: { imdb_id: string | null } = await res.json();
-    return data.imdb_id || null;
-  } catch {
-    return null;
-  }
-}
+// The real payoff of caching this one specifically: a detail page view
+// fires up to 13 of these (one per cast/crew member) in parallel, every
+// single time, for a value that never changes once TMDB has it -- caching
+// turns that into a one-time cost per person across every viewer.
+export const fetchPersonImdbId = unstable_cache(
+  async (personId: number): Promise<string | null> => {
+    const apiKey = requireApiKey();
+    try {
+      const res = await tmdbFetch(
+        `/person/${personId}`,
+        new URLSearchParams({ api_key: apiKey }),
+      );
+      if (!res.ok) return null;
+      const data: { imdb_id: string | null } = await res.json();
+      return data.imdb_id || null;
+    } catch {
+      return null;
+    }
+  },
+  ['tmdb-person-imdb-id'],
+  { revalidate: DETAIL_CACHE_REVALIDATE_SECONDS },
+);
