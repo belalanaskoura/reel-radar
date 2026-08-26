@@ -1,0 +1,29 @@
+name: Preview smoke test
+
+on:
+  # deployment_status fires whenever Vercel's own GitHub integration posts
+  # a status against a commit -- this lets the job wait for a real deployed
+  # URL instead of guessing at timing with a fixed sleep.
+  deployment_status:
+
+jobs:
+  smoke:
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Preview'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke test preview deployment
+        env:
+          PREVIEW_URL: ${{ github.event.deployment_status.target_url }}
+        run: npx tsx scripts/smoke-test-preview.ts
