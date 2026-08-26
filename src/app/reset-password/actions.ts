@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth-error-codes';
 
 // Separate from src/app/account/actions.ts's updatePassword despite
 // doing the same auth.updateUser({ password }) call -- that action
@@ -13,8 +14,8 @@ import { createClient } from '@/lib/supabase/server';
 export async function resetPassword(formData: FormData) {
   const newPassword = formData.get('new_password') as string;
 
-  if (newPassword.length < 6) {
-    redirect(`/reset-password?error=${encodeURIComponent('Password must be at least 6 characters.')}`);
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    redirect('/reset-password?error=weak_password');
   }
 
   const supabase = await createClient();
@@ -25,13 +26,13 @@ export async function resetPassword(formData: FormData) {
   // No session means the recovery link was never followed (or already
   // used/expired) -- nothing to update against.
   if (!user) {
-    redirect('/forgot-password?error=' + encodeURIComponent('That reset link has expired. Request a new one.'));
+    redirect('/forgot-password?error=link_expired');
   }
 
   const { error } = await supabase.auth.updateUser({ password: newPassword });
 
   if (error) {
-    redirect(`/reset-password?error=${encodeURIComponent(error.message)}`);
+    redirect('/reset-password?error=update_failed');
   }
 
   redirect('/signin?saved=1');

@@ -72,9 +72,9 @@ export async function notifyBookableByEmail(
   const text = `${notification.movieTitle} is bookable at ${notification.branchName}!\n${notification.bookingUrl}\nChecked: ${timestamp}`;
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
-      <h1 style="font-size: 20px; color: #14201d;">${notification.movieTitle} is bookable</h1>
+      <h1 style="font-size: 20px; color: #14201d;">${escapeHtml(notification.movieTitle)} is bookable</h1>
       <p style="font-size: 15px; color: #5c6b67;">
-        Tickets are now available at ${notification.branchName}.
+        Tickets are now available at ${escapeHtml(notification.branchName)}.
       </p>
       <p>
         <a href="${notification.bookingUrl}"
@@ -423,9 +423,9 @@ export async function notifyNewReleaseByEmail(
   const text = `${notification.movieTitle} is coming to Egypt on ${notification.releaseDate}!\n${notification.movieUrl}`;
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
-      <h1 style="font-size: 20px; color: #14201d;">${notification.movieTitle} release date confirmed</h1>
+      <h1 style="font-size: 20px; color: #14201d;">${escapeHtml(notification.movieTitle)} release date confirmed</h1>
       <p style="font-size: 15px; color: #5c6b67;">
-        Coming to Egypt on ${notification.releaseDate}.
+        Coming to Egypt on ${escapeHtml(notification.releaseDate)}.
       </p>
       <p>
         <a href="${notification.movieUrl}"
@@ -469,7 +469,7 @@ export async function notifyLineupAddedByEmail(
   const text = `${notification.movieTitle} was just added to ${notification.branchName}'s lineup.\n${notification.movieUrl}`;
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
-      <h1 style="font-size: 20px; color: #14201d;">${notification.movieTitle} is now at ${notification.branchName}</h1>
+      <h1 style="font-size: 20px; color: #14201d;">${escapeHtml(notification.movieTitle)} is now at ${escapeHtml(notification.branchName)}</h1>
       <p style="font-size: 15px; color: #5c6b67;">
         It just joined the lineup at a cinema you track.
       </p>
@@ -515,7 +515,7 @@ export async function notifyLineupRemovedByEmail(
   const text = `${notification.movieTitle} has left ${notification.branchName}'s lineup.`;
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
-      <h1 style="font-size: 20px; color: #14201d;">${notification.movieTitle} has left ${notification.branchName}</h1>
+      <h1 style="font-size: 20px; color: #14201d;">${escapeHtml(notification.movieTitle)} has left ${escapeHtml(notification.branchName)}</h1>
       <p style="font-size: 15px; color: #5c6b67;">
         It's no longer playing at a cinema you track.
       </p>
