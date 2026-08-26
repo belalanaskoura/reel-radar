@@ -13,4 +13,25 @@ describe('normalizeTitle', () => {
     expect(normalizeTitle('Toy Story 5 DUB')).toBe('toy story 5');
     expect(normalizeTitle('Moana (3D)')).toBe('moana');
   });
+
+  it('strips 4DX/IMAX/VIP and ARABIC/ENGLISH/DUBBING tags', () => {
+    expect(normalizeTitle('Avatar 3 (4DX)')).toBe('avatar 3');
+    expect(normalizeTitle('Avatar 3 (IMAX)')).toBe('avatar 3');
+    expect(normalizeTitle('Avatar 3 (VIP)')).toBe('avatar 3');
+    expect(normalizeTitle('Some Movie ARABIC')).toBe('some movie');
+    expect(normalizeTitle('Some Movie DUBBING')).toBe('some movie');
+  });
+
+  it('collapses repeated whitespace left behind by stripped tags', () => {
+    expect(normalizeTitle('Moana   (3D)   DUB')).toBe('moana');
+  });
+
+  it('lowercases the result', () => {
+    expect(normalizeTitle('THE ODYSSEY')).toBe('the odyssey');
+  });
+
+  it('is idempotent', () => {
+    const once = normalizeTitle('Toy Story 5 (2D) DUB');
+    expect(normalizeTitle(once)).toBe(once);
+  });
 });
