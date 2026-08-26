@@ -18,11 +18,15 @@
  *      if different from what's stored.
  *   3. If neither has anything, leave the row untouched.
  *
- * Run once with `npx tsx scripts/recheck-tmdb-release-dates.ts`.
+ * Dry run by default -- prints what would change without writing
+ * anything. Run with
+ * `npx tsx scripts/recheck-tmdb-release-dates.ts --live` to actually
+ * apply the updates.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import { isDryRun, logDryRunBanner } from './_lib/dry-run';
 
 const envPath = path.resolve(__dirname, '../.env.local');
 fs.readFileSync(envPath, 'utf8')
@@ -36,6 +40,8 @@ import { getEgyptReleaseInfo } from '../src/lib/matching/egypt-release-date';
 import { getEgTheatricalReleaseDate } from '../src/lib/tmdb';
 
 async function main() {
+  logDryRunBanner('recheck-tmdb-release-dates');
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -64,12 +70,14 @@ async function main() {
 
       if (egyptInfo.releaseDate) {
         if (egyptInfo.releaseDate !== movie.release_date) {
-          await supabase
-            .from('movies')
-            .update({ release_date: egyptInfo.releaseDate })
-            .eq('id', movie.id);
+          if (!isDryRun()) {
+            await supabase
+              .from('movies')
+              .update({ release_date: egyptInfo.releaseDate })
+              .eq('id', movie.id);
+          }
           console.log(
-            `  updated (elCinema): "${movie.title}" ${movie.release_date} -> ${egyptInfo.releaseDate}`,
+            `  ${isDryRun() ? 'would update' : 'updated'} (elCinema): "${movie.title}" ${movie.release_date} -> ${egyptInfo.releaseDate}`,
           );
           updatedFromElCinema += 1;
         } else {
@@ -83,8 +91,10 @@ async function main() {
       const tmdbDate = await getEgTheatricalReleaseDate(movie.tmdb_id!);
 
       if (tmdbDate && tmdbDate !== movie.release_date) {
-        await supabase.from('movies').update({ release_date: tmdbDate }).eq('id', movie.id);
-        console.log(`  updated (TMDB): "${movie.title}" ${movie.release_date} -> ${tmdbDate}`);
+        if (!isDryRun()) {
+          await supabase.from('movies').update({ release_date: tmdbDate }).eq('id', movie.id);
+        }
+        console.log(`  ${isDryRun() ? 'would update' : 'updated'} (TMDB): "${movie.title}" ${movie.release_date} -> ${tmdbDate}`);
         updatedFromTmdb += 1;
       } else if (tmdbDate) {
         unchanged += 1;

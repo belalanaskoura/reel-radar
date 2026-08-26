@@ -11,10 +11,16 @@
  * Not an API route: this is a historical backfill, not part of the
  * regular poll/sync loop, so there's no reason to fit it inside Vercel's
  * function duration limits.
+ *
+ * Dry run by default -- scrapes and matches as normal but skips both
+ * upsert loops (egypt_releases, egypt_distributors), so the summary
+ * counts reflect what *would* be written. Run with
+ * `npx tsx scripts/backfill-egypt-releases.ts --live` to actually apply.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import { isDryRun, logDryRunBanner } from './_lib/dry-run';
 
 const envPath = path.resolve(__dirname, '../.env.local');
 fs.readFileSync(envPath, 'utf8')
@@ -50,6 +56,8 @@ function getIsoWeek(date: Date): number {
 }
 
 async function main() {
+  logDryRunBanner('backfill-egypt-releases');
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -117,18 +125,20 @@ async function main() {
         }
       }
 
-      await supabase.from('egypt_releases').upsert(
-        {
-          elcinema_id: elcinemaId,
-          imdb_id: details.imdbId,
-          tmdb_id: tmdbId,
-          title: details.title || listingTitle,
-          release_year: details.releaseYear,
-          release_date: details.releaseDate,
-          match_status: tmdbId ? 'matched' : 'unmatched',
-        },
-        { onConflict: 'elcinema_id' },
-      );
+      if (!isDryRun()) {
+        await supabase.from('egypt_releases').upsert(
+          {
+            elcinema_id: elcinemaId,
+            imdb_id: details.imdbId,
+            tmdb_id: tmdbId,
+            title: details.title || listingTitle,
+            release_year: details.releaseYear,
+            release_date: details.releaseDate,
+            match_status: tmdbId ? 'matched' : 'unmatched',
+          },
+          { onConflict: 'elcinema_id' },
+        );
+      }
 
       if (tmdbId) {
         matched += 1;
@@ -147,6 +157,13 @@ async function main() {
   }
 
   console.log(`\nMatching done: ${matched} matched, ${unmatched} unmatched.`);
+  if (isDryRun()) {
+    console.log(
+      '[dry run] Skipping distributor table build -- it reads egypt_releases rows this run would have just written.',
+    );
+    console.log('\nDone (dry run).');
+    return;
+  }
   console.log('Building distributor table from production companies...');
 
   const { data: matchedReleases } = await supabase

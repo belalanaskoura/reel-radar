@@ -3,12 +3,16 @@
  * that have none, using elCinema as a fallback (via getEgyptReleaseInfo,
  * same lookup sync-movies/match-to-tmdb now use going forward). Needed
  * because existing rows were populated before this fallback existed and
- * won't self-correct. Run once with
- * `npx tsx scripts/backfill-movie-posters.ts`.
+ * won't self-correct.
+ *
+ * Dry run by default -- prints what would be filled without writing
+ * anything. Run with `npx tsx scripts/backfill-movie-posters.ts --live`
+ * to actually apply the updates.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import { isDryRun, logDryRunBanner } from './_lib/dry-run';
 
 const envPath = path.resolve(__dirname, '../.env.local');
 fs.readFileSync(envPath, 'utf8')
@@ -21,6 +25,8 @@ fs.readFileSync(envPath, 'utf8')
 import { getEgyptReleaseInfo } from '../src/lib/matching/egypt-release-date';
 
 async function main() {
+  logDryRunBanner('backfill-movie-posters');
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -49,8 +55,10 @@ async function main() {
       if (!egyptInfo.posterUrl) {
         noElCinemaData += 1;
       } else {
-        await supabase.from('movies').update({ poster_path: egyptInfo.posterUrl }).eq('id', movie.id);
-        console.log(`  filled: "${movie.title}" -> ${egyptInfo.posterUrl}`);
+        if (!isDryRun()) {
+          await supabase.from('movies').update({ poster_path: egyptInfo.posterUrl }).eq('id', movie.id);
+        }
+        console.log(`  ${isDryRun() ? 'would fill' : 'filled'}: "${movie.title}" -> ${egyptInfo.posterUrl}`);
         filled += 1;
       }
     } catch (err) {

@@ -4,11 +4,16 @@
  * sync-movies/match-to-tmdb now use going forward) and updates it where
  * elCinema has a real, different answer. Needed because existing rows
  * were populated before this pipeline existed and won't self-correct.
- * Run once with `npx tsx scripts/backfill-movie-release-dates.ts`.
+ *
+ * Dry run by default -- prints what would change without writing
+ * anything. Run with
+ * `npx tsx scripts/backfill-movie-release-dates.ts --live` to actually
+ * apply the updates.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import { isDryRun, logDryRunBanner } from './_lib/dry-run';
 
 const envPath = path.resolve(__dirname, '../.env.local');
 fs.readFileSync(envPath, 'utf8')
@@ -21,6 +26,8 @@ fs.readFileSync(envPath, 'utf8')
 import { getEgyptReleaseInfo } from '../src/lib/matching/egypt-release-date';
 
 async function main() {
+  logDryRunBanner('backfill-movie-release-dates');
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -50,8 +57,10 @@ async function main() {
       if (!egyptDate) {
         noElCinemaData += 1;
       } else if (egyptDate !== movie.release_date) {
-        await supabase.from('movies').update({ release_date: egyptDate }).eq('id', movie.id);
-        console.log(`  updated: "${movie.title}" ${movie.release_date} -> ${egyptDate}`);
+        if (!isDryRun()) {
+          await supabase.from('movies').update({ release_date: egyptDate }).eq('id', movie.id);
+        }
+        console.log(`  ${isDryRun() ? 'would update' : 'updated'}: "${movie.title}" ${movie.release_date} -> ${egyptDate}`);
         updated += 1;
       } else {
         unchanged += 1;
