@@ -73,6 +73,23 @@ type AnalyticsEvent =
   | {
       type: 'welcome_email_claim_lost';
       payload: { user_id: string; invocation_id: string };
+    }
+  | {
+      type: 'analytics_prune_run';
+      payload: { deleted: number; keepDays: number; duration_ms: number };
+    }
+  | {
+      type: 'fanout_run';
+      payload: {
+        // Which notify function this call came from -- lets the
+        // performance dashboard break duration/recipient count down per
+        // fan-out path instead of lumping notifyWatchers,
+        // notifyLineupAdditions/Removals, and notifyNewReleases together.
+        kind: 'showtime' | 'lineup_added' | 'lineup_removed' | 'new_release';
+        recipientCount: number;
+        notified: number;
+        duration_ms: number;
+      };
     };
 
 // Route params reach logPageView straight off the URL, so they're
