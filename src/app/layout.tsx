@@ -72,20 +72,41 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+
+  // Every route renders inside this layout, including /signin and
+  // /signup -- before this try/catch existed, a Supabase Auth network
+  // failure here (not just a bad/expired session, which the client
+  // already handles internally by returning user: null) threw straight
+  // past this component, crashing the entire site for every visitor,
+  // signed in or not, with no way to even reach the sign-in page to
+  // retry. Falling back to signed-out is safe: the app is fully
+  // browsable anonymously, and every child component already treats
+  // user: null as the anonymous case.
+  let user = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch (err) {
+    console.error('RootLayout: getUser() failed, rendering as signed out', err);
+  }
 
   // Only worth checking push state for a signed-in user -- an anonymous
   // visitor has nowhere to save a subscription against anyway.
   let showPushPrompt = false;
   if (user) {
-    const { data: subscriptions } = await supabase
-      .from('push_subscriptions')
-      .select('id')
-      .eq('user_id', user.id)
-      .limit(1);
-    showPushPrompt = !subscriptions || subscriptions.length === 0;
+    try {
+      const { data: subscriptions } = await supabase
+        .from('push_subscriptions')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1);
+      showPushPrompt = !subscriptions || subscriptions.length === 0;
+    } catch (err) {
+      // Same reasoning as the getUser() catch above -- a failed check
+      // here shouldn't crash the site either, it just means the push
+      // prompt doesn't show this load.
+      console.error('RootLayout: push_subscriptions check failed', err);
+    }
   }
 
   return (

@@ -6,28 +6,7 @@ import { checkRateLimit, clientIp } from '@/lib/rate-limit';
 import { fetchDayShowtimes, sleep, REQUEST_DELAY_MS } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { isValidShowtimeDate } from '@/lib/scene/dates';
-
-// Runs `fn` over `items` with at most `size` in flight at once, rather
-// than either fully sequential (slow) or fully concurrent (a burst that
-// hammers Scene). Same pattern as sync-movies' mapWithConcurrency.
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  size: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const i = nextIndex++;
-      results[i] = await fn(items[i]);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
-  return results;
-}
+import { mapWithConcurrency } from '@/lib/concurrency';
 
 // A handful of requests in flight at once instead of one at a time --
 // cuts wall-clock time roughly by this factor (e.g. 16 sequential

@@ -60,11 +60,26 @@ export async function POST(request: Request) {
         .filter((u) => u.email && adminEmails.includes(u.email))
         .map((u) => u.id);
 
+      // Per-recipient try/catch, not one catch around the whole loop --
+      // every other notify path in this codebase (notifyWatchers,
+      // notifyLineupAdditions/Removals) already isolates one recipient's
+      // failure from the rest; this route's push loop was the one
+      // exception, and a genuine failure inside it (a bad subscription,
+      // not just listAllUsers itself) would previously lose every admin's
+      // push for the day with no per-recipient detail logged.
       for (const userId of adminUserIds) {
-        pushSent += await notifyAdminDigestPush(supabase, userId, issues.length);
+        try {
+          pushSent += await notifyAdminDigestPush(supabase, userId, issues.length);
+        } catch (err) {
+          console.error(`admin-digest: push failed for admin ${userId}`, err);
+        }
       }
-    } catch {
-      // best-effort, swallow -- email above already attempted independently
+    } catch (err) {
+      // Only reached by a failure in the setup above (ADMIN_EMAILS
+      // parsing, listAllUsers) -- email above already attempted
+      // independently, so this is still best-effort, just no longer
+      // silent.
+      console.error('admin-digest: push setup failed', err);
     }
   }
 

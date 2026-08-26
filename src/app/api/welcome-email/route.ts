@@ -4,6 +4,16 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { listAllUsers } from '@/lib/list-all-users';
 import { notifyWelcomeByEmail } from '@/lib/email';
 import { logEvent } from '@/lib/analytics';
+import { mapWithConcurrency } from '@/lib/concurrency';
+
+// A slow sequential run is what caused the original duplicate-send
+// incident described above (it's what let cron-job.org's 30s timeout
+// trigger a retry in the first place) -- concurrency here directly
+// shrinks that window. Safe under concurrency because the claim below is
+// a real DB-level unique constraint, not an in-process check: two
+// workers racing for the same user still resolve correctly at Postgres,
+// regardless of how many run at once here.
+const WELCOME_CONCURRENCY = 10;
 
 // Delay before a fresh signup is eligible: long enough that they've had a
 // real chance to see the push prompt on /notifications and decide either
@@ -86,7 +96,7 @@ export async function POST(request: Request) {
         (profiles ?? []).map((p) => [p.id as string, p.display_name as string | null]),
       );
 
-      for (const user of pending) {
+      const results = await mapWithConcurrency(pending, WELCOME_CONCURRENCY, async (user) => {
         // Claim first: an insert that hits the unique constraint means
         // another (likely overlapping/retried) invocation already
         // claimed this user, so skip sending entirely rather than
@@ -103,7 +113,7 @@ export async function POST(request: Request) {
           } else {
             console.error('welcome_email_log claim failed', user.id, claimError);
           }
-          continue;
+          return false;
         }
 
         const pushEnabled = pushEnabledIds.has(user.id);
@@ -116,14 +126,17 @@ export async function POST(request: Request) {
 
         try {
           await notifyWelcomeByEmail(user.email!, { displayName, pushEnabled });
-          sent += 1;
+          return true;
         } catch {
           // Claim row stays -- a send failure here is rare enough
           // (vs. the routine "not eligible yet" case the claim exists
           // to prevent) that leaving this user unwelcomed is a smaller
           // risk than a duplicate send if it's retried.
+          return false;
         }
-      }
+      });
+
+      sent = results.filter(Boolean).length;
     }
   }
 

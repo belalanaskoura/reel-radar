@@ -13,7 +13,12 @@ import { useEffect, useRef } from 'react';
 // on the grid container rather than a one-time effect. Cards are
 // grouped into rows by comparing offsetTop (DOM order + CSS Grid's own
 // row placement, not an assumed column count), so this stays correct
-// regardless of which breakpoint is active.
+// regardless of which breakpoint is active -- and grouping only checks
+// each card against the current row (not every row seen so far), since
+// DOM order + top-to-bottom grid layout means a card can never belong to
+// an earlier row once `top` has advanced past it. Stays O(cards) instead
+// of degrading toward O(cards²) on layouts with many narrow rows (e.g.
+// grid-cols-2 on mobile).
 //
 // Target elements are found via a data attribute rather than a ref per
 // card, since the number of cards is dynamic (search/filter/"load
@@ -36,22 +41,29 @@ export function useEqualRowHeights<T extends HTMLElement>(dataAttr: string, deps
       // doesn't itself influence this pass's natural-height reading.
       for (const el of targets) el.style.minHeight = '';
 
-      const rows = new Map<number, HTMLElement[]>();
+      // Cards arrive in DOM order and CSS Grid lays out rows top-to-bottom,
+      // so once `top` jumps to a new row it never returns to an earlier
+      // one -- only the current (most recent) row can still be a match.
+      // Comparing against every row seen so far (an earlier version of
+      // this loop) is unnecessary work that scales quadratically with
+      // card count for no benefit; this stays O(cards).
+      const rows: HTMLElement[][] = [];
+      let currentRowKey: number | null = null;
       for (const el of targets) {
         const top = el.getBoundingClientRect().top;
-        // Group by rounded top position -- exact float equality isn't
-        // reliable across elements laid out by the same grid row due to
-        // sub-pixel rendering differences.
+        // Rounded top position -- exact float equality isn't reliable
+        // across elements laid out by the same grid row due to sub-pixel
+        // rendering differences.
         const key = Math.round(top);
-        const bucket = [...rows.entries()].find(([k]) => Math.abs(k - key) < 2);
-        if (bucket) {
-          bucket[1].push(el);
+        if (currentRowKey !== null && Math.abs(currentRowKey - key) < 2) {
+          rows[rows.length - 1].push(el);
         } else {
-          rows.set(key, [el]);
+          rows.push([el]);
+          currentRowKey = key;
         }
       }
 
-      for (const rowEls of rows.values()) {
+      for (const rowEls of rows) {
         const maxHeight = Math.max(...rowEls.map((el) => el.getBoundingClientRect().height));
         for (const el of rowEls) el.style.minHeight = `${maxHeight}px`;
       }

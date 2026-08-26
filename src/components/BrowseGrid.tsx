@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MovieCard, type MovieCardData } from '@/components/MovieCard';
 import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
 import { CinemaFilterDropdown, type CinemaOption } from '@/components/CinemaFilterDropdown';
 import { useSearchQuery } from '@/components/SearchProvider';
 import { useEqualRowHeights } from '@/components/useEqualRowHeights';
+import { getFullCatalogSearchResults } from '@/app/browse/actions';
 
 // Matches each word of the query independently against the start of any
 // word in the title, not a substring search. This does two things at
@@ -22,16 +23,25 @@ function matchesSearch(title: string, query: string): boolean {
 
 const PAGE_SIZE = 60;
 
+// How long a search has to sit idle before the full-catalog fallback is
+// even considered -- avoids firing a network request mid-keystroke, the
+// one place in this component a delay is actually justified (see
+// browse/actions.ts's getFullCatalogSearchResults for what it does and
+// why it's rare-by-construction, not a debounce on every keystroke).
+const FALLBACK_SEARCH_DELAY_MS = 400;
+
 export function BrowseGrid({
   movies,
   watchedIds,
   isSignedIn,
   cinemas,
+  isTruncated,
 }: {
   movies: MovieCardData[];
   watchedIds: string[];
   isSignedIn: boolean;
   cinemas: CinemaOption[];
+  isTruncated: boolean;
 }) {
   // Search lives in SearchProvider's context, written by the nav bar's
   // search input (NavSearch), rendered separately, above this component
@@ -44,8 +54,49 @@ export function BrowseGrid({
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const watchedIdSet = useMemo(() => new Set(watchedIds), [watchedIds]);
 
+  // Rare fallback: a search that matches nothing in the initial (possibly
+  // truncated) fetch gets one real network call to check the rest of the
+  // catalog. Keyed by the query it ran for, so a since-changed query never
+  // shows stale results while the next fallback (or none) resolves --
+  // this doubles as the "is a fetch still needed for the current query"
+  // signal (see fallbackLoading below), so there's no separate loading
+  // boolean to keep in sync with it.
+  const [fallback, setFallback] = useState<{ query: string; results: MovieCardData[] } | null>(null);
+
+  const localMatches = useMemo(() => {
+    if (!query.trim()) return movies;
+    return movies.filter((m) => matchesSearch(m.title, query));
+  }, [movies, query]);
+
+  const trimmedQuery = query.trim();
+  const shouldTryFallback = trimmedQuery.length > 0 && isTruncated && localMatches.length === 0;
+  const fallbackLoading = shouldTryFallback && fallback?.query !== trimmedQuery;
+
+  useEffect(() => {
+    if (!shouldTryFallback) return;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      (async () => {
+        const results = await getFullCatalogSearchResults(trimmedQuery);
+        if (!cancelled) setFallback({ query: trimmedQuery, results });
+      })();
+    }, FALLBACK_SEARCH_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [trimmedQuery, shouldTryFallback]);
+
+  const moviesWithFallback = useMemo(() => {
+    if (!fallback || fallback.query !== trimmedQuery || fallback.results.length === 0) return movies;
+    const existingIds = new Set(movies.map((m) => m.id));
+    return [...movies, ...fallback.results.filter((m) => !existingIds.has(m.id))];
+  }, [movies, fallback, trimmedQuery]);
+
   const filtered = useMemo(() => {
-    let result = movies;
+    let result = moviesWithFallback;
 
     if (statusFilter === 'bookable') {
       result = result
@@ -91,7 +142,7 @@ export function BrowseGrid({
     });
 
     return result;
-  }, [movies, statusFilter, cinemaFilter, query]);
+  }, [moviesWithFallback, statusFilter, cinemaFilter, query]);
 
   // "Load More" appends in place rather than paging, so how many items
   // are currently visible is local UI state, not something worth
@@ -147,7 +198,7 @@ export function BrowseGrid({
 
       {filtered.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-          No movies found.
+          {fallbackLoading ? 'Searching the full catalog…' : 'No movies found.'}
         </p>
       ) : (
         <>

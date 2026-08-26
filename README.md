@@ -293,6 +293,7 @@ to be called on a real interval by an external scheduler (e.g.
 | `POST /api/admin-digest` | Emails/pushes a data-quality summary to admins (missing posters, stuck matches, price drift) | Daily |
 | `POST /api/welcome-email` | Emails new signups a one-time welcome (feature pointers, plus push setup steps if they haven't turned it on yet) | Every 15–30 min |
 | `POST /api/check-scene-prices?branch=<id>&format=<name>` | Spot-checks one Scene branch+format's admin-maintained price template against a real live read | Daily per branch+format combo |
+| `POST /api/prune-analytics` | Deletes `analytics_events` rows older than 90 days (keeps `admin_digest_run`/`welcome_email_sent` regardless of age) so the table stays bounded against Supabase's free-tier storage cap | Daily |
 
 Each requires an `x-sync-secret: <SYNC_SECRET>` header. Example:
 
