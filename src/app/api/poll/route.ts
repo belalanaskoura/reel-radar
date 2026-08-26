@@ -10,6 +10,12 @@ import { chainForBranch, VOX_ELCINEMA_THEATER_IDS, voxBranchShowtimesUrl, type V
 import { fetchVoxShowtimes } from '@/lib/elcinema/vox-showtimes';
 import { sleep as elcinemaSleep, REQUEST_DELAY_MS as ELCINEMA_DELAY_MS } from '@/lib/elcinema/fetcher';
 import { logEvent } from '@/lib/analytics';
+import { mapWithConcurrency } from '@/lib/concurrency';
+
+// Watchers for one (movie, branch) pair are notified concurrently, not
+// sequentially -- see notifyWatchers below for why. Same cap sync-movies
+// uses for TMDB calls.
+const NOTIFY_CONCURRENCY = 10;
 
 // The centralized poll job: checks bookability for every (movie, branch)
 // pair that at least one user is watching, never per-user (per the
@@ -148,9 +154,13 @@ async function notifyWatchers(
   branch: string,
   bookingUrl: string,
 ): Promise<number> {
-  const { data: movie } = await supabase.from('movies').select('title').eq('id', movieId).single();
-  const { data: branchRow } = await supabase.from('branches').select('name').eq('id', branch).single();
-  if (!movie || !branchRow) return 0;
+  const { data: movieRow } = await supabase.from('movies').select('title').eq('id', movieId).single();
+  const { data: branchInfoRow } = await supabase.from('branches').select('name').eq('id', branch).single();
+  if (!movieRow || !branchInfoRow) return 0;
+  // Narrowed to non-null locals so the closure below doesn't need TS to
+  // re-derive narrowing across the function boundary.
+  const movie = movieRow;
+  const branchRow = branchInfoRow;
 
   const { data: watchers } = await supabase.from('watchlist').select('user_id').eq('movie_id', movieId);
   if (!watchers || watchers.length === 0) return 0;
@@ -163,10 +173,8 @@ async function notifyWatchers(
     .eq('kind', 'showtime');
   const alreadyNotifiedIds = new Set((alreadyNotified ?? []).map((r) => r.user_id));
 
-  let sentCount = 0;
-
-  for (const watcher of watchers) {
-    if (alreadyNotifiedIds.has(watcher.user_id)) continue;
+  async function notifyOneWatcher(watcher: { user_id: string }): Promise<boolean> {
+    if (alreadyNotifiedIds.has(watcher.user_id)) return false;
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -174,7 +182,7 @@ async function notifyWatchers(
       .eq('id', watcher.user_id)
       .single();
 
-    if (!profile?.notify_cinema_showtimes) continue;
+    if (!profile?.notify_cinema_showtimes) return false;
     // null means "every branch" (the default, and what every existing
     // user effectively had before this column existed) -- only a
     // non-null array narrows to specific branches. Not logged as
@@ -182,15 +190,16 @@ async function notifyWatchers(
     // should still be able to see this movie is already bookable here,
     // not have it permanently marked "already told you" for a
     // notification they never actually got.
-    if (profile.subscribed_branch_ids && !profile.subscribed_branch_ids.includes(branch)) continue;
-    if (!profile.email) continue; // nothing to notify with, skip entirely
+    if (profile.subscribed_branch_ids && !profile.subscribed_branch_ids.includes(branch)) return false;
+    if (!profile.email) return false; // nothing to notify with, skip entirely
 
     const payload = { movieTitle: movie.title, branchName: branchRow.name, bookingUrl };
 
     // Email and push are independent, best-effort channels: one failing
-    // must never block the other or abort the rest of this watcher loop
-    // (a real bug in an earlier version, where an uncaught send error
-    // killed every notification after it in the same poll run).
+    // must never block the other or abort the rest of the watchers being
+    // notified concurrently (a real bug in an earlier version, where an
+    // uncaught send error killed every notification after it in the same
+    // poll run).
     try {
       await notifyBookableByEmail(profile.email, payload);
       await supabase.from('notification_deliveries').insert({
@@ -250,11 +259,39 @@ async function notifyWatchers(
         message: `${movie.title} is bookable at ${branchRow.name}!`,
         url: bookingUrl,
       });
-      sentCount += 1;
+      return true;
     } catch {
       // best-effort, swallow and continue
+      return false;
     }
   }
 
-  return sentCount;
+  // Bounded concurrency, not fully sequential: a popular movie/branch with
+  // dozens of watchers used to mean dozens of sequential email+push round
+  // trips in one request, risking cron-job.org's 30s job timeout and a
+  // typical serverless function timeout well before that (see
+  // notifyLineupAdditions/Removals below, and /api/welcome-email's own
+  // comment, for the same pattern already causing a real production
+  // incident once). Same concurrency cap sync-movies uses for TMDB calls.
+  const fanoutStartedAt = Date.now();
+  const results = await mapWithConcurrency(watchers, NOTIFY_CONCURRENCY, notifyOneWatcher);
+  const notified = results.filter(Boolean).length;
+
+  // One event per (movie, branch) pair that actually had watchers -- rare
+  // by nature (only when a movie transitions to bookable), so this is
+  // real signal, not per-poll-cycle noise. Lets /admin track the
+  // concurrency fix's real effect directly (recipientCount vs.
+  // duration_ms) instead of inferring it from poll_run's own aggregate
+  // duration, which also includes the bookability-check network calls.
+  logEvent({
+    type: 'fanout_run',
+    payload: {
+      kind: 'showtime',
+      recipientCount: watchers.length,
+      notified,
+      duration_ms: Date.now() - fanoutStartedAt,
+    },
+  });
+
+  return notified;
 }

@@ -6,16 +6,34 @@ import { sortBranchesForDisplay } from '@/lib/branches';
 import { logPageView } from '@/lib/analytics';
 import { hidePosterlessMovies } from '@/lib/movie-visibility';
 
+// Real catalog was 117 browsable movies when this was chosen (checked
+// directly against production) -- generous headroom over that without
+// repeating the old limit(2000)'s mistake of a number disconnected from
+// actual usage. Revisit once the catalog is materially closer to this.
+const BROWSE_FETCH_LIMIT = 300;
+
 export default async function BrowsePage() {
   logPageView('/browse');
 
   const supabase = await createClient();
 
-  // Fetches every browsable movie once: search, the status filter, and
-  // pagination all run client-side against this full set, so typing
-  // filters instantly with no network round-trip per keystroke. Limit
-  // raised well past the catalog's current size now that sync-movies
-  // pulls through end of 2029 instead of 6 months out.
+  // Fetches the most recent/relevant slice of the catalog once: search,
+  // the status filter, and pagination all run client-side against this
+  // set, so typing filters instantly with no network round-trip per
+  // keystroke (see SearchProvider.tsx for why that matters -- URL-param
+  // search used to re-run this entire query on every keystroke and was
+  // deliberately moved off that). BROWSE_FETCH_LIMIT is a real bound, not
+  // a number picked to just barely clear the current catalog size the way
+  // the old limit(2000) was (that one was set to track sync-movies
+  // pulling TMDB data through end of 2029, disconnected from what
+  // actually needs fetching per page view) -- see the scalability audit
+  // (docs/SCALABILITY_AUDIT.md, finding 7) for the full reasoning.
+  //
+  // A movie outside this window that the current release_date order
+  // pushed past the bound won't be found by BrowseGrid's client-side
+  // search -- getFullCatalogSearchResults (actions.ts) is the fallback
+  // for that case, fired only when a local search comes up empty against
+  // a truncated fetch, not on every keystroke.
   //
   // 'ambiguous' rows (unresolved TMDB match) are fetched too, but only
   // kept below if they have a real showtimes_cache row -- an ambiguous
@@ -32,18 +50,27 @@ export default async function BrowsePage() {
     {
       data: { user },
     },
-    { data: movies },
+    { data: movies, count: totalBrowsableCount },
     { data: branches },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase
       .from('movies')
-      .select('id, title, release_date, poster_path, match_status, showtimes_cache(branch_id, bookable, was_ever_bookable, raw_showtimes, branches(name))')
+      .select(
+        'id, title, release_date, poster_path, match_status, showtimes_cache(branch_id, bookable, was_ever_bookable, raw_showtimes, branches(name))',
+        { count: 'exact' },
+      )
       .in('match_status', ['matched', 'unmatched', 'ambiguous'])
       .order('release_date', { ascending: true, nullsFirst: false })
-      .limit(2000),
+      .limit(BROWSE_FETCH_LIMIT),
     supabase.from('branches').select('id, name').order('id', { ascending: true }),
   ]);
+
+  // Whether this fetch actually got the whole catalog or was truncated by
+  // BROWSE_FETCH_LIMIT -- BrowseGrid needs this to know whether it's safe
+  // to trust "zero local matches" as "zero matches, period" or whether the
+  // full-catalog-search fallback should be offered instead.
+  const isTruncated = (totalBrowsableCount ?? 0) > (movies?.length ?? 0);
 
   // Past this many days after release_date, a movie that's never had a
   // single bookable date on any branch almost certainly isn't getting
@@ -139,6 +166,7 @@ export default async function BrowsePage() {
           watchedIds={watchedIds}
           isSignedIn={!!user}
           cinemas={sortBranchesForDisplay(branches ?? []).map((b) => ({ id: b.id, name: b.name }))}
+          isTruncated={isTruncated}
         />
       </div>
     </main>
