@@ -7,6 +7,14 @@ import { isAdminUser } from '@/lib/admin';
 import { notifyBroadcastByEmail } from '@/lib/email';
 import { notifyBroadcastPush } from '@/lib/push';
 import { logEvent } from '@/lib/analytics';
+import { mapWithConcurrency } from '@/lib/concurrency';
+
+// A broadcast targets every user by design (or a hand-picked subset), and
+// runs synchronously inside one admin server-action request -- a fully
+// sequential fan-out here doesn't just risk a timeout, it blocks the
+// admin's own browser tab for the entire duration. Same concurrency cap
+// used elsewhere for this shape.
+const BROADCAST_CONCURRENCY = 10;
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -89,16 +97,15 @@ export async function sendBroadcast(
     .filter((u): u is typeof u & { email: string } => !!u.email)
     .filter((u) => !recipientIdSet || recipientIdSet.has(u.id));
 
-  let emailSent = 0;
-  let emailFailed = 0;
-  let pushSent = 0;
-  let pushFailed = 0;
+  type UserOutcome = { emailSent: boolean; emailFailed: boolean; pushSent: boolean; pushFailed: boolean };
 
-  for (const user of users) {
+  const outcomes = await mapWithConcurrency(users, BROADCAST_CONCURRENCY, async (user): Promise<UserOutcome> => {
+    const outcome: UserOutcome = { emailSent: false, emailFailed: false, pushSent: false, pushFailed: false };
+
     if (sendEmail) {
       try {
         await notifyBroadcastByEmail(user.email, trimmedSubject, trimmedMessage);
-        emailSent += 1;
+        outcome.emailSent = true;
         await supabase.from('notification_deliveries').insert({
           user_id: user.id,
           movie_id: null,
@@ -107,7 +114,7 @@ export async function sendBroadcast(
           success: true,
         });
       } catch (err) {
-        emailFailed += 1;
+        outcome.emailFailed = true;
         await supabase.from('notification_deliveries').insert({
           user_id: user.id,
           movie_id: null,
@@ -130,7 +137,7 @@ export async function sendBroadcast(
         // (sentCount > 0, meaning at least one device was actually hit)
         // is worth a notification_deliveries row.
         if (sentCount > 0) {
-          pushSent += 1;
+          outcome.pushSent = true;
           await supabase.from('notification_deliveries').insert({
             user_id: user.id,
             movie_id: null,
@@ -140,7 +147,7 @@ export async function sendBroadcast(
           });
         }
       } catch (err) {
-        pushFailed += 1;
+        outcome.pushFailed = true;
         await supabase.from('notification_deliveries').insert({
           user_id: user.id,
           movie_id: null,
@@ -151,7 +158,14 @@ export async function sendBroadcast(
         });
       }
     }
-  }
+
+    return outcome;
+  });
+
+  const emailSent = outcomes.filter((o) => o.emailSent).length;
+  const emailFailed = outcomes.filter((o) => o.emailFailed).length;
+  const pushSent = outcomes.filter((o) => o.pushSent).length;
+  const pushFailed = outcomes.filter((o) => o.pushFailed).length;
 
   logEvent({
     type: 'broadcast_run',
