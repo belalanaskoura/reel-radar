@@ -229,7 +229,7 @@ need to create the core tables yourself: `movies`, `branches`,
 `movie_branch_slugs`, `showtimes_cache`, `watchlist`, `cinema_follows`,
 `notification_log`, `notification_deliveries`, `profiles`,
 `push_subscriptions`, `feedback`, `egypt_releases`, `egypt_distributors`,
-`scene_price_templates`, `analytics_events`.
+`scene_price_templates`, `analytics_events`, `welcome_email_log`.
 
 ### Environment Variables
 

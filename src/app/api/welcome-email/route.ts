@@ -20,10 +20,26 @@ const CANDIDATE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 // README's Scheduled Jobs section. Covers both signup paths (password and
 // Google) since it works off auth.users' created_at rather than hooking
 // the signup action itself, which has no reliable "is this a new user"
-// signal for OAuth (see auth/callback/route.ts). Idempotency is a
-// per-user 'welcome_email_sent' analytics_events row rather than a new
-// DB column/table, since schema changes here go through Supabase's SQL
-// editor directly (see README) and this app has no migration tooling.
+// signal for OAuth (see auth/callback/route.ts).
+//
+// Idempotency is a real 'welcome_email_log' table with a UNIQUE
+// constraint on user_id, claimed with an insert *before* the email is
+// sent -- not a dedupe-then-send-then-mark read/write race. A slow run
+// (the per-user loop is sequential, one Resend call at a time) can blow
+// past cron-job.org's 30s job timeout; cron-job.org then retries, and
+// the original invocation keeps running server-side even though the
+// client gave up -- Vercel doesn't kill it. Two real invocations were
+// then running the same candidate list concurrently. The old
+// "read alreadySentIds once, send everyone not in it" approach let both
+// invocations read the dedupe set before either one's writes landed,
+// so both sent to the same users -- confirmed live: 18/18 users
+// resent in a single run that also never logged a completion row
+// (killed mid-run by the same timeout that triggered the retry),
+// repeated 3 more times over 3 days. Claiming via a UNIQUE-constrained
+// insert makes the race resolve at the database, not in application
+// code: only one invocation's insert can win for a given user_id, and
+// the loser gets a real 23505 back and skips sending, same pattern
+// already used for cinema_follows/watchlist duplicate-insert races.
 export async function POST(request: Request) {
   if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -44,15 +60,8 @@ export async function POST(request: Request) {
   let sent = 0;
 
   if (candidates.length > 0) {
-    const { data: alreadySent } = await supabase
-      .from('analytics_events')
-      .select('payload')
-      .eq('event_type', 'welcome_email_sent');
-    const alreadySentIds = new Set(
-      (alreadySent ?? [])
-        .map((r) => (r.payload as { user_id?: string } | null)?.user_id)
-        .filter((id): id is string => !!id),
-    );
+    const { data: alreadySent } = await supabase.from('welcome_email_log').select('user_id');
+    const alreadySentIds = new Set((alreadySent ?? []).map((r) => r.user_id as string));
 
     const pending = candidates.filter((u) => !alreadySentIds.has(u.id));
 
@@ -68,6 +77,20 @@ export async function POST(request: Request) {
       );
 
       for (const user of pending) {
+        // Claim first: an insert that hits the unique constraint means
+        // another (likely overlapping/retried) invocation already
+        // claimed this user, so skip sending entirely rather than
+        // risk a duplicate send.
+        const { error: claimError } = await supabase
+          .from('welcome_email_log')
+          .insert({ user_id: user.id });
+        if (claimError) {
+          if (claimError.code !== '23505') {
+            console.error('welcome_email_log claim failed', user.id, claimError);
+          }
+          continue;
+        }
+
         const pushEnabled = pushEnabledIds.has(user.id);
         const displayName =
           displayNameById.get(user.id) ||
@@ -78,13 +101,12 @@ export async function POST(request: Request) {
 
         try {
           await notifyWelcomeByEmail(user.email!, { displayName, pushEnabled });
-          await supabase
-            .from('analytics_events')
-            .insert({ event_type: 'welcome_email_sent', payload: { user_id: user.id, push_enabled: pushEnabled } });
           sent += 1;
         } catch {
-          // best-effort -- no 'sent' row was written, so this user is
-          // simply retried on the next run
+          // Claim row stays -- a send failure here is rare enough
+          // (vs. the routine "not eligible yet" case the claim exists
+          // to prevent) that leaving this user unwelcomed is a smaller
+          // risk than a duplicate send if it's retried.
         }
       }
     }
