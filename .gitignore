@@ -37,7 +37,7 @@ yarn-error.log*
 # vercel
 .vercel
 
-# supabase CLI local link state (project ref, pooler URL — machine-local, not project config)
+# supabase CLI local link state
 /supabase/.temp/
 
 # typescript
