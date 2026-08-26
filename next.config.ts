@@ -13,6 +13,36 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Applied to every response, including the ones proxy.ts's
+        // matcher skips (static assets, images, /auth/callback). The
+        // nonce-based CSP lives in proxy.ts because it needs a value
+        // that changes per request; everything here is static.
+        source: '/(.*)',
+        headers: [
+          // Vercel redirects HTTP to HTTPS at the edge, but that happens
+          // AFTER the browser has already sent a plaintext request -- and
+          // the Supabase auth cookie is not httpOnly (PKCE needs to read
+          // it from JS), so it would ride along on that first request.
+          // HSTS is what stops the request being sent in the clear at
+          // all. `preload` is deliberately omitted: submitting to the
+          // preload list is very hard to reverse, and that should be a
+          // conscious decision rather than a side effect of this change.
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains',
+          },
+          // Belt and braces with the CSP's frame-ancestors in proxy.ts.
+          // This one covers responses the middleware matcher never sees.
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+          },
+        ],
+      },
+      {
         // iOS Safari's PWA-installability detection is strict about this
         // exact content type -- Vercel's static file serving defaults to
         // application/json, which iOS doesn't reliably recognize as a

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { checkBookability } from '@/lib/scene/fetcher';
 import { notifyBookablePush } from '@/lib/push';
@@ -18,8 +19,7 @@ import { logEvent } from '@/lib/analytics';
 // can't run cron faster than once/day, so there's no Vercel Cron entry
 // here at all).
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-sync-secret');
-  if (secret !== process.env.SYNC_SECRET) {
+  if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

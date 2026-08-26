@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { AUTH_COOKIE_OPTIONS } from './cookie-options';
 
 // Server-side client scoped to the signed-in user's session, read from
 // cookies. Respects RLS (unlike the service-role client). Use this in
@@ -12,6 +13,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: AUTH_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return cookieStore.getAll();

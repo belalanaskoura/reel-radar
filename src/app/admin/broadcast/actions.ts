@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { listAllUsers } from '@/lib/list-all-users';
-import { isAdminEmail } from '@/lib/admin';
+import { isAdminUser } from '@/lib/admin';
 import { notifyBroadcastByEmail } from '@/lib/email';
 import { notifyBroadcastPush } from '@/lib/push';
 import { logEvent } from '@/lib/analytics';
@@ -13,7 +13,7 @@ async function requireAdmin() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || !isAdminEmail(user.email)) {
+  if (!isAdminUser(user)) {
     throw new Error('Not authorized');
   }
 }

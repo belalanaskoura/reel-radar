@@ -5,9 +5,9 @@ import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; check_email?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, check_email } = await searchParams;
 
   return (
     <main className="relative overflow-hidden">
@@ -29,6 +29,14 @@ export default async function SignupPage({
             style={{ background: 'var(--error-bg)', color: 'var(--error-ink)' }}
           >
             {error}
+          </p>
+        )}
+        {check_email && (
+          <p
+            className="mb-4 rounded-sm px-3 py-2 text-sm"
+            style={{ background: 'var(--ok-bg)', color: 'var(--ok-ink)' }}
+          >
+            Check your email to confirm your address, then sign in.
           </p>
         )}
         <form action={signup} className="flex flex-col gap-4">

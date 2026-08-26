@@ -3,6 +3,36 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
+
+// Verifies the caller actually knows the current password before a
+// credential change, rather than trusting that holding a session is
+// proof of identity.
+//
+// Without this, any temporary session compromise -- a borrowed unlocked
+// laptop, a stolen cookie, a shared device -- converts into permanent
+// account takeover in two form fields, and the real owner cannot recover
+// because the attacker changes the email first.
+//
+// signInWithPassword against the session user's own address is the check;
+// it does not disturb the existing session on success. Rate limited so
+// this doesn't become an oracle for brute-forcing the current password
+// from an already-hijacked session.
+async function verifyCurrentPassword(
+  email: string,
+  currentPassword: string,
+  userId: string,
+): Promise<boolean> {
+  if (!currentPassword) return false;
+  if (!(await checkRateLimit(`reauth:user:${userId}`, 5, 900))) return false;
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password: currentPassword,
+  });
+  return !error;
+}
 
 export async function updateAlertPreferences(values: {
   notify_new_releases: boolean;
@@ -177,6 +207,7 @@ export async function updateDisplayName(formData: FormData) {
 // trigger), not by this action.
 export async function updateEmail(formData: FormData) {
   const newEmail = (formData.get('email') as string).trim();
+  const currentPassword = (formData.get('current_password') as string) ?? '';
 
   const supabase = await createClient();
   const {
@@ -191,6 +222,10 @@ export async function updateEmail(formData: FormData) {
     redirect('/account/edit');
   }
 
+  if (!user.email || !(await verifyCurrentPassword(user.email, currentPassword, user.id))) {
+    redirect(`/account/edit?error=${encodeURIComponent('That password is incorrect.')}`);
+  }
+
   const { error } = await supabase.auth.updateUser({ email: newEmail });
 
   if (error) {
@@ -202,6 +237,7 @@ export async function updateEmail(formData: FormData) {
 
 export async function updatePassword(formData: FormData) {
   const newPassword = formData.get('new_password') as string;
+  const currentPassword = (formData.get('current_password') as string) ?? '';
 
   if (newPassword.length < 6) {
     redirect(`/account/security?error=${encodeURIComponent('Password must be at least 6 characters.')}`);
@@ -214,6 +250,10 @@ export async function updatePassword(formData: FormData) {
 
   if (!user) {
     redirect('/signin');
+  }
+
+  if (!user.email || !(await verifyCurrentPassword(user.email, currentPassword, user.id))) {
+    redirect(`/account/security?error=${encodeURIComponent('That password is incorrect.')}`);
   }
 
   const { error } = await supabase.auth.updateUser({ password: newPassword });

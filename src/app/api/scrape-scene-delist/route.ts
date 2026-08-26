@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchAllListings } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
@@ -16,8 +17,7 @@ const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 // so it's fast regardless of how large a branch's catalog gets and can
 // run as its own independent job on cron-job.org.
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-sync-secret');
-  if (secret !== process.env.SYNC_SECRET) {
+  if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

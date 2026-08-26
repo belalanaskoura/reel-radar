@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
-import { isAdminEmail } from '@/lib/admin';
+import { isAdminUser } from '@/lib/admin';
 import { ADMIN_VERIFIED_HEADER } from '@/proxy';
 
 // The real gate is in proxy.ts (a redirect thrown here can't reliably
@@ -19,8 +19,10 @@ import { ADMIN_VERIFIED_HEADER } from '@/proxy';
 // real getUser() check only if the header is missing entirely (e.g.
 // proxy.ts's matcher stops covering /admin some day, the exact
 // regression this whole layout exists to guard against), so this stays
-// a genuine safety net, not a trust-the-client shortcut -- a client
-// can't set this header itself; see proxy.ts's own comment on why.
+// a genuine safety net, not a trust-the-client shortcut. A client CAN
+// send this header, but proxy.ts deletes any incoming value on entry
+// before setting its own, so what arrives here is only ever proxy.ts's
+// own verdict; see its comment.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const headerList = await headers();
   const verifiedHeader = headerList.get(ADMIN_VERIFIED_HEADER);
@@ -34,7 +36,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user || !isAdminEmail(user.email)) {
+  if (!isAdminUser(user)) {
     redirect('/');
   }
 

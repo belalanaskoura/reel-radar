@@ -103,7 +103,7 @@ export default async function SettingsPage({
               `sm:`, with no orphaned gaps either way. */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-[96px_1fr]">
             <div className="flex flex-col gap-3">
-              <AvatarUpload userId={user.id} avatarUrl={profile?.avatar_url ?? null} size={96} shape="square" />
+              <AvatarUpload avatarUrl={profile?.avatar_url ?? null} size={96} shape="square" />
 
               <div>
                 <h3 className="mb-1 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
@@ -142,12 +142,24 @@ export default async function SettingsPage({
                 <h3 className="mb-1 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--ink-dim)' }}>
                   Email
                 </h3>
-                <form action={updateEmail} className="flex flex-col gap-2 xs:flex-row">
+                <form action={updateEmail} className="flex flex-col gap-2">
                   <input
                     name="email"
                     type="email"
                     required
                     defaultValue={user.email ?? ''}
+                    className="input-accent-focus min-w-0 flex-1 rounded-sm border px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring-2"
+                    style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
+                  />
+                  {/* Changing the address on an account is the first step
+                      of a takeover, so it needs the current password the
+                      same way changing the password itself does. */}
+                  <input
+                    name="current_password"
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    placeholder="Current password"
                     className="input-accent-focus min-w-0 flex-1 rounded-sm border px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring-2"
                     style={{ borderColor: 'var(--rule)', background: 'var(--bg)', color: 'var(--ink)' }}
                   />
