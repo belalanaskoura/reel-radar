@@ -19,6 +19,7 @@ import { WatchlistConfirmPreference } from '@/components/WatchlistConfirmPrefere
 import { PushSubscribeButton } from '@/components/PushSubscribeButton';
 import { ThemeSettings } from '@/components/ThemeSettings';
 import { sortBranchesForDisplay } from '@/lib/branches';
+import { authErrorMessage } from '@/lib/auth-error-codes';
 import { ArrowLeftIcon, BellIcon, CinemaIcon, SmartphoneIcon, SunIcon, TicketIcon, UserIcon } from '@/components/icons';
 
 export default async function SettingsPage({
@@ -26,7 +27,8 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ error?: string; saved?: string; email_pending?: string }>;
 }) {
-  const { error, saved, email_pending } = await searchParams;
+  const { error: errorCode, saved, email_pending } = await searchParams;
+  const error = authErrorMessage(errorCode);
   const supabase = await createClient();
 
   const {

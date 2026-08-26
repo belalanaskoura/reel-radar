@@ -12,10 +12,13 @@
  * going forward -- so this is a one-time catch-up for existing rows, not
  * a separate implementation.
  *
- * Run with `npx tsx scripts/backfill-vox-posters.ts`.
+ * Dry run by default -- prints what would be filled without writing
+ * anything. Run with `npx tsx scripts/backfill-vox-posters.ts --live`
+ * to actually apply the updates.
  */
 import fs from 'fs';
 import path from 'path';
+import { isDryRun, logDryRunBanner } from './_lib/dry-run';
 
 const envPath = path.resolve(__dirname, '../.env.local');
 fs.readFileSync(envPath, 'utf8')
@@ -26,6 +29,8 @@ fs.readFileSync(envPath, 'utf8')
   });
 
 async function main() {
+  logDryRunBanner('backfill-vox-posters');
+
   const { createServiceRoleClient } = await import('../src/lib/supabase/service-role');
   const { fetchWorkDetails, sleep, REQUEST_DELAY_MS } = await import('../src/lib/elcinema/fetcher');
 
@@ -60,8 +65,10 @@ async function main() {
       await sleep(REQUEST_DELAY_MS);
       const details = await fetchWorkDetails(elcinemaId);
       if (details.posterUrl) {
-        await supabase.from('movies').update({ poster_path: details.posterUrl }).eq('id', movie.id);
-        console.log(`  "${movie.title}": set poster`);
+        if (!isDryRun()) {
+          await supabase.from('movies').update({ poster_path: details.posterUrl }).eq('id', movie.id);
+        }
+        console.log(`  "${movie.title}": ${isDryRun() ? 'would set' : 'set'} poster`);
         updated += 1;
       } else {
         console.log(`  "${movie.title}": elCinema has no poster either`);

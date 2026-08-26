@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      # next build runs its own full TypeScript check. A standalone
+      # `tsc --noEmit` fails on a clean checkout (LayoutProps is a Next 16
+      # generated global that only exists after this writes .next/types),
+      # so the build itself is the typecheck step here, not a separate one.
+      #
+      # /sitemap.xml is statically prerendered, which means it genuinely
+      # runs at build time and calls the real service-role Supabase client
+      # (see src/app/sitemap.ts) -- confirmed live: placeholder env values
+      # make the build fail there specifically, not just skip cleanly. So
+      # this needs real repository secrets, not dummy values. Add these
+      # under Settings -> Secrets and variables -> Actions using the same
+      # values as Vercel's production env vars (read-only credentials are
+      # fine here; this job never writes).
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000' }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}

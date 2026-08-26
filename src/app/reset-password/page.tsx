@@ -2,13 +2,15 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { ResetPasswordForm } from './ResetPasswordForm';
 import { resetPassword } from './actions';
+import { authErrorMessage } from '@/lib/auth-error-codes';
 
 export default async function ResetPasswordPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error: errorCode } = await searchParams;
+  const error = authErrorMessage(errorCode);
   const supabase = await createClient();
 
   const {

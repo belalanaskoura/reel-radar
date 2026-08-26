@@ -14,6 +14,15 @@
  * behaves identically to what every future /api/match-movies run now
  * does automatically -- not a separate one-off implementation.
  *
+ * No --live flag here unlike this directory's other scripts: the actual
+ * merge/delete logic lives inside mergeSceneDuplicates itself (it's also
+ * called live, unconditionally, by every /api/match-movies run), so there
+ * is no local write call site in this file to gate -- adding a dry-run
+ * flag here would either silently skip calling the shared function
+ * entirely or do nothing, neither of which matches what this script's own
+ * name promises. If a dry-run mode is ever wanted for this, it belongs
+ * inside mergeSceneDuplicates so both callers get it consistently.
+ *
  * Run with `npx tsx scripts/cleanup-title-duplicates.ts`.
  */
 import fs from 'fs';

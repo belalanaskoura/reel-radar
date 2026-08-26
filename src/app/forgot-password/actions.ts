@@ -14,7 +14,7 @@ export async function requestPasswordReset(formData: FormData) {
   const email = formData.get('email') as string;
 
   if (!email) {
-    redirect(`/forgot-password?error=${encodeURIComponent('Enter your email address.')}`);
+    redirect('/forgot-password?error=missing_email');
   }
 
   // Unthrottled, this endpoint is a free mail cannon: it sends a real
