@@ -1,3 +1,16 @@
+# This job's own `npm run build` exists to validate the commit (lint,
+# typecheck-via-build, tests) -- it is not the artifact that ships.
+# Vercel does its own independent build from the same commit for the
+# actual deploy, so there are two builds per commit rather than one
+# promoted through both stages. Given Vercel is the deploy target (not
+# a self-hosted artifact registry), building once and promoting the
+# same artifact into Vercel isn't available without leaving Vercel's
+# git-integration deploy model, so this is an accepted trade-off, not
+# an oversight.
+#
+# Runners are GitHub-hosted ubuntu-latest VMs, fresh per job with no
+# reused state between runs, so there is no environment-cleanup step
+# to add here.
 name: CI
 
 on:
@@ -6,13 +19,16 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -27,7 +43,7 @@ jobs:
       # restore-keys fall back to the closest available cache (same
       # lockfile on another branch, or any prior cache at all) rather than
       # building from scratch every time.
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .next/cache
           key: nextjs-${{ hashFiles('package-lock.json') }}-${{ github.ref_name }}
@@ -58,4 +74,12 @@ jobs:
           NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000' }}
           NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
 
+      # All 3 current test files are pure unit tests (no network/DB), so
+      # there's no slow/fast layering to split yet -- vitest run itself
+      # takes ~1-2s. The real "slower, later-stage" layer already exists
+      # as preview-smoke.yml, which runs separately and only after a real
+      # deploy succeeds, rather than as a step in this job. Revisit
+      # splitting this into its own job (or a matrix) if the suite grows
+      # enough that a slow subset starts blocking fast feedback on the
+      # rest.
       - run: npm test

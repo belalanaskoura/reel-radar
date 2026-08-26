@@ -3,6 +3,7 @@
 <!-- PROJECT SHIELDS -->
 <div align="center">
 
+[![CI][ci-shield]][ci-url]
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
@@ -416,6 +417,8 @@ Belal Anas
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- MARKDOWN LINKS & IMAGES -->
+[ci-shield]: https://img.shields.io/github/actions/workflow/status/belalanaskoura/reel-radar/ci.yml?branch=main&style=for-the-badge&label=CI
+[ci-url]: https://github.com/belalanaskoura/reel-radar/actions/workflows/ci.yml
 [contributors-shield]: https://img.shields.io/github/contributors/belalanaskoura/reel-radar.svg?style=for-the-badge
 [contributors-url]: https://github.com/belalanaskoura/reel-radar/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/belalanaskoura/reel-radar.svg?style=for-the-badge
