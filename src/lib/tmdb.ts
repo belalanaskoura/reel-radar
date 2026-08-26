@@ -11,7 +11,18 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 // partial-progress logging.
 const TMDB_TIMEOUT_MS = 15_000;
 
-async function tmdbFetch(url: string): Promise<Response> {
+// No evidence TMDB's rate limit has ever actually been hit in this app
+// (this is a speculative gap being closed ahead of time, not a fix for a
+// confirmed incident) -- but sync-movies and match-movies both loop over
+// many movies through this same choke point, so a real 429 under load
+// would otherwise fail every remaining candidate in the batch the same
+// way an unhandled error does anywhere else in those routes. One retry
+// only: this isn't a general-purpose backoff loop, just enough to survive
+// a single transient rate-limit response without adding real latency to
+// the common case where it's never hit.
+const RATE_LIMIT_RETRY_DELAY_MS = 1_000;
+
+async function fetchOnce(url: string): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TMDB_TIMEOUT_MS);
   try {
@@ -19,6 +30,18 @@ async function tmdbFetch(url: string): Promise<Response> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function tmdbFetch(url: string): Promise<Response> {
+  const res = await fetchOnce(url);
+  if (res.status !== 429) return res;
+
+  const retryAfterHeader = res.headers.get('Retry-After');
+  const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : NaN;
+  const delayMs = Number.isFinite(retryAfterMs) ? retryAfterMs : RATE_LIMIT_RETRY_DELAY_MS;
+
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+  return fetchOnce(url);
 }
 
 export interface TmdbMovie {
