@@ -30,7 +30,20 @@ type AnalyticsEvent =
     }
   | {
       type: 'match_run';
-      payload: { matched: number; ambiguous: number; unmatched: number; merged: number; duration_ms: number };
+      payload: {
+        matched: number;
+        ambiguous: number;
+        unmatched: number;
+        errored: number;
+        merged: number;
+        duration_ms: number;
+        // Batched by offset since finding 3 of the reliability review
+        // (see match-to-tmdb.ts's BATCH_SIZE comment) -- same shape as
+        // scrape_run's own offset/batchSize/error fields.
+        offset: number;
+        batchSize?: number;
+        error?: string | null;
+      };
     }
   | { type: 'sync_run'; payload: { accepted: number; rejected: number; duration_ms: number } }
   | {
