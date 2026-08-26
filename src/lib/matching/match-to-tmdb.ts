@@ -209,17 +209,36 @@ async function disambiguate(candidates: TmdbMovie[], query: string): Promise<Tmd
 // than corrupting data or crashing the batch.
 const MATCH_CONCURRENCY = 10;
 
-// Matches every unmatched Scene-sourced movie (tmdb_id null) against TMDB.
-// Must run after mergeSceneDuplicates() so each real movie is looked up
-// once. When a match lands on a tmdb_id that's already a real Phase 2
-// movies row, the Scene row's slugs/cache get moved onto that existing row
-// and the Scene placeholder is deleted; otherwise the same movie would
-// exist as two rows (one TMDB-sourced, one Scene-sourced) indefinitely.
-export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<MatchResult[]> {
+// Movies processed (matched, 1-3 external calls each) per call. Unlike
+// scrape-scene, MATCH_CONCURRENCY already bounds parallel slots -- but
+// concurrency caps how many requests run at once, not the total wall-clock
+// time for the whole backlog, so an unmatched backlog large enough (e.g.
+// right after adding a new branch/chain, when many movies land unmatched
+// at once) can still exceed cron-job.org's 30s job timeout even at
+// concurrency=10. Same BATCH_SIZE/?offset= shape scrape-scene already uses
+// for the identical reason, sized generously since each batch's real cost
+// is bounded by MATCH_CONCURRENCY, not batch size directly.
+const BATCH_SIZE = 30;
+
+// Matches one BATCH_SIZE-sized slice (?offset=, defaults to 0) of the
+// unmatched Scene-sourced movie backlog (tmdb_id null) against TMDB. Must
+// run after mergeSceneDuplicates() so each real movie is looked up once.
+// When a match lands on a tmdb_id that's already a real Phase 2 movies
+// row, the Scene row's slugs/cache get moved onto that existing row and
+// the Scene placeholder is deleted; otherwise the same movie would exist
+// as two rows (one TMDB-sourced, one Scene-sourced) indefinitely. Ordered
+// by id so repeated offset calls see a stable slice regardless of rows
+// resolving (and leaving the unmatched set) between calls.
+export async function matchScenesToTmdb(
+  supabase: SupabaseClient,
+  offset = 0,
+): Promise<MatchResult[]> {
   const { data: sceneMovies, error } = await supabase
     .from('movies')
     .select('id, title')
-    .is('tmdb_id', null);
+    .is('tmdb_id', null)
+    .order('id', { ascending: true })
+    .range(offset, offset + BATCH_SIZE - 1);
 
   if (error) throw new Error(`Failed to load Scene movies: ${error.message}`);
   if (!sceneMovies) return [];

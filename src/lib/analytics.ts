@@ -30,9 +30,25 @@ type AnalyticsEvent =
     }
   | {
       type: 'match_run';
-      payload: { matched: number; ambiguous: number; unmatched: number; merged: number; duration_ms: number };
+      payload: {
+        matched: number;
+        ambiguous: number;
+        unmatched: number;
+        errored: number;
+        merged: number;
+        duration_ms: number;
+        // Batched by offset since finding 3 of the reliability review
+        // (see match-to-tmdb.ts's BATCH_SIZE comment) -- same shape as
+        // scrape_run's own offset/batchSize/error fields.
+        offset: number;
+        batchSize?: number;
+        error?: string | null;
+      };
     }
-  | { type: 'sync_run'; payload: { accepted: number; rejected: number; duration_ms: number } }
+  | {
+      type: 'sync_run';
+      payload: { accepted: number; rejected: number; duration_ms: number; error?: string | null };
+    }
   | {
       type: 'admin_digest_run';
       payload: { issues: number; emailSent: boolean; pushSent: number; duration_ms: number };
@@ -76,7 +92,17 @@ type AnalyticsEvent =
     }
   | {
       type: 'analytics_prune_run';
-      payload: { deleted: number; keepDays: number; duration_ms: number };
+      payload: {
+        deleted: number;
+        keepDays: number;
+        // notification_deliveries has no retention story of its own (see
+        // prune_notification_deliveries.sql) -- pruned in the same run as
+        // analytics_events rather than adding a second scheduled job for
+        // what's conceptually the same "keep old rows bounded" task.
+        deliveriesDeleted: number;
+        deliveriesKeepDays: number;
+        duration_ms: number;
+      };
     }
   | {
       type: 'fanout_run';
