@@ -1,4 +1,6 @@
+import { unstable_cache } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { BrowseGrid } from '@/components/BrowseGrid';
 import { PushBanner } from '@/components/PushBanner';
 import type { MovieCardData } from '@/components/MovieCard';
@@ -11,6 +13,43 @@ import { hidePosterlessMovies } from '@/lib/movie-visibility';
 // repeating the old limit(2000)'s mistake of a number disconnected from
 // actual usage. Revisit once the catalog is materially closer to this.
 const BROWSE_FETCH_LIMIT = 300;
+
+// The movie/branch catalog is identical for every viewer -- unlike
+// watchedIds/showPushBanner below, which are genuinely per-user and stay
+// live. Caching only this shared slice (not the whole page, which reads
+// cookies via getUser() and would either force back to fully dynamic or,
+// worse, risk leaking one viewer's personalized render to another) cuts
+// this query from "once per page view" to "once per 60s across every
+// viewer" -- real savings given this is the heaviest query in the app
+// (a joined showtimes_cache select over the whole bounded catalog), with
+// negligible staleness risk: the scraper jobs that write this data run on
+// a ~30min cadence per CLAUDE.md, so a 60s-old view is still far fresher
+// than the data's own real update rate. Uses the service-role client
+// deliberately, not the cookie-bound one createClient() returns --
+// unstable_cache's closure must never carry a specific request's session
+// into a cache entry that gets reused by other requests; movies/branches/
+// showtimes_cache are all public-read tables per their RLS policies
+// anyway, so no permission is actually being bypassed here.
+const getCachedCatalog = unstable_cache(
+  async () => {
+    const supabase = createServiceRoleClient();
+    const [{ data: movies, count: totalBrowsableCount }, { data: branches }] = await Promise.all([
+      supabase
+        .from('movies')
+        .select(
+          'id, title, release_date, poster_path, match_status, showtimes_cache(branch_id, bookable, was_ever_bookable, raw_showtimes, branches(name))',
+          { count: 'exact' },
+        )
+        .in('match_status', ['matched', 'unmatched', 'ambiguous'])
+        .order('release_date', { ascending: true, nullsFirst: false })
+        .limit(BROWSE_FETCH_LIMIT),
+      supabase.from('branches').select('id, name').order('id', { ascending: true }),
+    ]);
+    return { movies: movies ?? [], totalBrowsableCount: totalBrowsableCount ?? 0, branches: branches ?? [] };
+  },
+  ['browse-catalog'],
+  { revalidate: 60 },
+);
 
 export default async function BrowsePage() {
   logPageView('/browse');
@@ -44,27 +83,14 @@ export default async function BrowsePage() {
   // confirmed match), so it's exactly the Scene-sourced title, safe to
   // show. Being listed on the real site is what matters most here.
   //
-  // The movie catalog fetch doesn't depend on `user`, so it runs
-  // concurrently with the auth check rather than waiting on it.
+  // The catalog fetch doesn't depend on `user`, so it runs concurrently
+  // with the auth check rather than waiting on it.
   const [
     {
       data: { user },
     },
-    { data: movies, count: totalBrowsableCount },
-    { data: branches },
-  ] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase
-      .from('movies')
-      .select(
-        'id, title, release_date, poster_path, match_status, showtimes_cache(branch_id, bookable, was_ever_bookable, raw_showtimes, branches(name))',
-        { count: 'exact' },
-      )
-      .in('match_status', ['matched', 'unmatched', 'ambiguous'])
-      .order('release_date', { ascending: true, nullsFirst: false })
-      .limit(BROWSE_FETCH_LIMIT),
-    supabase.from('branches').select('id, name').order('id', { ascending: true }),
-  ]);
+    { movies, totalBrowsableCount, branches },
+  ] = await Promise.all([supabase.auth.getUser(), getCachedCatalog()]);
 
   // Whether this fetch actually got the whole catalog or was truncated by
   // BROWSE_FETCH_LIMIT -- BrowseGrid needs this to know whether it's safe
