@@ -4,13 +4,15 @@ import { createClient } from '@/lib/supabase/server';
 import { SecurityPanel } from '@/components/SecurityPanel';
 import { updatePassword } from '../actions';
 import { ArrowLeftIcon } from '@/components/icons';
+import { authErrorMessage } from '@/lib/auth-error-codes';
 
 export default async function AccountSecurityPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; password_saved?: string }>;
 }) {
-  const { error, password_saved } = await searchParams;
+  const { error: errorCode, password_saved } = await searchParams;
+  const error = authErrorMessage(errorCode);
   const supabase = await createClient();
 
   const {

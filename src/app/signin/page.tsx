@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import { signin } from './actions';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { authErrorMessage } from '@/lib/auth-error-codes';
 
 export default async function SigninPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
-  const { error, saved } = await searchParams;
+  const { error: errorCode, saved } = await searchParams;
+  const error = authErrorMessage(errorCode);
 
   return (
     <main className="relative overflow-hidden">

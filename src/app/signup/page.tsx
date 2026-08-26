@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import { signup } from './actions';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { authErrorMessage, MIN_PASSWORD_LENGTH } from '@/lib/auth-error-codes';
 
 export default async function SignupPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; check_email?: string }>;
 }) {
-  const { error, check_email } = await searchParams;
+  const { error: errorCode, check_email } = await searchParams;
+  const error = authErrorMessage(errorCode);
 
   return (
     <main className="relative overflow-hidden">
@@ -63,7 +65,7 @@ export default async function SignupPage({
               name="password"
               type="password"
               required
-              minLength={6}
+              minLength={MIN_PASSWORD_LENGTH}
               autoComplete="new-password"
               className="rounded-sm border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2"
               style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}

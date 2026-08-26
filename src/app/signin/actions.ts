@@ -28,16 +28,14 @@ export async function signin(formData: FormData) {
   // attacker whether they're being throttled per-account (so the address
   // exists and is worth attacking) or just per-IP.
   if (!ipAllowed || !emailAllowed) {
-    redirect(
-      `/signin?error=${encodeURIComponent('Too many sign-in attempts. Wait a few minutes and try again.')}`,
-    );
+    redirect('/signin?error=rate_limited');
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    redirect(`/signin?error=${encodeURIComponent(error.message)}`);
+    redirect('/signin?error=invalid_credentials');
   }
 
   redirect('/browse');

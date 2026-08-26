@@ -11,11 +11,14 @@
  * ground truth (it's actually listed at a real cinema) beats a proxy
  * filter built from historical TMDB/elCinema data.
  *
- * Run once with `npx tsx scripts/cleanup-distributor-filter.ts`.
+ * Dry run by default -- prints what would be removed without deleting
+ * anything. Run with `npx tsx scripts/cleanup-distributor-filter.ts --live`
+ * to actually apply the deletions.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import { isDryRun, logDryRunBanner } from './_lib/dry-run';
 
 const envPath = path.resolve(__dirname, '../.env.local');
 fs.readFileSync(envPath, 'utf8')
@@ -29,6 +32,8 @@ import { isLikelyEgyptRelease } from '../src/lib/matching/egypt-distributor-filt
 import type { TmdbMovie } from '../src/lib/tmdb';
 
 async function main() {
+  logDryRunBanner('cleanup-distributor-filter');
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -78,8 +83,10 @@ async function main() {
       const passes = await isLikelyEgyptRelease(supabase, fauxTmdbMovie);
 
       if (!passes) {
-        await supabase.from('movies').delete().eq('id', movie.id);
-        console.log(`  removed: "${movie.title}"`);
+        if (!isDryRun()) {
+          await supabase.from('movies').delete().eq('id', movie.id);
+        }
+        console.log(`  ${isDryRun() ? 'would remove' : 'removed'}: "${movie.title}"`);
         removed += 1;
       } else {
         kept += 1;
