@@ -5,6 +5,7 @@ import { searchMovies, getEgTheatricalReleaseDate, getMovieById, findByImdbId, t
 import { getEgyptReleaseInfo } from './egypt-release-date';
 import { searchElCinema, fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '../elcinema/fetcher';
 import { chainForBranch } from '../branches';
+import { mapWithConcurrency } from '../concurrency';
 
 const FUZZY_MATCH_THRESHOLD = 0.8;
 
@@ -188,6 +189,26 @@ async function disambiguate(candidates: TmdbMovie[], query: string): Promise<Tmd
   return { outcome: 'ambiguous' };
 }
 
+// Bounded concurrency for the per-movie loop below -- fully sequential
+// used to mean this route had no timeout safety net at all, unlike
+// scrape-scene (which already hit cron-job.org's 30s job timeout once for
+// an unrelated reason and had to add batching). Each movie's match is
+// mostly self-contained (own TMDB/elCinema calls, own row update); same
+// cap sync-movies already uses for its own elCinema-calling loop.
+//
+// One real shared-state case: if two different Scene placeholder rows
+// both resolve to the same tmdb_id in the same run (possible if
+// mergeSceneDuplicates missed them -- see CLAUDE.md's duplicate-row
+// cleanup history), applyTmdbMatch's own check-then-act "does a row for
+// this tmdb_id already exist" read can race under concurrency in a way it
+// never could sequentially. This is safe, not silently wrong: movies.
+// tmdb_id has a real unique constraint, so the loser's update fails with
+// 23505 instead of creating a duplicate row, and that failure is caught
+// by this function's own per-movie try/catch below (logged as 'error',
+// naturally retried next run once the winner's merge has landed) rather
+// than corrupting data or crashing the batch.
+const MATCH_CONCURRENCY = 10;
+
 // Matches every unmatched Scene-sourced movie (tmdb_id null) against TMDB.
 // Must run after mergeSceneDuplicates() so each real movie is looked up
 // once. When a match lands on a tmdb_id that's already a real Phase 2
@@ -203,9 +224,7 @@ export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<Match
   if (error) throw new Error(`Failed to load Scene movies: ${error.message}`);
   if (!sceneMovies) return [];
 
-  const results: MatchResult[] = [];
-
-  for (const movie of sceneMovies) {
+  return mapWithConcurrency(sceneMovies, MATCH_CONCURRENCY, async (movie): Promise<MatchResult> => {
     try {
       const viaElcinemaId = await findTmdbMatchViaElcinemaId(supabase, movie.id);
       const match: TmdbMatch = viaElcinemaId
@@ -217,29 +236,26 @@ export async function matchScenesToTmdb(supabase: SupabaseClient): Promise<Match
           .from('movies')
           .update({ match_status: match.outcome })
           .eq('id', movie.id);
-        results.push({ sceneMovieId: movie.id, outcome: match.outcome });
-        continue;
+        return { sceneMovieId: movie.id, outcome: match.outcome };
       }
 
       await applyTmdbMatch(supabase, movie.id, match.movie);
-      results.push({ sceneMovieId: movie.id, outcome: 'matched', tmdbId: match.movie.id });
+      return { sceneMovieId: movie.id, outcome: 'matched', tmdbId: match.movie.id };
     } catch (err) {
       // One movie's failure (a flaky TMDB/elCinema request, an unexpected
-      // response shape) shouldn't starve every movie queued after it in
-      // the same run -- confirmed for real: a single candidate's
-      // release_dates 404 during "Above & Below"'s disambiguation aborted
-      // the whole batch, leaving "Pinocchio: Unstrung" (queued right
-      // after it, with an unambiguous single-result match of its own)
-      // permanently unmatched despite having no problem of its own. Leave
-      // match_status untouched on error, not 'unmatched'/'ambiguous' --
-      // those are resolved outcomes, this is a transient failure the next
-      // run should just retry from scratch.
+      // response shape) shouldn't starve every other movie in the same
+      // run -- confirmed for real: a single candidate's release_dates 404
+      // during "Above & Below"'s disambiguation aborted the whole batch,
+      // leaving "Pinocchio: Unstrung" (queued right after it, with an
+      // unambiguous single-result match of its own) permanently unmatched
+      // despite having no problem of its own. Leave match_status
+      // untouched on error, not 'unmatched'/'ambiguous' -- those are
+      // resolved outcomes, this is a transient failure the next run
+      // should just retry from scratch.
       console.error(`matchScenesToTmdb: failed for movie ${movie.id} ("${movie.title}")`, err);
-      results.push({ sceneMovieId: movie.id, outcome: 'error' });
+      return { sceneMovieId: movie.id, outcome: 'error' };
     }
-  }
-
-  return results;
+  });
 }
 
 // Applies a resolved TMDB match to a Scene/VOX row: adopts it as the
