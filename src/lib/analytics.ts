@@ -68,7 +68,11 @@ type AnalyticsEvent =
     }
   | {
       type: 'welcome_email_run';
-      payload: { candidates: number; sent: number; duration_ms: number };
+      payload: { invocation_id: string; candidates: number; sent: number; duration_ms: number };
+    }
+  | {
+      type: 'welcome_email_claim_lost';
+      payload: { user_id: string; invocation_id: string };
     };
 
 // Route params reach logPageView straight off the URL, so they're
