@@ -1,43 +1,67 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { unstable_cache } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { MapPinIcon, ArrowRightIcon } from '@/components/icons';
 import { sortBranchesForDisplay, type VoxDayDetail } from '@/lib/branches';
 import { CinemaFollowButton } from '@/components/CinemaFollowButton';
 
+// Branches and bookable counts are identical for every viewer -- unlike
+// followedBranchIds below, which is genuinely per-user and stays live.
+// Same reasoning/pattern as /browse's getCachedCatalog: caching only this
+// shared slice (not the whole page, which reads cookies via getUser())
+// avoids the personalization-leak risk a page-level revalidate would
+// carry, while still cutting this page's two DB round-trips to once per
+// 60s across every viewer -- negligible staleness against the scraper
+// jobs' own ~30min real update cadence. Uses the service-role client
+// deliberately (see getCachedCatalog's comment for why) -- branches and
+// showtimes_cache are both public-read tables per their RLS policies.
+const getCachedCinemas = unstable_cache(
+  async () => {
+    const supabase = createServiceRoleClient();
+    // Branches and bookable counts fetched concurrently rather than
+    // sequentially, and the counts come from one query grouped client-side
+    // instead of one round-trip per branch -- showtimes_cache is still the
+    // source of truth (same table /browse and the poll job read), just
+    // queried once instead of N+1 times.
+    //
+    // Joined through to movies.match_status and filtered the same way the
+    // per-branch page (/cinemas/[id]) and /browse already do: 'ambiguous'
+    // is allowed through when the movie has a real bookable showtimes_cache
+    // row (Scene genuinely lists it, regardless of whether TMDB matching
+    // resolved cleanly) -- matching /cinemas/[id]'s rule exactly, since a
+    // stricter filter here previously undercounted relative to what the
+    // branch detail page actually showed for the same branch.
+    const [{ data: branches }, { data: bookableRows }] = await Promise.all([
+      supabase
+        .from('branches')
+        .select('id, name, base_url, address, formats, chain, logo_url')
+        .order('id', { ascending: true }),
+      supabase
+        .from('showtimes_cache')
+        .select('branch_id, raw_showtimes, movies(match_status)')
+        .eq('bookable', true),
+    ]);
+    return { branches: branches ?? [], bookableRows: bookableRows ?? [] };
+  },
+  ['cinemas-list'],
+  { revalidate: 60 },
+);
+
 export default async function CinemasPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [
+    {
+      data: { user },
+    },
+    { branches, bookableRows },
+  ] = await Promise.all([supabase.auth.getUser(), getCachedCinemas()]);
 
-  // Branches and bookable counts fetched concurrently rather than
-  // sequentially, and the counts come from one query grouped client-side
-  // instead of one round-trip per branch -- showtimes_cache is still the
-  // source of truth (same table /browse and the poll job read), just
-  // queried once instead of N+1 times.
-  //
-  // Joined through to movies.match_status and filtered the same way the
-  // per-branch page (/cinemas/[id]) and /browse already do: 'ambiguous'
-  // is allowed through when the movie has a real bookable showtimes_cache
-  // row (Scene genuinely lists it, regardless of whether TMDB matching
-  // resolved cleanly) -- matching /cinemas/[id]'s rule exactly, since a
-  // stricter filter here previously undercounted relative to what the
-  // branch detail page actually showed for the same branch.
-  const [{ data: branches }, { data: bookableRows }, followedRows] = await Promise.all([
-    supabase
-      .from('branches')
-      .select('id, name, base_url, address, formats, chain, logo_url')
-      .order('id', { ascending: true }),
-    supabase
-      .from('showtimes_cache')
-      .select('branch_id, raw_showtimes, movies(match_status)')
-      .eq('bookable', true),
-    user
-      ? supabase.from('cinema_follows').select('branch_id').eq('user_id', user.id)
-      : Promise.resolve({ data: null }),
-  ]);
+  const followedRows = user
+    ? await supabase.from('cinema_follows').select('branch_id').eq('user_id', user.id)
+    : { data: null };
 
   const followedBranchIds = new Set((followedRows.data ?? []).map((r) => r.branch_id as string));
 
