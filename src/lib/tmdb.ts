@@ -22,11 +22,24 @@ const TMDB_TIMEOUT_MS = 15_000;
 // the common case where it's never hit.
 const RATE_LIMIT_RETRY_DELAY_MS = 1_000;
 
+// Every `path` this file ever passes in is a literal template with only
+// numeric ids interpolated (e.g. `/movie/${tmdbId}/credits`) -- this
+// guard enforces that shape at runtime so a path can never smuggle a
+// scheme or host of its own (e.g. "https://evil.example/") into
+// new URL()'s resolution against TMDB_BASE_URL, even though no current
+// caller does this. Every id interpolated into a path already comes from
+// a numeric TMDB id or an IMDb id matching TMDB's own tt\d+ format, so
+// this also can't reject any real, legitimate call.
+const SAFE_PATH_PATTERN = /^\/[A-Za-z0-9/_-]*$/;
+
 // Takes `path` and `params` separately (rather than a pre-built URL
 // string) so the request's destination is always the literal
 // TMDB_BASE_URL -- every value that varies per call (movie/person ids,
 // search queries) only ever lands in the query string, never the host.
 function buildUrl(path: string, params: URLSearchParams): string {
+  if (!SAFE_PATH_PATTERN.test(path)) {
+    throw new Error(`Refusing to build TMDB request for unexpected path: ${path}`);
+  }
   const url = new URL(path, TMDB_BASE_URL);
   url.search = params.toString();
   return url.toString();
