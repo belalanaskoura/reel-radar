@@ -1,9 +1,10 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit, clientIp } from '@/lib/rate-limit';
+import { ADMIN_SESSION_COOKIE } from '@/lib/admin-session-cache';
 
 // Two independent limits, because they stop different attacks. The
 // per-IP limit slows a single source spraying many accounts; the
@@ -44,5 +45,11 @@ export async function signin(formData: FormData) {
 export async function signout() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  // Belt-and-suspenders alongside proxy.ts's own auth-cookie-hash binding
+  // (which already invalidates the admin session cache the moment the
+  // Supabase auth cookies it was tied to change) -- clears it immediately
+  // here too rather than relying solely on that mismatch being caught on
+  // the next /admin request.
+  (await cookies()).delete(ADMIN_SESSION_COOKIE);
   redirect('/signin');
 }

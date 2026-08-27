@@ -247,6 +247,7 @@ need to create the core tables yourself: `movies`, `branches`,
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | VAPID public key (public), used by the browser to subscribe to push |
 | `VAPID_PRIVATE_KEY` | VAPID private key, server-only — used to sign push messages. Generate a pair with `npx web-push generate-vapid-keys`. Never expose to the client. |
 | `ADMIN_EMAILS` | Comma-separated allowlist of emails permitted to view `/admin` |
+| `ADMIN_SESSION_SECRET` | Server-only, signs a short-lived (60s) cache cookie so rapid `/admin` tab clicks skip re-verifying with Supabase Auth on every single navigation. Any long random string, e.g. `openssl rand -base64 32`. |
 
 Google sign-in is configured entirely in the Supabase dashboard
 (Authentication → Providers → Google) and the corresponding Google Cloud
