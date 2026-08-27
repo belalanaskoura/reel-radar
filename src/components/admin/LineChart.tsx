@@ -27,10 +27,10 @@ export function LineChart({ points }: { points: LinePoint[] }) {
 
   const width = 640;
   const height = 220;
-  const padLeft = 36;
-  const padRight = 12;
+  const padLeft = 42;
+  const padRight = 16;
   const padTop = 12;
-  const padBottom = 28;
+  const padBottom = 30;
   const plotWidth = width - padLeft - padRight;
   const plotHeight = height - padTop - padBottom;
 
@@ -48,8 +48,11 @@ export function LineChart({ points }: { points: LinePoint[] }) {
   const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
   const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${padTop + plotHeight} L ${coords[0].x} ${padTop + plotHeight} Z`;
 
-  // Show every label if there's room, otherwise thin them out.
-  const maxLabels = 8;
+  // Show every label if there's room, otherwise thin them out. Kept
+  // fairly low (not "as many as 640px fits") since the chart is scaled
+  // down by viewBox on a narrow phone screen -- fewer, larger-reading
+  // labels beat more, smaller ones there.
+  const maxLabels = 6;
   const labelStride = Math.max(1, Math.ceil(points.length / maxLabels));
 
   const hovered = hoverIndex !== null ? { point: points[hoverIndex], coord: coords[hoverIndex] } : null;
@@ -67,6 +70,15 @@ export function LineChart({ points }: { points: LinePoint[] }) {
       }
     });
     setHoverIndex(nearest);
+  }
+
+  // iOS Safari only fires pointermove during an actual drag, not on a
+  // plain tap -- so a tap-to-inspect gesture never reached handleMove at
+  // all on a real phone, leaving the chart looking inert. pointerdown
+  // fires on both a tap and the start of a drag, so routing it through
+  // the same nearest-point logic covers touch too.
+  function handleDown(e: React.PointerEvent<SVGRectElement>) {
+    handleMove(e);
   }
 
   return (
@@ -90,7 +102,7 @@ export function LineChart({ points }: { points: LinePoint[] }) {
           return (
             <g key={t}>
               <line x1={padLeft} x2={width - padRight} y1={y} y2={y} stroke="var(--rule)" strokeWidth={1} />
-              <text x={padLeft - 8} y={y} fontSize={10} fill="var(--ink-dim)" textAnchor="end" dominantBaseline="middle">
+              <text x={padLeft - 8} y={y} fontSize={13} fill="var(--ink-dim)" textAnchor="end" dominantBaseline="middle">
                 {t.toLocaleString()}
               </text>
             </g>
@@ -107,7 +119,7 @@ export function LineChart({ points }: { points: LinePoint[] }) {
               key={i}
               x={c.x}
               y={height - 8}
-              fontSize={10}
+              fontSize={13}
               fill="var(--ink-dim)"
               textAnchor={i === 0 ? 'start' : i === coords.length - 1 ? 'end' : 'middle'}
             >
@@ -149,8 +161,9 @@ export function LineChart({ points }: { points: LinePoint[] }) {
           height={plotHeight}
           fill="transparent"
           onPointerMove={handleMove}
+          onPointerDown={handleDown}
           onPointerLeave={() => setHoverIndex(null)}
-          style={{ cursor: 'crosshair' }}
+          style={{ cursor: 'crosshair', touchAction: 'pan-y' }}
         />
       </svg>
 

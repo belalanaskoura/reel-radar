@@ -20,11 +20,11 @@ export function StatTile({
   const background = tone === 'ok' ? 'var(--ok-bg)' : tone === 'error' ? 'var(--error-bg)' : 'var(--bg-elevated)';
 
   return (
-    <div className="rounded-md px-4 py-3.5" style={{ background }}>
+    <div className="rounded-md px-3 py-3 sm:px-4 sm:py-3.5" style={{ background }}>
       <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: 'var(--ink-dim)' }}>
         {label}
       </p>
-      <p className="font-display mt-1.5 text-3xl leading-none" style={{ color: valueColor }}>
+      <p className="font-display mt-1.5 text-2xl leading-none sm:text-3xl" style={{ color: valueColor }}>
         {value}
       </p>
       {sublabel && (
