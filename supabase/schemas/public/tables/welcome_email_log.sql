@@ -1,6 +1,7 @@
 create table "public"."welcome_email_log" (
-  "user_id" uuid                     not null,
-  "sent_at" timestamp with time zone not null default now(),
+  "user_id"       uuid                     not null,
+  "sent_at"       timestamp with time zone not null default now(),
+  "invocation_id" uuid,
   constraint "welcome_email_log_pkey" primary key (user_id),
   constraint "welcome_email_log_user_id_fkey" foreign key (user_id) references auth.users(id) on delete cascade
 );

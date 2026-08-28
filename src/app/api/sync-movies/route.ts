@@ -9,6 +9,7 @@ import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
 import { notifyNewReleases } from '@/lib/matching/notify-new-releases';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 import { mapWithConcurrency } from '@/lib/concurrency';
 
 // Keeps sync-movies within the free external scheduler's 30s job timeout
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
     // healthy; a silently-failed run left nothing for it to notice was
     // missing.
     const message = String(err).slice(0, 500);
-    console.error('sync-movies failed:', message);
+    logError('sync-movies', err);
     logEvent({
       type: 'sync_run',
       payload: { accepted: 0, rejected: 0, duration_ms: Date.now() - startedAt, error: message },

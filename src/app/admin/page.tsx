@@ -7,7 +7,15 @@ import { AlertCard } from '@/components/admin/AlertCard';
 import { StatTile } from '@/components/admin/StatTile';
 import { RunJobButton } from '@/components/admin/RunJobButton';
 import { RunAllJobsButton, type JobTarget } from '@/components/admin/RunAllJobsButton';
+import { CollapsibleSection } from '@/components/CollapsibleSection';
 import { findCheapDataQualityIssues } from '@/lib/matching/data-quality';
+
+// Recent errors worth surfacing here without needing to dig through
+// Vercel's function logs -- see src/lib/logger.ts. A short window (not
+// "all unresolved"): error_log has no read/resolved state of its own,
+// so this is a rolling recency view, not a triage queue.
+const RECENT_ERROR_WINDOW_HOURS = 24;
+const RECENT_ERROR_DISPLAY_LIMIT = 20;
 
 // A movie/branch pair not re-checked in roughly 2 poll cycles is worth
 // flagging -- the external scheduler runs poll every 15-30 min, so 90 min
@@ -137,6 +145,14 @@ export default async function AdminOverviewPage() {
       .gte('occurred_at', new Date(now.getTime() - JOB_GAP_THRESHOLD_MINUTES * 2 * 60 * 1000).toISOString())
       .order('occurred_at', { ascending: false }),
   ]);
+
+  const recentErrorCutoff = new Date(now.getTime() - RECENT_ERROR_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+  const { data: recentErrors } = await supabase
+    .from('error_log')
+    .select('id, source, message, context, occurred_at')
+    .gte('occurred_at', recentErrorCutoff)
+    .order('occurred_at', { ascending: false })
+    .limit(RECENT_ERROR_DISPLAY_LIMIT);
 
   // Each row checked against its own chain's real threshold (the query
   // above only narrowed to the widest one). actuallyStaleRows is the
@@ -269,6 +285,35 @@ export default async function AdminOverviewPage() {
           )}
         </AlertCard>
       </section>
+
+      {(recentErrors ?? []).length > 0 && (
+        <section>
+          <SectionHeader>Recent errors</SectionHeader>
+          <AlertCard
+            tone="error"
+            title={`${recentErrors!.length} logged`}
+            description={`In the last ${RECENT_ERROR_WINDOW_HOURS}h, across every scheduled job and request path`}
+          >
+            <CollapsibleSection title="Show details">
+              <ul className="flex flex-col gap-2 text-xs" style={{ color: 'var(--ink)' }}>
+                {recentErrors!.map((row) => (
+                  <li key={row.id} className="rounded-sm px-2.5 py-2" style={{ background: 'var(--bg-elevated)' }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold" style={{ color: 'var(--error-ink)' }}>
+                        {row.source}
+                      </span>
+                      <span style={{ color: 'var(--ink-dim)' }}>
+                        {new Date(row.occurred_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="mt-1 break-words">{row.message}</p>
+                  </li>
+                ))}
+              </ul>
+            </CollapsibleSection>
+          </AlertCard>
+        </section>
+      )}
 
       {missingRunBranches.length > 0 && (
         <section>

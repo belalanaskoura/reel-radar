@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchAllListings, checkBookability, sleep, REQUEST_DELAY_MS } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { notifyLineupAdditions } from '@/lib/matching/notify-cinema-lineup';
@@ -259,6 +260,7 @@ export async function POST(request: Request) {
       });
     } catch (err) {
       results[branch] = { listed: 0, batchSize: 0, bookable: 0 };
+      logError('scrape-scene', err, { branch, offset });
       logEvent({
         type: 'scrape_run',
         payload: {

@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { logError } from '@/lib/logger';
 
 // Structural type rather than next/headers' ReadonlyHeaders, so this
 // accepts both `await headers()` in a server action and a route
@@ -31,13 +32,13 @@ export async function checkRateLimit(
     });
 
     if (error) {
-      console.error('checkRateLimit failed, allowing request:', error.message);
+      logError('rate-limit', error, { key });
       return true;
     }
 
     return data === true;
   } catch (err) {
-    console.error('checkRateLimit threw, allowing request:', err);
+    logError('rate-limit', err, { key });
     return true;
   }
 }
