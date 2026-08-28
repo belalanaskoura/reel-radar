@@ -15,10 +15,60 @@
 # references a function in a column default or check), but is ordered
 # that way anyway since a table existing before a trigger function tries
 # to attach to it is the safer default if that ever changes.
+#
+# `**` (recursive globstar) silently matched zero files -- the CLI's glob
+# support is a single `*` per path segment, undocumented but confirmed by
+# this failing the same way twice with `**` in place (the apply job's own
+# file listing only ever showed 5 files, never any from tables/ or
+# functions/). Fixed by switching to a single `*.sql` per real leaf
+# directory (confirmed via `find supabase/schemas -type d`, no nesting
+# deeper than one level anywhere), with a leading `./` matching Supabase's
+# own documented example.
+#
+# That surfaced a second real ordering problem: within one glob (e.g.
+# public/tables/*.sql), files apply in lexicographic FILENAME order, not
+# dependency order -- movie_branch_slugs.sql sorts before movies.sql and
+# references movies(id) via foreign key, so the shadow build failed with
+# `relation "public.movies" does not exist` the moment tables/*.sql
+# actually started being read (confirmed locally against a real Docker
+# shadow DB, not guessed -- see the local db diff run this comment
+# describes fixing). A wildcard glob can't express table dependency order
+# by itself, so every table (and, separately, every function an earlier
+# table's trigger depends on) is listed individually here, in the same
+# dependency order worked out for supabase/migrations/0099_baseline.sql:
+# branches/movies first (no deps), then anything referencing them, then
+# the handle_new_user/sync_profile_email functions and profiles (which
+# their triggers below depend on), then everything else, with
+# auth/tables/users.sql (the triggers themselves) last of all.
 schema_paths = [
-  "schemas/_cluster/**/*.sql",
-  "schemas/public/*.sql",
-  "schemas/public/tables/**/*.sql",
-  "schemas/public/functions/**/*.sql",
-  "schemas/auth/**/*.sql",
+  "./schemas/_cluster/extensions/*.sql",
+  "./schemas/public/schema.sql",
+  "./schemas/public/default_privileges.sql",
+  "./schemas/public/tables/branches.sql",
+  "./schemas/public/tables/movies.sql",
+  "./schemas/public/tables/movie_branch_slugs.sql",
+  "./schemas/public/functions/set_was_ever_bookable.sql",
+  "./schemas/public/tables/showtimes_cache.sql",
+  "./schemas/public/tables/watchlist.sql",
+  "./schemas/public/tables/notification_log.sql",
+  "./schemas/public/tables/notification_deliveries.sql",
+  "./schemas/public/functions/handle_new_user.sql",
+  "./schemas/public/functions/sync_profile_email.sql",
+  "./schemas/public/tables/profiles.sql",
+  "./schemas/public/tables/push_subscriptions.sql",
+  "./schemas/public/tables/feedback.sql",
+  "./schemas/public/tables/cinema_follows.sql",
+  "./schemas/public/tables/scene_price_templates.sql",
+  "./schemas/public/tables/egypt_releases.sql",
+  "./schemas/public/tables/egypt_distributors.sql",
+  "./schemas/public/tables/analytics_events.sql",
+  "./schemas/public/tables/error_log.sql",
+  "./schemas/public/tables/welcome_email_log.sql",
+  "./schemas/public/tables/rate_limits.sql",
+  "./schemas/public/functions/check_rate_limit.sql",
+  "./schemas/public/functions/prune_rate_limits.sql",
+  "./schemas/public/functions/prune_analytics_events.sql",
+  "./schemas/public/functions/prune_error_log.sql",
+  "./schemas/public/functions/prune_notification_deliveries.sql",
+  "./schemas/auth/tables/users.sql",
 ]
