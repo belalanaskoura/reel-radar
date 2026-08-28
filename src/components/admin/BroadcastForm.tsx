@@ -218,7 +218,7 @@ export function BroadcastForm({ users }: { users: BroadcastUser[] }) {
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="e.g. New cinema now on ReelRadar"
-            className="w-full rounded-sm border-b-2 px-4 py-3 text-sm focus:outline-none"
+            className="w-full rounded-sm border px-4 py-3 text-sm focus:outline-none"
             style={{ background: 'var(--surface)', color: 'var(--ink)', borderColor: 'var(--rule)' }}
             onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
             onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--rule)')}
@@ -239,7 +239,7 @@ export function BroadcastForm({ users }: { users: BroadcastUser[] }) {
             onChange={(e) => setMessage(e.target.value)}
             rows={12}
             placeholder="Write what you want to send..."
-            className="w-full resize-y rounded-sm border-b-2 px-4 py-4 text-sm leading-relaxed focus:outline-none"
+            className="w-full resize-y rounded-sm border px-4 py-4 text-sm leading-relaxed focus:outline-none"
             style={{ background: 'var(--surface)', color: 'var(--ink)', borderColor: 'var(--rule)' }}
             onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
             onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--rule)')}
