@@ -35,10 +35,12 @@ on:
     branches: [main]
     paths:
       - "supabase/schemas/**"
+      - "supabase/config.toml"
   push:
     branches: [main]
     paths:
       - "supabase/schemas/**"
+      - "supabase/config.toml"
 
 jobs:
   # Review gate: shows what a merge would generate, without writing or
