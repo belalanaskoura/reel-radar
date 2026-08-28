@@ -10,14 +10,25 @@
 # `db diff -f <name>` first (diffs schemas/ against a local shadow DB,
 # built by replaying supabase/migrations/*.sql, and writes a new file
 # into supabase/migrations/), then `db push` applies any migration file
-# the remote project's own migration-history table hasn't seen yet. This
-# job does both steps itself and commits the generated migration file
-# back to main in the same run, so migrations/ stays the real, ordered,
-# already-applied history -- never hand-written, never applied without a
-# matching committed file.
+# the remote project's own migration-history table hasn't seen yet.
 #
-# Only triggers on changes under supabase/schemas/, not every push --
-# this repo's app code changes far more often than its schema.
+# The apply job below does NOT commit that generated file straight to
+# main -- main has required status checks configured as branch
+# protection, and a same-run bot commit can never satisfy "N of N checks
+# passed" before pushing, so a direct push is always rejected (confirmed
+# for real: the first live run got `GH006: Protected branch update
+# failed`, nothing reached db push, no harm done, but also no schema
+# change landed). Instead: if db diff -f produces a new file, it's
+# committed to a fresh branch and opened as a PR for a human to review
+# and merge like any other change -- keeping main's protection meaningful
+# for a real, generated migration, not just for hand-written code. That
+# merge re-triggers this same workflow; on that second run db diff finds
+# nothing new to generate (the file is already committed) and db push
+# applies it for real.
+#
+# Only triggers on changes under supabase/schemas/ or config.toml (which
+# governs how the diff itself is built), not every push -- this repo's
+# app code changes far more often than its schema.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions),
 # none of which are shared with ci.yml's existing Supabase secrets (those
@@ -83,16 +94,22 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-  # Generates the migration file from schemas/ and applies it, on merge.
+  # Generates the migration file from schemas/ on push to main. If it's a
+  # genuinely new migration, opens a PR for review instead of pushing to
+  # main directly (see the file-level comment above for why). If there's
+  # nothing new to generate -- either no real schema diff, or the
+  # migration was already committed by a previous run's PR having been
+  # merged -- applies whatever's pending to the real project.
   apply:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       # Full history, not the default shallow clone -- db diff needs the
       # real supabase/migrations/ contents to build its shadow DB
-      # correctly, and this job pushes a commit back afterward.
+      # correctly, and this job creates a branch/commit afterward.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
@@ -112,13 +129,13 @@ jobs:
       # a generic "auto" label. A schemas/ edit with no real column/table
       # difference (a comment-only tweak, matching what's already live)
       # produces no new file -- db diff writes nothing in that case,
-      # which is fine, there's nothing to apply.
+      # which is fine, there's nothing to generate a PR for.
       #
       # The pg_net line is stripped from the generated file itself (not
       # just an informational log, like the plan job's own filter above)
-      # -- this is the file that actually gets committed and pushed to
-      # the real project, so a stray `drop extension pg_net` here would
-      # genuinely disable a Supabase-managed extension on apply. If the
+      # -- this is the file that ends up in the PR and, once merged, gets
+      # applied to the real project, so a stray `drop extension pg_net`
+      # here would genuinely disable a Supabase-managed extension. If the
       # file becomes empty after stripping (the only pending change WAS
       # the pg_net noise), it's deleted so nothing empty gets committed.
       - id: diff
@@ -132,6 +149,7 @@ jobs:
             grep -v 'drop extension if exists "pg_net"' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
             if [ -s "$file" ]; then
               echo "generated=true" >> "$GITHUB_OUTPUT"
+              echo "branch=schema-sync/$name" >> "$GITHUB_OUTPUT"
             else
               rm "$file"
               echo "generated=false" >> "$GITHUB_OUTPUT"
@@ -143,19 +161,33 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-      # Committed before push below, not after: if db push fails partway,
-      # the generated migration file is still on main so the next run (or
-      # a manual `supabase db push`) can retry from a consistent state,
-      # rather than the diff being silently lost.
+      # main has required status checks as branch protection -- a direct
+      # push here is always rejected (confirmed live, see the file-level
+      # comment). Opens a PR instead so a human reviews the exact
+      # generated SQL before it ever reaches the real database. Skipped
+      # entirely, not just a no-op, when nothing was generated above.
       - if: steps.diff.outputs.generated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${{ steps.diff.outputs.branch }}"
           git add supabase/migrations
           git commit -m "Generate migration from supabase/schemas changes"
-          git push
+          git push -u origin "${{ steps.diff.outputs.branch }}"
+          gh pr create \
+            --title "Generated migration from supabase/schemas changes" \
+            --body "Auto-generated by the Supabase schema workflow from the schemas/ change in ${{ github.sha }}. Review the SQL below before merging -- merging applies it to the real project on the next run of this workflow." \
+            --base main \
+            --head "${{ steps.diff.outputs.branch }}"
 
-      - run: supabase db push --linked
+      # Only reached when nothing new was generated this run: either the
+      # schemas/ change had no real diff, or (the normal case after a
+      # generated-migration PR gets merged) the migration file is already
+      # committed on main and just needs to actually be applied.
+      - if: steps.diff.outputs.generated == 'false'
+        run: supabase db push --linked
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
