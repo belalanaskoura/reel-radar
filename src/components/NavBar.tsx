@@ -7,26 +7,47 @@ import { NavSearch } from '@/components/NavSearch';
 import { RadarLogo } from '@/components/RadarLogo';
 import { BellIcon, CinemaIcon, FilmIcon, RadarIcon, SettingsIcon, UserIcon } from '@/components/icons';
 import { isAdminUser } from '@/lib/admin';
+import { logError } from '@/lib/logger';
 
+// NavBar renders inside the root layout on every single page, so an
+// unguarded throw here has the exact same blast radius RootLayout's own
+// getUser() try/catch was added to prevent (see layout.tsx's comment) --
+// without this, a Supabase Auth network blip crashes the entire site for
+// every visitor, not just whichever page they happened to be on. Falling
+// back to signed-out (and, once signed in, to no-avatar/zero-unread) is
+// safe the same way layout.tsx's fallback is: every consumer of `user`
+// below already treats null as the anonymous case.
 export async function NavBar() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+
+  let user: User | null = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch (err) {
+    logError('auth', err, { where: 'NavBar.getUser' });
+  }
 
   let avatarUrl: string | null = null;
   let unreadCount = 0;
   if (user) {
-    const [{ data: profile }, { count }] = await Promise.all([
-      supabase.from('profiles').select('avatar_url').eq('id', user.id).single(),
-      supabase
-        .from('notification_log')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .is('read_at', null),
-    ]);
-    avatarUrl = profile?.avatar_url ?? null;
-    unreadCount = count ?? 0;
+    try {
+      const [{ data: profile }, { count }] = await Promise.all([
+        supabase.from('profiles').select('avatar_url').eq('id', user.id).single(),
+        supabase
+          .from('notification_log')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .is('read_at', null),
+      ]);
+      avatarUrl = profile?.avatar_url ?? null;
+      unreadCount = count ?? 0;
+    } catch (err) {
+      // Same reasoning as the getUser() catch above -- a failed profile/
+      // unread-count lookup shouldn't crash the site, it just means the
+      // nav shows no avatar and no unread badge this load.
+      logError('auth', err, { where: 'NavBar.profileAndUnread', userId: user.id });
+    }
   }
 
   return (
