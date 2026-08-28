@@ -7,29 +7,40 @@ test — nothing here was tested against production Supabase, real Scene/
 VOX/TMDB/elCinema traffic, or real Resend/push sends. Where a number is
 estimated rather than measured, it's labeled as an estimate.
 
-None of these are live incidents today. This is a forward-looking list of
-what would need attention as user count and catalog size grow, ranked
-roughly by how soon each would actually bite.
+None of these were live incidents at the time this was written. This was
+a forward-looking list of what would need attention as user count and
+catalog size grow, ranked roughly by how soon each would actually bite.
+
+**Status update (2026-08-28)**: findings 1, 3, 4, 6, and 11 have since
+been fixed — verified directly against the current code, not re-run as a
+fresh audit. The narrative sections below are left as-written (they're
+the investigative record of what was found and why), with a status line
+added under each resolved finding's heading. Findings 2, 5, 7, 8, 9, 10
+are unchanged from the original audit and still reflect real code.
 
 ## Summary
 
-| # | Finding | Confirmed via | Rough threshold |
-|---|---|---|---|
-| 1 | Notification fan-out loops are fully sequential, no concurrency cap | Code + stress test | ~50 watchers on one movie exceeds cron-job.org's 30s timeout |
-| 2 | `notify-cinema-lineup.ts` runs a sequential double loop inline inside scrape jobs | Code | Couples scrape job runtime to follower count; same 30s risk |
-| 3 | `analytics_events` retention function exists but is never invoked | Code (grep, zero call sites) | Unbounded growth against Supabase's 500MB free-tier cap, no defined date |
-| 4 | `notification_deliveries` has no retention at all | Code | Fastest-growing table in the schema; fine today, no cleanup story |
-| 5 | `scrape-scene` needs a manually-added cron-job.org job per ~10 new listings | Code comment + CLAUDE.md history | Already crossed once at 22 listings; recurs as catalog grows |
-| 6 | `match-movies` has no batching/timeout safety net (unlike `scrape-scene`) | Code | Same failure mode as #5, waiting to happen on a large unmatched backlog |
-| 7 | Browse page ships the entire catalog + filters client-side, no pagination | Code comment (limit deliberately set above expected catalog size) | Payload/filter-cost growth tracks catalog size directly |
-| 8 | `useEqualRowHeights`'s row-bucketing is O(cards²) | Code + stress test | Bounded today by `PAGE_SIZE=60`; would matter if that cap is ever raised |
-| 9 | No rate-limit/backoff handling for TMDB, Resend, or web-push | Code (grep, zero matches) | Speculative; no evidence of being hit yet |
-| 10 | Two minor missing indexes (`watchlist.movie_id`, `showtimes_cache.branch_id`) | Schema read | Fine at current row counts; worth adding before either table hits five figures |
-| 11 | `mapWithConcurrency` exists but is duplicated twice and unused by any notification path | Code | Not a bug — the fix for #1/#2 already exists in the codebase, just not applied there |
+| # | Finding | Confirmed via | Rough threshold | Status |
+|---|---|---|---|---|
+| 1 | Notification fan-out loops are fully sequential, no concurrency cap | Code + stress test | ~50 watchers on one movie exceeds cron-job.org's 30s timeout | **Fixed** — `mapWithConcurrency` now used in `notifyWatchers`, `notifyLineupAdditions`/`Removals`, `notifyNewReleases`, `sendBroadcast`, `/api/welcome-email` |
+| 2 | `notify-cinema-lineup.ts` runs a sequential double loop inline inside scrape jobs | Code | Couples scrape job runtime to follower count; same 30s risk | Still inline (see finding 1's fix — the loop itself is no longer sequential, but the call site is still un-backgrounded) |
+| 3 | `analytics_events` retention function exists but is never invoked | Code (grep, zero call sites) | Unbounded growth against Supabase's 500MB free-tier cap, no defined date | **Fixed** — `/api/prune-analytics/route.ts` now calls it on a schedule |
+| 4 | `notification_deliveries` has no retention at all | Code | Fastest-growing table in the schema; fine today, no cleanup story | **Fixed** — same `/api/prune-analytics` route also prunes this table (180-day retention) plus `error_log` |
+| 5 | `scrape-scene` needs a manually-added cron-job.org job per ~10 new listings | Code comment + CLAUDE.md history | Already crossed once at 22 listings; recurs as catalog grows | Unchanged |
+| 6 | `match-movies` has no batching/timeout safety net (unlike `scrape-scene`) | Code | Same failure mode as #5, waiting to happen on a large unmatched backlog | **Fixed** — `match-movies` now has its own `BATCH_SIZE`/`?offset=` slicing |
+| 7 | Browse page ships the entire catalog + filters client-side, no pagination | Code comment (limit deliberately set above expected catalog size) | Payload/filter-cost growth tracks catalog size directly | Unchanged |
+| 8 | `useEqualRowHeights`'s row-bucketing is O(cards²) | Code + stress test | Bounded today by `PAGE_SIZE=60`; would matter if that cap is ever raised | Unchanged |
+| 9 | No rate-limit/backoff handling for TMDB, Resend, or web-push | Code (grep, zero matches) | Speculative; no evidence of being hit yet | Unchanged |
+| 10 | Two minor missing indexes (`watchlist.movie_id`, `showtimes_cache.branch_id`) | Schema read | Fine at current row counts; worth adding before either table hits five figures | Unchanged |
+| 11 | `mapWithConcurrency` exists but is duplicated twice and unused by any notification path | Code | Not a bug — the fix for #1/#2 already exists in the codebase, just not applied there | **Fixed** — now imported from a shared `src/lib/concurrency.ts` (with `concurrency.test.ts`) and applied everywhere finding 1 named |
 
 ---
 
 ## 1. Sequential, uncapped per-user notification loops
+
+**Fixed as of 2026-08-28.** All five functions named below now call
+`mapWithConcurrency` (`src/lib/concurrency.ts`) instead of looping
+sequentially. The investigative record below is left as-written.
 
 The app's core scaling promise (stated in CLAUDE.md) is that scraping/
 polling cost scales with distinct **watched movies**, never with **user**
@@ -96,6 +107,13 @@ call site, rather than a third copy-paste.
 
 ## 2. Lineup notifications run inline inside scrape jobs
 
+**Partially addressed.** `notifyLineupAdditions`/`notifyLineupRemovals`
+themselves are no longer sequential (see finding 1's fix), which removes
+most of the per-follower cost this finding worried about. The calls are
+still made inline from the scrape/delist routes rather than backgrounded,
+so a very large fan-out could still add to that route's own request time
+— just far less than before the concurrency fix.
+
 `notifyLineupAdditions`/`notifyLineupRemovals` are called directly from
 `scrape-scene`, `scrape-scene-delist`, and `scrape-vox` — not
 backgrounded. That means a scrape job's own request duration is coupled
@@ -109,6 +127,11 @@ already timeout-sensitive job.
 ---
 
 ## 3. `analytics_events` retention function is defined but never called
+
+**Fixed as of 2026-08-28.** `POST /api/prune-analytics` (a new scheduled
+route, `x-sync-secret`-protected like the other jobs) now calls
+`prune_analytics_events` on a schedule. The investigative record below is
+left as-written.
 
 `prune_analytics_events(p_keep_days integer default 90)` exists as a real
 Postgres function (`supabase/migrations/0101_analytics_retention.sql`,
@@ -132,6 +155,11 @@ a design change.
 ---
 
 ## 4. `notification_deliveries` has no retention at all
+
+**Fixed as of 2026-08-28.** The same `/api/prune-analytics` route added
+for finding 3 also prunes this table (`prune_notification_deliveries`,
+180-day retention) and `error_log` (`prune_error_log`, 90-day retention)
+in the same run.
 
 Fed by every notify path (poll, lineup, broadcast, new-release) — one row
 per user per channel per notification. Has real, correct indexes for its
@@ -163,6 +191,10 @@ count with listing count).
 ---
 
 ## 6. `match-movies` has no equivalent safety net
+
+**Fixed as of 2026-08-28.** `match-movies` now has its own `BATCH_SIZE`/
+`?offset=` slicing, the same shape as `scrape-scene`'s existing fix. The
+investigative record below is left as-written.
 
 Unlike `scrape-scene`, `matchScenesToTmdb`
 (`src/lib/matching/match-to-tmdb.ts:197-243`) has no `BATCH_SIZE`/offset
@@ -270,6 +302,11 @@ real, correctly-targeted indexes already.
 ---
 
 ## 11. The fix for findings 1 and 2 already exists in this codebase
+
+**Fixed as of 2026-08-28.** `mapWithConcurrency` now lives in a shared
+`src/lib/concurrency.ts` (with its own `concurrency.test.ts`) and is
+imported by every notification fan-out function named in finding 1,
+instead of being duplicated per call site.
 
 `mapWithConcurrency` is implemented twice, independently
 (`src/app/api/sync-movies/route.ts:21`,
