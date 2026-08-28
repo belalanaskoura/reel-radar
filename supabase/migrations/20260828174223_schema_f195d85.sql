@@ -11,7 +11,7 @@
 
 alter table "public"."error_log" enable row level security;
 
-CREATE INDEX analytics_events_type_time_idx ON public.analytics_events USING btree (event_type, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS analytics_events_type_time_idx ON public.analytics_events USING btree (event_type, occurred_at DESC);
 
 CREATE INDEX error_log_occurred_at_idx ON public.error_log USING btree (occurred_at DESC);
 
