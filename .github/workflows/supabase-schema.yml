@@ -1,0 +1,137 @@
+# Applies supabase/schemas/ (the declarative schema this repo already
+# tracks -- see supabase/config.toml's db.migrations.schema_paths) to the
+# real Supabase project automatically on merge to main, instead of every
+# schema change being handed to the user as raw SQL to paste into the SQL
+# Editor by hand. That manual step was the actual source of the version-
+# control drift this workflow exists to close: schemas/ only reflected
+# reality when someone remembered to update it after running SQL live.
+#
+# schemas/ is not pushed directly -- Supabase's declarative flow is
+# `db diff -f <name>` first (diffs schemas/ against a local shadow DB,
+# built by replaying supabase/migrations/*.sql, and writes a new file
+# into supabase/migrations/), then `db push` applies any migration file
+# the remote project's own migration-history table hasn't seen yet. This
+# job does both steps itself and commits the generated migration file
+# back to main in the same run, so migrations/ stays the real, ordered,
+# already-applied history -- never hand-written, never applied without a
+# matching committed file.
+#
+# Only triggers on changes under supabase/schemas/, not every push --
+# this repo's app code changes far more often than its schema.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions),
+# none of which are shared with ci.yml's existing Supabase secrets (those
+# are anon/service-role keys for the app itself; these are CLI/management
+# credentials with real schema-write power and must stay separate):
+#   SUPABASE_ACCESS_TOKEN  -- personal access token from
+#     https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROJECT_ID    -- the project ref (ezckygwfbodsjfhfsseg)
+#   SUPABASE_DB_PASSWORD   -- the project's database password (Project
+#     Settings -> Database), needed to link/push over the pooler
+name: Supabase schema
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/schemas/**"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/schemas/**"
+
+jobs:
+  # Review gate: shows what a merge would generate, without writing or
+  # applying anything. Runs on every PR that touches schemas/ so a
+  # reviewer sees the real pending SQL instead of trusting the .sql files
+  # were hand-written correctly. Diffs against the linked project directly
+  # (not the local shadow DB apply/push uses) since nothing is committed
+  # here -- this is purely informational.
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: latest
+
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - run: |
+          echo '## Pending schema changes' >> "$GITHUB_STEP_SUMMARY"
+          echo '```sql' >> "$GITHUB_STEP_SUMMARY"
+          supabase db diff --linked --use-migra >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+  # Generates the migration file from schemas/ and applies it, on merge.
+  apply:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Full history, not the default shallow clone -- db diff needs the
+      # real supabase/migrations/ contents to build its shadow DB
+      # correctly, and this job pushes a commit back afterward.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: latest
+
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      # Named after the commit that triggered this run, so
+      # migrations/NNNN_<name>.sql traces back to a real change instead of
+      # a generic "auto" label. A schemas/ edit with no real column/table
+      # difference (a comment-only tweak, matching what's already live)
+      # produces no new file -- db diff writes nothing in that case,
+      # which is fine, there's nothing to apply.
+      - id: diff
+        run: |
+          name="schema_$(git rev-parse --short "$GITHUB_SHA")"
+          before=$(ls supabase/migrations | wc -l)
+          supabase db diff -f "$name"
+          after=$(ls supabase/migrations | wc -l)
+          if [ "$after" -gt "$before" ]; then
+            echo "generated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "generated=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      # Committed before push below, not after: if db push fails partway,
+      # the generated migration file is still on main so the next run (or
+      # a manual `supabase db push`) can retry from a consistent state,
+      # rather than the diff being silently lost.
+      - if: steps.diff.outputs.generated == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add supabase/migrations
+          git commit -m "Generate migration from supabase/schemas changes"
+          git push
+
+      - run: supabase db push --linked
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
