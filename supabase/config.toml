@@ -1,5 +1,9 @@
 
 [db.migrations]
+# Comment-only edit, trigger for apply to actually run 20260828174223
+# now that #39's revert undid the earlier mistaken repair -- see
+# .github/workflows/diagnose-migration-history.yml.
+#
 # Explicit order, not a bare "schemas" directory scan -- the default walk
 # is lexicographic by directory (_cluster, then auth, then public), which
 # put auth/tables/users.sql (two triggers calling public.handle_new_user()
