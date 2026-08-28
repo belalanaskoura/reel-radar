@@ -58,6 +58,10 @@ type AnalyticsEvent =
       payload: { branch: string; listed: number; delisted: number; duration_ms: number; error: string | null };
     }
   | {
+      type: 'scrape_formats_run';
+      payload: { branch: string; checked: number; formats: string[]; duration_ms: number; error: string | null };
+    }
+  | {
       type: 'price_check_run';
       payload: {
         branch: string;
