@@ -1,3 +1,5 @@
+-- Backs src/lib/logger.ts's logError(). See supabase/migrations/ for
+-- when this was actually applied to the live project.
 create table "public"."error_log" (
   "id"          bigint                   generated always as identity not null,
   "source"      text                     not null,
