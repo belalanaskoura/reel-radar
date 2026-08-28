@@ -26,9 +26,15 @@
 # nothing new to generate (the file is already committed) and db push
 # applies it for real.
 #
-# Only triggers on changes under supabase/schemas/ or config.toml (which
-# governs how the diff itself is built), not every push -- this repo's
-# app code changes far more often than its schema.
+# Only triggers on changes under supabase/schemas/, config.toml (which
+# governs how the diff itself is built), or supabase/migrations/ -- not
+# every push, since this repo's app code changes far more often than its
+# schema. migrations/ is included specifically so merging a
+# schema-sync/<name> PR (the previous bullet's "review and merge" step)
+# actually re-triggers this workflow at all -- confirmed missing for
+# real on the very first generated-migration PR: it only touched
+# migrations/, not schemas/ or config.toml, so nothing fired and the
+# migration sat committed but never applied until this was added.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions),
 # none of which are shared with ci.yml's existing Supabase secrets (those
@@ -47,11 +53,13 @@ on:
     paths:
       - "supabase/schemas/**"
       - "supabase/config.toml"
+      - "supabase/migrations/**"
   push:
     branches: [main]
     paths:
       - "supabase/schemas/**"
       - "supabase/config.toml"
+      - "supabase/migrations/**"
 
 jobs:
   # Review gate: shows what a merge would generate, without writing or
