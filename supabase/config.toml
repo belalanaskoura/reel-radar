@@ -1,5 +1,11 @@
 
 [db.migrations]
+# This comment addition also serves to trigger the schema workflow on
+# this specific commit, picking up the already-committed-but-unapplied
+# migration from #32 -- the path filter that would normally catch a
+# migrations/ change didn't exist yet when that PR merged, so apply
+# never ran against it. See supabase-schema.yml's own comment.
+#
 # Explicit order, not a bare "schemas" directory scan -- the default walk
 # is lexicographic by directory (_cluster, then auth, then public), which
 # put auth/tables/users.sql (two triggers calling public.handle_new_user()
