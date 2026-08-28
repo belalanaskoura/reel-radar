@@ -13,7 +13,7 @@
 # needing to be inserted before what it thinks is the latest applied
 # version, and stops rather than guess at reordering history.
 #
-# The `repair` job fixes that by marking the 5 missing versions as
+# The `repair` job fixed that by marking the 5 missing versions as
 # applied in the history table -- it does NOT run any of their SQL
 # (confirmed via `supabase migration repair --help`: this only writes
 # rows to supabase_migrations.schema_migrations, matching the CLI's own
@@ -26,16 +26,37 @@
 # accepted as low-risk since CREATE INDEX IF NOT EXISTS is a safe no-op
 # even if that assumption is ever wrong.
 #
+# REAL MISTAKE, caught after the repair ran and apply's db push
+# succeeded (reported success because there was nothing left it thought
+# it needed to run): 20260828174223 (error_log/prune_error_log/
+# check_rate_limit) was included in that repair, but unlike 0099/0102/
+# 0103/0104 -- all genuinely applied by hand previously -- this one had
+# NEVER actually been run; it only existed as db diff's generated SQL.
+# Marking it "applied" made db push permanently skip actually executing
+# it. Confirmed live: error_log genuinely doesn't exist (PGRST205, still
+# missing 20+ seconds after the "successful" push, ruling out a
+# PostgREST cache-staleness explanation -- check_rate_limit, unaffected
+# by this mistake, resolved fine in the same check).
+#
+# The `revert` job undoes just that one version
+# (`migration repair --status reverted`, same no-SQL-executed semantics
+# as `--status applied`) so the next `apply` run's db push actually runs
+# it for real instead of skipping it as already-done.
+#
 # Gated behind a typed confirmation input, not just workflow_dispatch on
-# its own -- this writes to the real project's migration history, unlike
-# the read-only `list` job.
+# its own -- both repair and revert write to the real project's
+# migration history, unlike the read-only `list` job.
 name: Diagnose migration history
 
 on:
   workflow_dispatch:
     inputs:
       confirm_repair:
-        description: 'Type REPAIR to run the repair job (marks 0099/0102/0103/0104/20260828174223 as applied in the remote history table -- runs no SQL, only writes history rows)'
+        description: 'Type REPAIR to run the repair job (marks 0099/0102/0103/0104 as applied -- runs no SQL, only writes history rows)'
+        required: false
+        default: ''
+      confirm_revert:
+        description: 'Type REVERT to run the revert job (marks 20260828174223 as reverted, undoing the earlier mistaken repair, so the next apply run actually executes it -- runs no SQL, only writes history rows)'
         required: false
         default: ''
 
@@ -89,13 +110,49 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - run: |
-          supabase migration repair --status applied 0099 0102 0103 0104 20260828174223 --linked
+          supabase migration repair --status applied 0099 0102 0103 0104 --linked
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - run: |
           echo '## Migration history after repair' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          supabase migration list --linked | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+  # Undoes the earlier mistake of including 20260828174223 in the repair
+  # above -- that migration was never actually run, only generated, so
+  # marking it "applied" made db push skip actually executing it.
+  revert:
+    if: github.event.inputs.confirm_revert == 'REVERT'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: latest
+
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - run: |
+          supabase migration repair --status reverted 20260828174223 --linked
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - run: |
+          echo '## Migration history after revert' >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           supabase migration list --linked | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
