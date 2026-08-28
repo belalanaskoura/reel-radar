@@ -223,10 +223,14 @@ To get a local copy up and running, follow these steps.
    npm run dev
    ```
 
-The app expects a Supabase project with a matching schema. Schema changes
-aren't tracked as migration files in this repo — they're applied directly
-via Supabase's SQL Editor. If you're standing up a fresh project, you'll
-need to create the core tables yourself: `movies`, `branches`,
+The app expects a Supabase project with a matching schema.
+`supabase/schemas/` is the source of truth (declarative, one file per
+table/function); `.github/workflows/supabase-schema.yml` generates a real
+migration file from it via `supabase db diff` and applies it to the
+linked project automatically on merge to `main`, so schema changes no
+longer need to be pasted into the SQL Editor by hand. If you're standing
+up a fresh project, you'll need to create the core tables yourself:
+`movies`, `branches`,
 `movie_branch_slugs`, `showtimes_cache`, `watchlist`, `cinema_follows`,
 `notification_log`, `notification_deliveries`, `profiles`,
 `push_subscriptions`, `feedback`, `egypt_releases`, `egypt_distributors`,
