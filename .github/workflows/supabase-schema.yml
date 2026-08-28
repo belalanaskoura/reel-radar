@@ -65,10 +65,17 @@ jobs:
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
+      # grep -v drops the known-noisy `drop extension ... "pg_net"` line --
+      # the CLI's shadow database enables pg_net by default regardless of
+      # whether the real project does (confirmed live: this project's
+      # pg_net is disabled), so every diff proposes dropping it even
+      # though nothing about the real schema changed. This is a documented
+      # Supabase CLI quirk, not something schemas/ can declare its way out
+      # of (pg_net isn't a table/function this repo owns either way).
       - run: |
           echo '## Pending schema changes' >> "$GITHUB_STEP_SUMMARY"
           echo '```sql' >> "$GITHUB_STEP_SUMMARY"
-          supabase db diff --linked --use-migra >> "$GITHUB_STEP_SUMMARY" || true
+          supabase db diff --linked --use-migra 2>&1 | grep -v 'drop extension if exists "pg_net"' >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -104,6 +111,14 @@ jobs:
       # difference (a comment-only tweak, matching what's already live)
       # produces no new file -- db diff writes nothing in that case,
       # which is fine, there's nothing to apply.
+      #
+      # The pg_net line is stripped from the generated file itself (not
+      # just an informational log, like the plan job's own filter above)
+      # -- this is the file that actually gets committed and pushed to
+      # the real project, so a stray `drop extension pg_net` here would
+      # genuinely disable a Supabase-managed extension on apply. If the
+      # file becomes empty after stripping (the only pending change WAS
+      # the pg_net noise), it's deleted so nothing empty gets committed.
       - id: diff
         run: |
           name="schema_$(git rev-parse --short "$GITHUB_SHA")"
@@ -111,7 +126,14 @@ jobs:
           supabase db diff -f "$name"
           after=$(ls supabase/migrations | wc -l)
           if [ "$after" -gt "$before" ]; then
-            echo "generated=true" >> "$GITHUB_OUTPUT"
+            file=$(ls -t supabase/migrations/*"$name"*.sql | head -1)
+            grep -v 'drop extension if exists "pg_net"' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+            if [ -s "$file" ]; then
+              echo "generated=true" >> "$GITHUB_OUTPUT"
+            else
+              rm "$file"
+              echo "generated=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "generated=false" >> "$GITHUB_OUTPUT"
           fi
