@@ -51,11 +51,20 @@ const SAFE_PATH_PATTERN = /^\/[A-Za-z0-9/_-]*$/;
 // string) so the request's destination is always the literal
 // TMDB_BASE_URL -- every value that varies per call (movie/person ids,
 // search queries) only ever lands in the query string, never the host.
+//
+// Deliberately NOT `new URL(path, TMDB_BASE_URL)`: with a leading-slash
+// `path` (e.g. "/movie/123"), WHATWG URL resolution treats that as
+// absolute-from-origin and discards TMDB_BASE_URL's own "/3" path
+// segment entirely, silently producing
+// "https://api.themoviedb.org/movie/123" instead of
+// ".../3/movie/123" -- a real regression this caused in production
+// (every call 404ing, api_key and all). String concatenation has no
+// such resolution step, so it can't repeat that failure mode.
 function buildUrl(path: string, params: URLSearchParams): string {
   if (!SAFE_PATH_PATTERN.test(path)) {
     throw new Error(`Refusing to build TMDB request for unexpected path: ${path}`);
   }
-  const url = new URL(path, TMDB_BASE_URL);
+  const url = new URL(`${TMDB_BASE_URL}${path}`);
   url.search = params.toString();
   return url.toString();
 }
