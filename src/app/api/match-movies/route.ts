@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { mergeSceneDuplicates } from '@/lib/matching/merge-scene-duplicates';
 import { matchScenesToTmdb } from '@/lib/matching/match-to-tmdb';
 import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 
 // Reconciles Scene-sourced placeholder movies (created by Phase 4's
 // scraper, tmdb_id null) against TMDB. Two steps: first merge duplicate
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
     // inside this route (as opposed to a hard timeout) previously 500'd
     // with no log either, unlike scrape-scene's per-branch try/catch.
     // Log what's known before returning the failure.
+    logError('match-movies', err, { offset });
     logEvent({
       type: 'match_run',
       payload: {
