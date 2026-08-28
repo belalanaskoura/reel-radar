@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { AUTH_COOKIE_OPTIONS } from './cookie-options';
+import { logError } from '@/lib/logger';
 
 // This runs on nearly every request (proxy.ts's matcher excludes only
 // static assets/images/auth callback), so a slow (not fully down) auth
@@ -65,7 +66,7 @@ export async function updateSession(request: NextRequest) {
     const result = await supabase.auth.getUser();
     user = result.data.user;
   } catch (err) {
-    console.error('updateSession: getUser() failed, treating request as signed out', err);
+    logError('auth', err, { where: 'updateSession' });
   }
 
   return { response, user };

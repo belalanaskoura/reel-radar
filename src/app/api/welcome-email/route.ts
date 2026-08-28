@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { listAllUsers } from '@/lib/list-all-users';
 import { notifyWelcomeByEmail } from '@/lib/email';
 import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 import { mapWithConcurrency } from '@/lib/concurrency';
 
 // A slow sequential run is what caused the original duplicate-send
@@ -111,7 +112,7 @@ export async function POST(request: Request) {
               payload: { user_id: user.id, invocation_id: invocationId },
             });
           } else {
-            console.error('welcome_email_log claim failed', user.id, claimError);
+            logError('welcome-email', claimError, { userId: user.id, invocationId });
           }
           return false;
         }

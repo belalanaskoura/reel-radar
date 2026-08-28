@@ -8,6 +8,7 @@ import { PageTransition } from "@/components/PageTransition";
 import { PushPrompt } from "@/components/PushPrompt";
 import { ProductUpdates } from "@/components/ProductUpdates";
 import { createClient } from "@/lib/supabase/server";
+import { logError } from "@/lib/logger";
 import "./globals.css";
 
 // Runs before first paint (a plain <script>, not a React effect) so the
@@ -87,7 +88,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     const result = await supabase.auth.getUser();
     user = result.data.user;
   } catch (err) {
-    console.error('RootLayout: getUser() failed, rendering as signed out', err);
+    logError('auth', err, { where: 'RootLayout.getUser' });
   }
 
   // Only worth checking push state for a signed-in user -- an anonymous
@@ -105,7 +106,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       // Same reasoning as the getUser() catch above -- a failed check
       // here shouldn't crash the site either, it just means the push
       // prompt doesn't show this load.
-      console.error('RootLayout: push_subscriptions check failed', err);
+      logError('auth', err, { where: 'RootLayout.push_subscriptions', userId: user.id });
     }
   }
 

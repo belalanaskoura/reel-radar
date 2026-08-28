@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit, clientIp } from '@/lib/rate-limit';
+import { logError } from '@/lib/logger';
 
 // Always redirects to the same success state regardless of whether the
 // email actually belongs to an account -- confirming/denying account
@@ -43,7 +44,7 @@ export async function requestPasswordReset(formData: FormData) {
   // logs, so a real delivery/config failure isn't completely invisible
   // during setup or if it silently breaks again later.
   if (error) {
-    console.error('resetPasswordForEmail failed:', error.message);
+    logError('auth', error, { where: 'resetPasswordForEmail' });
   }
 
   redirect('/forgot-password?sent=1');
