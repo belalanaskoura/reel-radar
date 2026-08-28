@@ -13,6 +13,12 @@ create table "public"."showtimes_cache" (
 alter table "public"."showtimes_cache"
   enable row level security;
 
+-- scrape-scene-delist and scrape-vox's delisting sweep filters by
+-- branch_id first (the PK's non-leading column), on every scheduled
+-- scrape/delist cycle.
+create index if not exists showtimes_cache_branch_id_idx
+  on public.showtimes_cache (branch_id, bookable);
+
 create trigger showtimes_cache_was_ever_bookable
   before insert or update on public.showtimes_cache
   for each row

@@ -10,6 +10,11 @@ create table "public"."watchlist" (
 alter table "public"."watchlist"
   enable row level security;
 
+-- /api/poll's notifyWatchers filters by movie_id alone (the PK's
+-- non-leading column), on every scheduled poll run.
+create index if not exists watchlist_movie_id_idx
+  on public.watchlist (movie_id);
+
 create policy "delete own watchlist" on "public"."watchlist"
   for delete
   to PUBLIC
