@@ -3,6 +3,8 @@ import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchDayShowtimes, sleep, REQUEST_DELAY_MS } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
+import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 
 const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 
@@ -41,47 +43,76 @@ export async function POST(request: Request) {
   const results: Record<string, { checked: number; formats: string[] }> = {};
 
   for (const branch of branchesToScrape) {
-    const { data: bookableRows } = await supabase
-      .from('showtimes_cache')
-      .select('movie_id, raw_showtimes')
-      .eq('branch_id', branch)
-      .eq('bookable', true);
+    const branchStartedAt = Date.now();
+    try {
+      const { data: bookableRows } = await supabase
+        .from('showtimes_cache')
+        .select('movie_id, raw_showtimes')
+        .eq('branch_id', branch)
+        .eq('bookable', true);
 
-    const movieIds = (bookableRows ?? []).map((r) => r.movie_id);
-    const { data: slugRows } = movieIds.length
-      ? await supabase
-          .from('movie_branch_slugs')
-          .select('movie_id, slug')
-          .eq('branch_id', branch)
-          .in('movie_id', movieIds)
-      : { data: [] };
-    const slugByMovieId = new Map((slugRows ?? []).map((r) => [r.movie_id, r.slug]));
+      const movieIds = (bookableRows ?? []).map((r) => r.movie_id);
+      const { data: slugRows } = movieIds.length
+        ? await supabase
+            .from('movie_branch_slugs')
+            .select('movie_id, slug')
+            .eq('branch_id', branch)
+            .in('movie_id', movieIds)
+        : { data: [] };
+      const slugByMovieId = new Map((slugRows ?? []).map((r) => [r.movie_id, r.slug]));
 
-    const formatsSeen = new Set<string>();
-    let checked = 0;
+      const formatsSeen = new Set<string>();
+      let checked = 0;
 
-    for (const row of bookableRows ?? []) {
-      const dates = Array.isArray(row.raw_showtimes) ? (row.raw_showtimes as string[]) : [];
-      const firstDate = dates[0];
-      const slug = slugByMovieId.get(row.movie_id);
-      if (!firstDate || !slug) continue;
+      // One bad movie's fetch (a timeout, a malformed page) shouldn't lose
+      // the formats already collected from every movie checked before it
+      // in this branch's loop -- same per-item isolation scrape-scene and
+      // scrape-vox already use for their own per-movie work.
+      for (const row of bookableRows ?? []) {
+        const dates = Array.isArray(row.raw_showtimes) ? (row.raw_showtimes as string[]) : [];
+        const firstDate = dates[0];
+        const slug = slugByMovieId.get(row.movie_id);
+        if (!firstDate || !slug) continue;
 
-      const movieDetailsUrl = `${BRANCH_BASE_URLS[branch]}/movie-details/${slug}.html`;
+        const movieDetailsUrl = `${BRANCH_BASE_URLS[branch]}/movie-details/${slug}.html`;
 
-      await sleep(REQUEST_DELAY_MS);
-      const dayShowtimes = await fetchDayShowtimes(movieDetailsUrl, firstDate);
-      checked += 1;
+        try {
+          await sleep(REQUEST_DELAY_MS);
+          const dayShowtimes = await fetchDayShowtimes(movieDetailsUrl, firstDate);
+          checked += 1;
 
-      for (const showtime of dayShowtimes.showtimes) {
-        formatsSeen.add(showtime.format);
+          for (const showtime of dayShowtimes.showtimes) {
+            formatsSeen.add(showtime.format);
+          }
+        } catch (err) {
+          logError('scrape-formats', err, { branch, movieId: row.movie_id });
+        }
       }
+
+      const formats = [...formatsSeen].sort();
+
+      await supabase.from('branches').update({ formats }).eq('id', branch);
+
+      results[branch] = { checked, formats };
+
+      logEvent({
+        type: 'scrape_formats_run',
+        payload: { branch, checked, formats, duration_ms: Date.now() - branchStartedAt, error: null },
+      });
+    } catch (err) {
+      results[branch] = { checked: 0, formats: [] };
+      logError('scrape-formats', err, { branch });
+      logEvent({
+        type: 'scrape_formats_run',
+        payload: {
+          branch,
+          checked: 0,
+          formats: [],
+          duration_ms: Date.now() - branchStartedAt,
+          error: String(err).slice(0, 500),
+        },
+      });
     }
-
-    const formats = [...formatsSeen].sort();
-
-    await supabase.from('branches').update({ formats }).eq('id', branch);
-
-    results[branch] = { checked, formats };
   }
 
   return NextResponse.json(results);
