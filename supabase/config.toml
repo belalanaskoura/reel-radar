@@ -1,5 +1,24 @@
 
 [db.migrations]
+# Explicit order, not a bare "schemas" directory scan -- the default walk
+# is lexicographic by directory (_cluster, then auth, then public), which
+# put auth/tables/users.sql (two triggers calling public.handle_new_user()
+# and public.sync_profile_email()) before either function existed yet.
+# That was silent until the very first real `supabase db diff -f` run
+# against this repo's full schemas/ tree (see the apply job's actual
+# failure: `function public.handle_new_user() does not exist`, 42883) --
+# --linked diffs (the PR-time plan job) never build a local shadow DB from
+# scratch, so this ordering bug had no way to surface until schema
+# automation started actually generating migrations. public/functions
+# must come before auth/tables for exactly this reason; public/tables
+# before public/functions doesn't matter today (no table currently
+# references a function in a column default or check), but is ordered
+# that way anyway since a table existing before a trigger function tries
+# to attach to it is the safer default if that ever changes.
 schema_paths = [
-  "schemas",
+  "schemas/_cluster/**/*.sql",
+  "schemas/public/*.sql",
+  "schemas/public/tables/**/*.sql",
+  "schemas/public/functions/**/*.sql",
+  "schemas/auth/**/*.sql",
 ]
