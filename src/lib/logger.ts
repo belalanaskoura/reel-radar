@@ -22,6 +22,7 @@ type ErrorSource =
   | 'scrape-scene'
   | 'scrape-scene-delist'
   | 'scrape-vox'
+  | 'scrape-formats'
   | 'admin-digest'
   | 'welcome-email'
   | 'broadcast'

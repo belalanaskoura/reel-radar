@@ -21,3 +21,23 @@ export function PosterGridSkeleton({ count = 12 }: { count?: number }) {
     </div>
   );
 }
+
+// Generic placeholder for one admin page section -- a SectionHeader-shaped
+// bar plus a handful of block rows. Every /admin/* subpage's content is
+// SectionHeader-led regardless of what it actually renders (stat tiles,
+// tables, charts), so one shape covers all of them rather than a bespoke
+// skeleton per page mirroring exact content.
+export function AdminSectionSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <Skeleton className="h-3 w-32" />
+      </div>
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: rows }).map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full" />
+        ))}
+      </div>
+    </div>
+  );
+}

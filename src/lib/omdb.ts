@@ -1,4 +1,5 @@
 const OMDB_BASE_URL = 'https://www.omdbapi.com/';
+const REQUEST_TIMEOUT_MS = 8_000;
 
 export interface OmdbRatings {
   imdbId: string;
@@ -33,9 +34,11 @@ export async function fetchOmdbRatings(imdbId: string): Promise<OmdbRatings | nu
   const apiKey = process.env.OMDB_API_KEY;
   if (!apiKey) return null;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const params = new URLSearchParams({ apikey: apiKey, i: imdbId });
-    const res = await fetch(`${OMDB_BASE_URL}?${params}`);
+    const res = await fetch(`${OMDB_BASE_URL}?${params}`, { signal: controller.signal });
     if (!res.ok) return null;
     const data: OmdbResponse = await res.json();
     if (data.Response !== 'True') return null;
@@ -53,5 +56,7 @@ export async function fetchOmdbRatings(imdbId: string): Promise<OmdbRatings | nu
     };
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
