@@ -15,10 +15,20 @@
 # references a function in a column default or check), but is ordered
 # that way anyway since a table existing before a trigger function tries
 # to attach to it is the safer default if that ever changes.
+#
+# `**` (recursive globstar) silently matched zero files here -- the CLI's
+# glob support is a single `*` per path segment, undocumented but
+# confirmed by this failing exactly the same way twice in a row with `**`
+# in place (the apply job's own file listing only ever showed 5 files,
+# never any from tables/ or functions/). Every path below is a real leaf
+# directory (confirmed via `find supabase/schemas -type d`, no nesting
+# deeper than one level anywhere) with an explicit `*.sql`, and a leading
+# `./`, matching Supabase's own documented example exactly rather than
+# the bare relative form used before.
 schema_paths = [
-  "schemas/_cluster/**/*.sql",
-  "schemas/public/*.sql",
-  "schemas/public/tables/**/*.sql",
-  "schemas/public/functions/**/*.sql",
-  "schemas/auth/**/*.sql",
+  "./schemas/_cluster/extensions/*.sql",
+  "./schemas/public/*.sql",
+  "./schemas/public/tables/*.sql",
+  "./schemas/public/functions/*.sql",
+  "./schemas/auth/tables/*.sql",
 ]
