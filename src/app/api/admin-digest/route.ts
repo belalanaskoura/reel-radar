@@ -7,6 +7,7 @@ import { notifyAdminDigestByEmail } from '@/lib/email';
 import { notifyAdminDigestPush } from '@/lib/push';
 import { isAdminEmail } from '@/lib/admin';
 import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 
 // Scheduled (cron-job.org, once daily -- see CLAUDE.md's scheduler
 // section) digest of data-quality issues: movies with no poster, matched
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
         try {
           pushSent += await notifyAdminDigestPush(supabase, userId, issues.length);
         } catch (err) {
-          console.error(`admin-digest: push failed for admin ${userId}`, err);
+          logError('admin-digest', err, { userId });
         }
       }
     } catch (err) {
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
       // parsing, listAllUsers) -- email above already attempted
       // independently, so this is still best-effort, just no longer
       // silent.
-      console.error('admin-digest: push setup failed', err);
+      logError('admin-digest', err);
     }
   }
 

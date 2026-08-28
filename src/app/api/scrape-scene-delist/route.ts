@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { fetchAllListings } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 import { notifyLineupRemovals } from '@/lib/matching/notify-cinema-lineup';
 
 const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
       });
     } catch (err) {
       results[branch] = { delisted: 0 };
+      logError('scrape-scene-delist', err, { branch });
       logEvent({
         type: 'scrape_delist_run',
         payload: {

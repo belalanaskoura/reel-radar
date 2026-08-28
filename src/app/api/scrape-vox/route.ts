@@ -5,6 +5,7 @@ import { fetchVoxShowtimes } from '@/lib/elcinema/vox-showtimes';
 import { fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '@/lib/elcinema/fetcher';
 import { VOX_ELCINEMA_THEATER_IDS, type VoxBranchId, type VoxDayDetail } from '@/lib/branches';
 import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { notifyLineupAdditions, notifyLineupRemovals } from '@/lib/matching/notify-cinema-lineup';
@@ -303,6 +304,7 @@ export async function POST(request: Request) {
     });
     } catch (err) {
       results[branch] = { movies: 0, bookable: 0, delisted: 0 };
+      logError('scrape-vox', err, { branch });
       logEvent({
         type: 'scrape_run',
         payload: {

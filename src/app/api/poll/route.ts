@@ -10,6 +10,7 @@ import { chainForBranch, VOX_ELCINEMA_THEATER_IDS, voxBranchShowtimesUrl, type V
 import { fetchVoxShowtimes } from '@/lib/elcinema/vox-showtimes';
 import { sleep as elcinemaSleep, REQUEST_DELAY_MS as ELCINEMA_DELAY_MS } from '@/lib/elcinema/fetcher';
 import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 import { mapWithConcurrency } from '@/lib/concurrency';
 
 // Watchers for one (movie, branch) pair are notified concurrently, not
@@ -133,10 +134,11 @@ export async function POST(request: Request) {
       if (wasBookable) continue; // already bookable last poll, nothing new
 
       notified += await notifyWatchers(supabase, row.movie_id, branch, bookingUrl);
-    } catch {
+    } catch (err) {
       // One bad pair (a scraper hiccup, a transient Supabase error) must
       // not abort every pair after it in this run.
       pairErrors += 1;
+      logError('poll', err, { movieId: row.movie_id, branchId: branch });
     }
   }
 

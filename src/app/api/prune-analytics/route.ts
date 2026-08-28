@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { logEvent } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 
 // Scheduled (cron-job.org, recommend once daily) call to the
 // prune_analytics_events() Postgres function (see
@@ -20,6 +21,10 @@ import { logEvent } from '@/lib/analytics';
 // per channel per notification, fed by every notify path). Same
 // "keep bounded rows bounded" job as the analytics prune, so it rides the
 // same schedule instead of needing its own cron-job.org entry.
+//
+// error_log (see src/lib/logger.ts) rides the same schedule too, pruned
+// via prune_error_log() -- same reasoning as notification_deliveries
+// above, a new unbounded-growth table doesn't need its own job.
 export async function POST(request: Request) {
   if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -29,13 +34,14 @@ export async function POST(request: Request) {
   const supabase = createServiceRoleClient();
   const keepDays = 90;
   const deliveriesKeepDays = 180;
+  const errorLogKeepDays = 90;
 
   const { data: deleted, error } = await supabase.rpc('prune_analytics_events', {
     p_keep_days: keepDays,
   });
 
   if (error) {
-    console.error('prune_analytics_events failed:', error.message);
+    logError('prune-analytics', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -47,7 +53,15 @@ export async function POST(request: Request) {
   if (deliveriesError) {
     // The analytics prune above already succeeded -- don't discard that
     // real result over this second, independent prune failing.
-    console.error('prune_notification_deliveries failed:', deliveriesError.message);
+    logError('prune-analytics', deliveriesError);
+  }
+
+  const { data: errorLogDeleted, error: errorLogError } = await supabase.rpc('prune_error_log', {
+    p_keep_days: errorLogKeepDays,
+  });
+
+  if (errorLogError) {
+    logError('prune-analytics', errorLogError);
   }
 
   logEvent({
@@ -65,5 +79,7 @@ export async function POST(request: Request) {
     deleted: deleted ?? 0,
     deliveriesDeleted: deliveriesDeleted ?? 0,
     deliveriesError: deliveriesError?.message ?? null,
+    errorLogDeleted: errorLogDeleted ?? 0,
+    errorLogError: errorLogError?.message ?? null,
   });
 }

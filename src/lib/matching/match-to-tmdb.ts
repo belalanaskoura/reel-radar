@@ -6,6 +6,7 @@ import { getEgyptReleaseInfo } from './egypt-release-date';
 import { searchElCinema, fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '../elcinema/fetcher';
 import { chainForBranch } from '../branches';
 import { mapWithConcurrency } from '../concurrency';
+import { logError } from '@/lib/logger';
 
 const FUZZY_MATCH_THRESHOLD = 0.8;
 
@@ -271,7 +272,7 @@ export async function matchScenesToTmdb(
       // untouched on error, not 'unmatched'/'ambiguous' -- those are
       // resolved outcomes, this is a transient failure the next run
       // should just retry from scratch.
-      console.error(`matchScenesToTmdb: failed for movie ${movie.id} ("${movie.title}")`, err);
+      logError('match-movies', err, { movieId: movie.id, title: movie.title });
       return { sceneMovieId: movie.id, outcome: 'error' };
     }
   });
