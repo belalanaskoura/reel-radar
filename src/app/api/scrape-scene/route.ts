@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       const listings = await fetchAllListings(branch);
       const batch = listings.slice(offset, offset + BATCH_SIZE);
       let bookableCount = 0;
-      const newlyLinkedMovieIds: string[] = [];
+      const justBecameBookableMovieIds: string[] = [];
 
       for (const listing of batch) {
         const { data: existingLink } = await supabase
@@ -209,9 +209,22 @@ export async function POST(request: Request) {
 
           // Reached only when this slug had no existing movie_branch_slugs
           // row for this branch -- i.e. it's new to this branch's lineup
-          // this run, regardless of which sub-path resolved movieId.
-          newlyLinkedMovieIds.push(movieId);
+          // this run, regardless of which sub-path resolved movieId. Not
+          // used to drive the "lineup added" notification directly (see
+          // below) -- Scene's coming-soon page links a movie here well
+          // before it's actually bookable, sometimes months ahead of
+          // release.
         }
+
+        // Read the previous bookable state before writing the new one --
+        // needed to tell "just became bookable" apart from "already was."
+        const { data: existingCacheRow } = await supabase
+          .from('showtimes_cache')
+          .select('bookable')
+          .eq('movie_id', movieId)
+          .eq('branch_id', branch)
+          .maybeSingle();
+        const wasBookable = existingCacheRow?.bookable ?? false;
 
         await sleep(REQUEST_DELAY_MS);
         const bookability = await checkBookability(listing.url);
@@ -236,10 +249,22 @@ export async function POST(request: Request) {
           },
           { onConflict: 'movie_id,branch_id' },
         );
+
+        // "Lineup added" should mean "you can book this here now," not
+        // "we started tracking it internally" -- a movie discovered via
+        // Scene's coming-soon page is linked (movie_branch_slugs) long
+        // before it's bookable, and notifying on discovery alone was
+        // confirmed for real to fire for movies that hadn't released yet.
+        // Only the actual not-bookable -> bookable transition qualifies,
+        // same "wasBookable" pattern /api/poll already uses for the
+        // per-watchlist notification.
+        if (bookability.bookable && !wasBookable) {
+          justBecameBookableMovieIds.push(movieId);
+        }
       }
 
-      if (newlyLinkedMovieIds.length > 0) {
-        await notifyLineupAdditions(supabase, branch, newlyLinkedMovieIds);
+      if (justBecameBookableMovieIds.length > 0) {
+        await notifyLineupAdditions(supabase, branch, justBecameBookableMovieIds);
       }
 
       results[branch] = { listed: listings.length, batchSize: batch.length, bookable: bookableCount };
