@@ -11,12 +11,14 @@ None of these were live incidents at the time this was written. This was
 a forward-looking list of what would need attention as user count and
 catalog size grow, ranked roughly by how soon each would actually bite.
 
-**Status update (2026-08-28)**: findings 1, 3, 4, 6, and 11 have since
-been fixed — verified directly against the current code, not re-run as a
-fresh audit. The narrative sections below are left as-written (they're
-the investigative record of what was found and why), with a status line
-added under each resolved finding's heading. Findings 2, 5, 7, 8, 9, 10
-are unchanged from the original audit and still reflect real code.
+**Status update (2026-08-28), corrected (2026-08-29)**: the 2026-08-28
+pass under-credited its own thread's later commits. Findings 1, 3, 4, 6,
+7 (partial), 8, 9 (partial), 10, and 11 have since been fixed — verified
+directly against the current code, not re-run as a fresh audit. Only
+findings 2 and 5 are genuinely still open. The narrative sections below
+are left as-written (they're the investigative record of what was found
+and why), with a status line added under each resolved finding's
+heading.
 
 ## Summary
 
@@ -28,10 +30,10 @@ are unchanged from the original audit and still reflect real code.
 | 4 | `notification_deliveries` has no retention at all | Code | Fastest-growing table in the schema; fine today, no cleanup story | **Fixed** — same `/api/prune-analytics` route also prunes this table (180-day retention) plus `error_log` |
 | 5 | `scrape-scene` needs a manually-added cron-job.org job per ~10 new listings | Code comment + CLAUDE.md history | Already crossed once at 22 listings; recurs as catalog grows | Unchanged |
 | 6 | `match-movies` has no batching/timeout safety net (unlike `scrape-scene`) | Code | Same failure mode as #5, waiting to happen on a large unmatched backlog | **Fixed** — `match-movies` now has its own `BATCH_SIZE`/`?offset=` slicing |
-| 7 | Browse page ships the entire catalog + filters client-side, no pagination | Code comment (limit deliberately set above expected catalog size) | Payload/filter-cost growth tracks catalog size directly | Unchanged |
-| 8 | `useEqualRowHeights`'s row-bucketing is O(cards²) | Code + stress test | Bounded today by `PAGE_SIZE=60`; would matter if that cap is ever raised | Unchanged |
-| 9 | No rate-limit/backoff handling for TMDB, Resend, or web-push | Code (grep, zero matches) | Speculative; no evidence of being hit yet | Unchanged |
-| 10 | Two minor missing indexes (`watchlist.movie_id`, `showtimes_cache.branch_id`) | Schema read | Fine at current row counts; worth adding before either table hits five figures | Unchanged |
+| 7 | Browse page ships the entire catalog + filters client-side, no pagination | Code comment (limit deliberately set above expected catalog size) | Payload/filter-cost growth tracks catalog size directly | **Partially fixed** — initial fetch shrunk from `limit(2000)` to `BROWSE_FETCH_LIMIT=300`, with a debounced full-catalog search fallback for queries the truncated set misses. Not full pagination — a real "load more"/paginated UI is still not built. |
+| 8 | `useEqualRowHeights`'s row-bucketing is O(cards²) | Code + stress test | Bounded today by `PAGE_SIZE=60`; would matter if that cap is ever raised | **Fixed** — row-bucketing is now O(cards): compares each card only against the most recent row (DOM/grid order guarantees a card can't belong to an earlier row) instead of scanning every bucket found so far. |
+| 9 | No rate-limit/backoff handling for TMDB, Resend, or web-push | Code (grep, zero matches) | Speculative; no evidence of being hit yet | **Partially fixed** — TMDB now retries once on a 429, honoring `Retry-After` (falling back to a fixed delay), and both TMDB fetches and web-push sends now have real abort timeouts. Resend still has no rate-limit/backoff handling of its own. |
+| 10 | Two minor missing indexes (`watchlist.movie_id`, `showtimes_cache.branch_id`) | Schema read | Fine at current row counts; worth adding before either table hits five figures | **Fixed** — both indexes added (`supabase/migrations/0102_scale_indexes.sql`). |
 | 11 | `mapWithConcurrency` exists but is duplicated twice and unused by any notification path | Code | Not a bug — the fix for #1/#2 already exists in the codebase, just not applied there | **Fixed** — now imported from a shared `src/lib/concurrency.ts` (with `concurrency.test.ts`) and applied everywhere finding 1 named |
 
 ---
@@ -211,6 +213,18 @@ is positioned to hit the exact same cron-job.org timeout failure mode
 
 ## 7. Browse page: whole-catalog fetch, client-side filter, no pagination
 
+**Partially fixed as of 2026-08-26.** The initial fetch was shrunk from
+`limit(2000)` to `BROWSE_FETCH_LIMIT = 300` (real catalog was ~117 movies
+at the time — chosen with headroom, not tracking anticipated future
+growth the way the old `2000` did), and a new debounced (400ms) full-
+catalog search fallback (`getFullCatalogSearchResults`, a server action
+doing a coarse `ilike` prefix query then the same word-start
+`matchesSearch` logic) covers queries the truncated local set misses.
+This is not the pagination redesign the finding originally called for —
+there's still no "load more"/paged browsing UI — but it directly
+addresses the "payload grows toward a deliberately-oversized limit"
+concern. The investigative record below is left as-written.
+
 `src/app/browse/page.tsx:39-44` fetches up to `limit(2000)` movies in one
 query, joined against `showtimes_cache`/`branches`, shipped whole to the
 client for `BrowseGrid`'s `useMemo`-based filtering
@@ -232,6 +246,14 @@ signals when that threshold is crossed.
 ---
 
 ## 8. `useEqualRowHeights`'s row-bucketing algorithm is O(cards²)
+
+**Fixed as of 2026-08-26.** The bucketing loop no longer scans every row
+found so far — it tracks only `currentRowKey` and compares each card
+against just the most recent row, since cards arrive in DOM order and
+CSS Grid lays rows out top-to-bottom (a card can never belong to an
+earlier row than the one just processed). This is O(cards), not O(cards²).
+No visual change; confirmed live on mobile. The investigative record
+below is left as-written.
 
 `src/components/useEqualRowHeights.ts:46` — `[...rows.entries()].find(...)`
 does a linear scan of every row bucket found so far, for every card
@@ -262,6 +284,18 @@ a "load more" or "show all" change.
 
 ## 9. No rate-limit/backoff handling for external APIs
 
+**Partially fixed as of 2026-08-27.** `tmdb.ts`'s fetch helper now
+retries once on a 429, honoring a `Retry-After` header when present
+(falling back to a fixed 1s delay otherwise) — motivated by `sync-movies`
+and `match-movies` both looping many calls through the same choke point,
+where a single rate-limit response used to fail every remaining
+candidate in that run. Every TMDB fetch and every web-push send also
+gained a real abort timeout in the same pass (previously the one
+remaining external call in the codebase with no timeout at all was
+`web-push`'s `sendNotification`). Resend still has no rate-limit-specific
+handling of its own — the investigative record below is left as-written
+for that gap.
+
 Grepped for rate-limit/429/backoff handling in `src/lib/tmdb.ts`,
 `src/lib/email.ts`, `src/lib/push.ts` — none found. `email.ts` makes one
 raw `fetch` per recipient per notification (no Resend batch-send API
@@ -281,6 +315,12 @@ worth having a plan for, not a confirmed problem.
 ---
 
 ## 10. Two indexes worth adding ahead of real growth
+
+**Fixed as of 2026-08-26.** Both indexes below were added in
+`supabase/migrations/0102_scale_indexes.sql`
+(`watchlist_movie_id_idx on watchlist(movie_id)`,
+`showtimes_cache_branch_id_idx on showtimes_cache(branch_id, bookable)`).
+The investigative record below is left as-written.
 
 - `watchlist` has PK `(user_id, movie_id)`, but `/api/poll`'s
   `notifyWatchers` filters by `movie_id` alone

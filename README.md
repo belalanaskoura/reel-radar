@@ -171,6 +171,10 @@ title across any supported branch and get notified the moment it opens.
   gated by its own opt-in toggle. Detecting a lineup change reuses the
   scrapers' existing new-listing and delisting signals, so no extra
   scraping is needed just for this.
+- **Ratings and reviews** on the movie detail page pull IMDb/Metacritic/
+  Rotten Tomatoes scores from [OMDb](https://www.omdbapi.com/) and review
+  text from TMDB, with a keyword-based spoiler gate hiding a flagged
+  review behind a "Show anyway" button.
 - **In-app feedback** (`/feedback`) — saved to the database and emailed
   directly to the maintainer.
 - **Sign-in** supports email/password and Google OAuth. New signups get a
@@ -235,7 +239,7 @@ up a fresh project, you'll need to create the core tables yourself:
 `notification_log`, `notification_deliveries`, `profiles`,
 `push_subscriptions`, `feedback`, `egypt_releases`, `egypt_distributors`,
 `scene_price_templates`, `analytics_events`, `welcome_email_log`,
-`error_log`.
+`error_log`, `rate_limits`.
 
 ### Environment Variables
 
@@ -253,6 +257,8 @@ up a fresh project, you'll need to create the core tables yourself:
 | `VAPID_PRIVATE_KEY` | VAPID private key, server-only — used to sign push messages. Generate a pair with `npx web-push generate-vapid-keys`. Never expose to the client. |
 | `ADMIN_EMAILS` | Comma-separated allowlist of emails permitted to view `/admin` |
 | `ADMIN_SESSION_SECRET` | Server-only, signs a short-lived (60s) cache cookie so rapid `/admin` tab clicks skip re-verifying with Supabase Auth on every single navigation. Any long random string, e.g. `openssl rand -base64 32`. |
+| `VAPID_SUBJECT` | `mailto:` contact address sent with every push message, per the Web Push spec |
+| `OMDB_API_KEY` | [OMDb API](https://www.omdbapi.com/apikey.aspx) key, used for IMDb/Metacritic/Rotten Tomatoes ratings on the movie detail page's Reviews tab |
 
 Google sign-in is configured entirely in the Supabase dashboard
 (Authentication → Providers → Google) and the corresponding Google Cloud
@@ -294,7 +300,7 @@ to be called on a real interval by an external scheduler (e.g.
 | `POST /api/scrape-scene-delist` | Clears bookability for Scene movies no longer listed at all, notifying cinema-trackers of the removal | Every 15–30 min |
 | `POST /api/scrape-vox` | Scrapes VOX showtimes (via elCinema) for all 3 branches, including delisting movies whose run has ended and notifying cinema-trackers of both additions and removals | Daily (full-detail fetch, more expensive per run) |
 | `POST /api/scrape-formats` | Records which showtime formats (Standard, IMAX, etc.) are available per Scene branch, for `/cinemas` | Every 30 min |
-| `POST /api/match-movies` | Matches new listings to TMDB entries | After each scrape run |
+| `POST /api/match-movies?offset=<n>` | Matches new listings to TMDB entries, one batch (`BATCH_SIZE=30`) at a time — same offset-batching shape as `scrape-scene`, needed once the unmatched backlog got large enough to risk the scheduler's own timeout | After each scrape run, staggered offsets |
 | `POST /api/poll` | Checks bookability for watched (movie, branch) pairs and notifies | Every 15–30 min |
 | `POST /api/admin-digest` | Emails/pushes a data-quality summary to admins (missing posters, stuck matches, price drift) | Daily |
 | `POST /api/welcome-email` | Emails new signups a one-time welcome (feature pointers, plus push setup steps if they haven't turned it on yet) | Every 15–30 min |
