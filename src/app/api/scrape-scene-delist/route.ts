@@ -38,57 +38,118 @@ export async function POST(request: Request) {
       const seenSlugs = new Set(listings.map((l) => l.slug));
 
       // A movie previously linked to this branch but absent from this
-      // run's listings has been pulled from Scene's site entirely (its
-      // own page now returns the "invalid slug" message rather than a
-      // real 404, per Phase 0's finding, so its detail page can't signal
-      // this on its own). Without this, a delisted movie's last-known
-      // showtimes_cache row (bookable: true, real dates) sits unchanged
-      // forever, since nothing else ever revisits it -- /api/poll only
-      // covers watchlisted movies. Confirmed for real: a movie pulled
-      // from CFC's site kept showing a stale bookable date days after it
-      // stopped being bookable there.
+      // run's listings MIGHT have been pulled from Scene's site entirely
+      // (its own page now returns the "invalid slug" message rather than
+      // a real 404, per Phase 0's finding, so its detail page can't
+      // signal this on its own) -- or this run's listing fetch just had a
+      // transient miss (a slow render, a momentary empty section, a
+      // one-off network hiccup), which is indistinguishable from a real
+      // delisting using only this run's own result. Confirmed for real:
+      // a single-run miss was firing a false "removed" notification for a
+      // movie that was never actually pulled, sometimes followed by a
+      // same-movie "added" notification once the very next scrape saw it
+      // again -- a fully avoidable false-positive churn, not a real
+      // lineup change.
+      //
+      // Fixed with a two-strikes check via pending_removal_since: a
+      // first-time miss only marks the row pending (no notification,
+      // bookable left untouched) so a transient blip never gets
+      // reported; only a SECOND consecutive miss (pending_removal_since
+      // already set from the prior run) confirms the removal and fires
+      // the notification. A movie that reappears while pending has the
+      // flag cleared with nothing ever sent.
       const { data: knownSlugs } = await supabase
         .from('movie_branch_slugs')
         .select('movie_id, slug')
         .eq('branch_id', branch);
 
-      const delistedMovieIds = (knownSlugs ?? [])
+      const missingMovieIds = (knownSlugs ?? [])
         .filter((row) => !seenSlugs.has(row.slug))
+        .map((row) => row.movie_id);
+      const seenMovieIds = (knownSlugs ?? [])
+        .filter((row) => seenSlugs.has(row.slug))
         .map((row) => row.movie_id);
 
       let delistedCount = 0;
-      if (delistedMovieIds.length > 0) {
-        const { data: cleared } = await supabase
-          .from('showtimes_cache')
-          .update({ bookable: false, raw_showtimes: [], last_checked_at: new Date().toISOString() })
-          .eq('branch_id', branch)
-          .eq('bookable', true)
-          .in('movie_id', delistedMovieIds)
-          .select('movie_id');
-        delistedCount = cleared?.length ?? 0;
 
-        // Only movies that just transitioned bookable -> gone this run
-        // (the rows the update above actually touched), not every
-        // historically-delisted movie still linked to this branch --
-        // otherwise a movie gone for weeks would renotify on every sweep.
-        const justRemovedMovieIds = (cleared ?? []).map((row) => row.movie_id as string);
-        if (justRemovedMovieIds.length > 0) {
-          await notifyLineupRemovals(supabase, branch, justRemovedMovieIds);
-        }
-
-        // A delisted movie that was already bookable: false is skipped by
-        // the update above (the .eq('bookable', true) filter), so its
-        // last_checked_at never gets touched even though this run just
-        // re-confirmed it's still absent -- it would otherwise look stale
-        // forever on the admin dashboard despite the sweep genuinely
-        // covering it every time. Refresh the timestamp unconditionally
-        // for every delisted row, independent of the bookable reset above.
+      if (seenMovieIds.length > 0) {
+        // Reappeared while pending: false alarm, clear the flag. No
+        // notification was ever sent for these since the first miss only
+        // marks pending, so there's nothing to walk back.
         await supabase
           .from('showtimes_cache')
-          .update({ last_checked_at: new Date().toISOString() })
+          .update({ pending_removal_since: null })
           .eq('branch_id', branch)
-          .eq('bookable', false)
-          .in('movie_id', delistedMovieIds);
+          .in('movie_id', seenMovieIds)
+          .not('pending_removal_since', 'is', null);
+      }
+
+      if (missingMovieIds.length > 0) {
+        const { data: pendingRows } = await supabase
+          .from('showtimes_cache')
+          .select('movie_id')
+          .eq('branch_id', branch)
+          .in('movie_id', missingMovieIds)
+          .not('pending_removal_since', 'is', null);
+        const alreadyPendingIds = new Set((pendingRows ?? []).map((r) => r.movie_id as string));
+
+        const firstMissIds = missingMovieIds.filter((id) => !alreadyPendingIds.has(id));
+        const secondMissIds = missingMovieIds.filter((id) => alreadyPendingIds.has(id));
+
+        if (firstMissIds.length > 0) {
+          // last_checked_at is refreshed here too (not just on a confirmed
+          // delist below) -- otherwise a movie sitting in its one-run grace
+          // period would start looking stale on the admin dashboard despite
+          // this sweep actively having just covered it.
+          await supabase
+            .from('showtimes_cache')
+            .update({
+              pending_removal_since: new Date().toISOString(),
+              last_checked_at: new Date().toISOString(),
+            })
+            .eq('branch_id', branch)
+            .in('movie_id', firstMissIds);
+        }
+
+        if (secondMissIds.length > 0) {
+          const { data: cleared } = await supabase
+            .from('showtimes_cache')
+            .update({
+              bookable: false,
+              raw_showtimes: [],
+              pending_removal_since: null,
+              last_checked_at: new Date().toISOString(),
+            })
+            .eq('branch_id', branch)
+            .eq('bookable', true)
+            .in('movie_id', secondMissIds)
+            .select('movie_id');
+          delistedCount = cleared?.length ?? 0;
+
+          // Only movies that just transitioned bookable -> gone this run
+          // (the rows the update above actually touched), not every
+          // historically-delisted movie still linked to this branch --
+          // otherwise a movie gone for weeks would renotify on every sweep.
+          const justRemovedMovieIds = (cleared ?? []).map((row) => row.movie_id as string);
+          if (justRemovedMovieIds.length > 0) {
+            await notifyLineupRemovals(supabase, branch, justRemovedMovieIds);
+          }
+
+          // A delisted movie that was already bookable: false is skipped
+          // by the update above (the .eq('bookable', true) filter), so
+          // its last_checked_at never gets touched even though this run
+          // just re-confirmed it's still absent -- it would otherwise
+          // look stale forever on the admin dashboard despite the sweep
+          // genuinely covering it every time. Refresh the timestamp
+          // unconditionally for every confirmed-still-gone row,
+          // independent of the bookable reset above.
+          await supabase
+            .from('showtimes_cache')
+            .update({ pending_removal_since: null, last_checked_at: new Date().toISOString() })
+            .eq('branch_id', branch)
+            .eq('bookable', false)
+            .in('movie_id', secondMissIds);
+        }
       }
 
       results[branch] = { delisted: delistedCount };

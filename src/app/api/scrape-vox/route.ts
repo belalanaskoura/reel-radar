@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     }
 
     let bookableCount = 0;
-    const newlyLinkedMovieIds: string[] = [];
+    const justBecameBookableMovieIds: string[] = [];
     for (const [elcinemaId, title] of titleByElcinemaId) {
       const slug = String(elcinemaId);
 
@@ -181,12 +181,22 @@ export async function POST(request: Request) {
             }
           }
         }
-
-        // Reached only when this elCinema work id had no existing
-        // movie_branch_slugs row for this branch -- new to this branch's
-        // lineup this run, regardless of which sub-path resolved movieId.
-        newlyLinkedMovieIds.push(movieId);
       }
+
+      // Read the previous bookable state before writing the new one --
+      // same "wasBookable" transition check scrape-scene now applies, so
+      // "lineup added" means "bookable now," not "we started tracking it."
+      // Every title reaching this loop already has real showtimes today
+      // (see formatsWithShowtimes above), so this mostly guards a rare
+      // edge case rather than a routine coming-soon gap the way Scene's
+      // does -- kept for the same guarantee on both scrapers regardless.
+      const { data: existingCacheRow } = await supabase
+        .from('showtimes_cache')
+        .select('bookable')
+        .eq('movie_id', movieId)
+        .eq('branch_id', branch)
+        .maybeSingle();
+      const wasBookable = existingCacheRow?.bookable ?? false;
 
       // VOX movies never get a poster from anywhere else until they're
       // TMDB-matched (getEgyptReleaseInfo's poster fallback is keyed by
@@ -219,73 +229,131 @@ export async function POST(request: Request) {
       }
 
       const dayDetails = dayDetailsByElcinemaId.get(elcinemaId) ?? [];
-      if (dayDetails.length > 0) bookableCount += 1;
+      const isBookable = dayDetails.length > 0;
+      if (isBookable) bookableCount += 1;
 
       await supabase.from('showtimes_cache').upsert(
         {
           movie_id: movieId,
           branch_id: branch,
-          bookable: dayDetails.length > 0,
+          bookable: isBookable,
           last_checked_at: new Date().toISOString(),
           raw_showtimes: dayDetails,
         },
         { onConflict: 'movie_id,branch_id' },
       );
+
+      if (isBookable && !wasBookable) {
+        justBecameBookableMovieIds.push(movieId);
+      }
     }
 
-    if (newlyLinkedMovieIds.length > 0) {
-      await notifyLineupAdditions(supabase, branch, newlyLinkedMovieIds);
+    if (justBecameBookableMovieIds.length > 0) {
+      await notifyLineupAdditions(supabase, branch, justBecameBookableMovieIds);
     }
 
     // A movie previously linked to this branch but absent from this run's
-    // elCinema listing has finished its run there -- unlike scrape-scene
-    // (which needs a separate scrape-scene-delist job because its
-    // bookability checks are batched by offset, see that route's own
-    // comment), this run already has the branch's COMPLETE current
-    // listing in titleByElcinemaId, so delisting can happen inline with
-    // no extra fetch. Without this, a movie's last-known showtimes_cache
-    // row (bookable: true, real dates) sits unchanged forever once
-    // elCinema stops listing it -- confirmed for real via the admin
-    // dashboard's stale-rows check: several VOX movies were still shown
-    // bookable a week after their real run ended.
+    // elCinema listing MIGHT have finished its run there -- unlike
+    // scrape-scene (which needs a separate scrape-scene-delist job
+    // because its bookability checks are batched by offset, see that
+    // route's own comment), this run already has the branch's COMPLETE
+    // current listing in titleByElcinemaId, so delisting can happen
+    // inline with no extra fetch. Without this, a movie's last-known
+    // showtimes_cache row (bookable: true, real dates) sits unchanged
+    // forever once elCinema stops listing it -- confirmed for real via
+    // the admin dashboard's stale-rows check: several VOX movies were
+    // still shown bookable a week after their real run ended.
+    //
+    // Same two-strikes confirmation as scrape-scene-delist (see that
+    // route's comment): a single miss can be elCinema having a transient
+    // hiccup on one of the 5 daily page fetches, not a real delisting.
+    // pending_removal_since defers the notification to a second
+    // consecutive miss; a movie that reappears while pending has the
+    // flag cleared with nothing ever sent.
     const seenSlugs = new Set([...titleByElcinemaId.keys()].map(String));
     const { data: knownSlugs } = await supabase
       .from('movie_branch_slugs')
       .select('movie_id, slug')
       .eq('branch_id', branch);
 
-    const delistedMovieIds = (knownSlugs ?? [])
+    const missingMovieIds = (knownSlugs ?? [])
       .filter((row) => !seenSlugs.has(row.slug))
+      .map((row) => row.movie_id);
+    const seenMovieIds = (knownSlugs ?? [])
+      .filter((row) => seenSlugs.has(row.slug))
       .map((row) => row.movie_id);
 
     let delistedCount = 0;
-    if (delistedMovieIds.length > 0) {
-      const { data: cleared } = await supabase
-        .from('showtimes_cache')
-        .update({ bookable: false, raw_showtimes: [], last_checked_at: new Date().toISOString() })
-        .eq('branch_id', branch)
-        .eq('bookable', true)
-        .in('movie_id', delistedMovieIds)
-        .select('movie_id');
-      delistedCount = cleared?.length ?? 0;
 
-      const justRemovedMovieIds = (cleared ?? []).map((row) => row.movie_id as string);
-      if (justRemovedMovieIds.length > 0) {
-        await notifyLineupRemovals(supabase, branch, justRemovedMovieIds);
-      }
-
-      // A delisted movie already bookable: false is skipped by the update
-      // above (.eq('bookable', true)), so its last_checked_at never gets
-      // touched even though this run just re-confirmed it's still absent
-      // -- it would otherwise look stale forever on the admin dashboard
-      // despite the sweep genuinely covering it every time. Same fix
-      // scrape-scene-delist applies for the same reason.
+    if (seenMovieIds.length > 0) {
       await supabase
         .from('showtimes_cache')
-        .update({ last_checked_at: new Date().toISOString() })
+        .update({ pending_removal_since: null })
         .eq('branch_id', branch)
-        .eq('bookable', false)
-        .in('movie_id', delistedMovieIds);
+        .in('movie_id', seenMovieIds)
+        .not('pending_removal_since', 'is', null);
+    }
+
+    if (missingMovieIds.length > 0) {
+      const { data: pendingRows } = await supabase
+        .from('showtimes_cache')
+        .select('movie_id')
+        .eq('branch_id', branch)
+        .in('movie_id', missingMovieIds)
+        .not('pending_removal_since', 'is', null);
+      const alreadyPendingIds = new Set((pendingRows ?? []).map((r) => r.movie_id as string));
+
+      const firstMissIds = missingMovieIds.filter((id) => !alreadyPendingIds.has(id));
+      const secondMissIds = missingMovieIds.filter((id) => alreadyPendingIds.has(id));
+
+      if (firstMissIds.length > 0) {
+        // last_checked_at is refreshed here too (not just on a confirmed
+        // delist below) -- otherwise a movie sitting in its one-run grace
+        // period would start looking stale on the admin dashboard despite
+        // this sweep actively having just covered it.
+        await supabase
+          .from('showtimes_cache')
+          .update({
+            pending_removal_since: new Date().toISOString(),
+            last_checked_at: new Date().toISOString(),
+          })
+          .eq('branch_id', branch)
+          .in('movie_id', firstMissIds);
+      }
+
+      if (secondMissIds.length > 0) {
+        const { data: cleared } = await supabase
+          .from('showtimes_cache')
+          .update({
+            bookable: false,
+            raw_showtimes: [],
+            pending_removal_since: null,
+            last_checked_at: new Date().toISOString(),
+          })
+          .eq('branch_id', branch)
+          .eq('bookable', true)
+          .in('movie_id', secondMissIds)
+          .select('movie_id');
+        delistedCount = cleared?.length ?? 0;
+
+        const justRemovedMovieIds = (cleared ?? []).map((row) => row.movie_id as string);
+        if (justRemovedMovieIds.length > 0) {
+          await notifyLineupRemovals(supabase, branch, justRemovedMovieIds);
+        }
+
+        // A delisted movie already bookable: false is skipped by the
+        // update above (.eq('bookable', true)), so its last_checked_at
+        // never gets touched even though this run just re-confirmed it's
+        // still absent -- it would otherwise look stale forever on the
+        // admin dashboard despite the sweep genuinely covering it every
+        // time. Same fix scrape-scene-delist applies for the same reason.
+        await supabase
+          .from('showtimes_cache')
+          .update({ pending_removal_since: null, last_checked_at: new Date().toISOString() })
+          .eq('branch_id', branch)
+          .eq('bookable', false)
+          .in('movie_id', secondMissIds);
+      }
     }
 
     results[branch] = { movies: titleByElcinemaId.size, bookable: bookableCount, delisted: delistedCount };

@@ -1,10 +1,11 @@
 create table "public"."showtimes_cache" (
-  "movie_id"          uuid                     not null,
-  "branch_id"         text                     not null,
-  "bookable"          boolean                  not null default false,
-  "last_checked_at"   timestamp with time zone,
-  "raw_showtimes"     jsonb,
-  "was_ever_bookable" boolean                  not null default false,
+  "movie_id"               uuid                     not null,
+  "branch_id"              text                     not null,
+  "bookable"               boolean                  not null default false,
+  "last_checked_at"        timestamp with time zone,
+  "raw_showtimes"          jsonb,
+  "was_ever_bookable"      boolean                  not null default false,
+  "pending_removal_since"  timestamp with time zone,
   constraint "showtimes_cache_branch_id_fkey" foreign key (branch_id) references public.branches(id) on delete cascade,
   constraint "showtimes_cache_movie_id_fkey" foreign key (movie_id) references public.movies(id) on delete cascade,
   constraint "showtimes_cache_pkey" primary key (movie_id, branch_id)
