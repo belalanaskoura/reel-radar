@@ -26,6 +26,7 @@ interface DetailsInfo {
   genres: string[];
   productionCompanies: string[];
   releaseDate: string | null;
+  releaseDateConfirmedEg: boolean;
   isBookable: boolean;
 }
 
@@ -319,7 +320,18 @@ export function MovieDetailTabs({
                     <dt className="w-28 flex-shrink-0" style={{ color: 'var(--ink-dim)' }}>
                       {details.isBookable ? 'Released' : 'Release date'}
                     </dt>
-                    <dd style={{ color: 'var(--ink)' }}>{details.releaseDate}</dd>
+                    <dd style={{ color: 'var(--ink)' }}>
+                      {details.releaseDate}
+                      {/* A bookable movie's date is real regardless of provenance --
+                          it's already showing in Egypt. Only an upcoming, still-
+                          unconfirmed date needs the caveat that it's a US date, not
+                          Egypt's. */}
+                      {!details.isBookable && !details.releaseDateConfirmedEg && (
+                        <span className="ml-1.5 text-xs font-normal" style={{ color: 'var(--ink-dim)' }}>
+                          (US &middot; not yet confirmed for Egypt)
+                        </span>
+                      )}
+                    </dd>
                   </div>
                 )}
                 {!!details.runtime && (

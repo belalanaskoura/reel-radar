@@ -23,7 +23,7 @@ export default async function WatchlistPage() {
       .from('watchlist')
       .select(
         `movie_id, movies (
-          id, title, release_date, poster_path,
+          id, title, release_date, release_date_confirmed_eg, poster_path,
           movie_branch_slugs (branch_id, slug, branches (name)),
           showtimes_cache (branch_id, bookable, raw_showtimes, branches (name))
         )`,

@@ -83,7 +83,7 @@ export default async function MovieDetailPage({
     supabase
       .from('movies')
       .select(
-        `id, tmdb_id, title, release_date, poster_path,
+        `id, tmdb_id, title, release_date, release_date_confirmed_eg, poster_path,
          movie_branch_slugs (branch_id, slug, branches (name)),
          showtimes_cache (branch_id, bookable, raw_showtimes, branches (name))`,
       )
@@ -186,6 +186,12 @@ export default async function MovieDetailPage({
   const showWatchlistControl = !!user && (isWatchlisted || !isBookable);
   const releaseDate = movie.release_date ?? details?.release_date ?? null;
   const releaseYear = releaseDate ? releaseDate.slice(0, 4) : null;
+  // release_date_confirmed_eg only describes movie.release_date (set by
+  // sync-movies/match-to-tmdb's resolveDisplayReleaseDate) -- the
+  // details?.release_date fallback below it is TMDB's own raw, unlabeled
+  // top-level field for the rare case movie.release_date is null, so that
+  // path is never treated as Egypt-confirmed either.
+  const releaseDateConfirmedEg = movie.release_date != null && movie.release_date_confirmed_eg;
 
   // Reached from a specific cinema's page (?from=<branchId>) -- narrow to
   // just that branch's showtimes rather than every branch this movie is
@@ -422,6 +428,7 @@ export default async function MovieDetailPage({
             genres: details?.genres?.map((g) => g.name) ?? [],
             productionCompanies: details?.production_companies?.map((c) => c.name) ?? [],
             releaseDate,
+            releaseDateConfirmedEg,
             isBookable,
           }}
         />
@@ -439,6 +446,7 @@ interface MovieRow {
   tmdb_id: number | null;
   title: string;
   release_date: string | null;
+  release_date_confirmed_eg: boolean;
   poster_path: string | null;
   movie_branch_slugs: { branch_id: string; slug: string; branches: { name: string } | null }[];
   showtimes_cache: {

@@ -18,6 +18,7 @@ export interface WatchedMovie {
   id: string;
   title: string;
   release_date: string | null;
+  release_date_confirmed_eg: boolean;
   poster_path: string | null;
   movie_branch_slugs: { branch_id: string; slug: string; branches: { name: string } | null }[];
   showtimes_cache: {
@@ -326,7 +327,9 @@ export function WatchlistGrid({
                     </Link>
                     <p className="mt-1 text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
                       {movie.release_date
-                        ? `${isBookable ? 'Released' : 'Release'}: ${movie.release_date}`
+                        ? `${isBookable ? 'Released' : 'Release'}: ${movie.release_date}${
+                            !isBookable && !movie.release_date_confirmed_eg ? ' (US)' : ''
+                          }`
                         : 'Release date TBA'}
                     </p>
                   </div>

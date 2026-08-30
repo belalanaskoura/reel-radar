@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeTitle } from './normalize';
 import { titleSimilarity } from './title-similarity';
 import { searchMovies, getEgTheatricalReleaseDate, getMovieById, findByImdbId, type TmdbMovie } from '../tmdb';
-import { getEgyptReleaseInfo } from './egypt-release-date';
+import { getEgyptReleaseInfo, resolveDisplayReleaseDate } from './egypt-release-date';
 import { searchElCinema, fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '../elcinema/fetcher';
 import { chainForBranch } from '../branches';
 import { mapWithConcurrency } from '../concurrency';
@@ -308,6 +308,7 @@ export async function applyTmdbMatch(
   // preferred over TMDB's release_date, and used as a poster fallback
   // when TMDB has none (see egypt-release-date.ts).
   const egyptInfo = await getEgyptReleaseInfo(supabase, tmdbMovie.id, tmdbMovie.title);
+  const displayDate = await resolveDisplayReleaseDate(egyptInfo, tmdbMovie.id, tmdbMovie.release_date || null);
   await supabase
     .from('movies')
     .update({
@@ -315,7 +316,8 @@ export async function applyTmdbMatch(
       title: tmdbMovie.title,
       original_title: tmdbMovie.original_title,
       poster_path: tmdbMovie.poster_path || egyptInfo.posterUrl || null,
-      release_date: egyptInfo.releaseDate || tmdbMovie.release_date || null,
+      release_date: displayDate.releaseDate,
+      release_date_confirmed_eg: displayDate.isEgyptConfirmed,
       popularity: tmdbMovie.popularity,
       match_status: 'matched',
       // Distinct from created_at (when the placeholder was first

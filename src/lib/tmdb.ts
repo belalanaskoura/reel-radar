@@ -245,16 +245,12 @@ export async function searchMovies(query: string, language: 'en-US' | 'ar'): Pro
   return data.results;
 }
 
-// Returns the EG THEATRICAL release_date entry for a movie, or null if
-// TMDB has no theatrical entry for EG (a digital/TV-only EG entry does not
-// count; confirmed necessary after Moana 2 (a 2024 Disney+ release) had
-// an EG entry of type 4/digital and was nearly auto-matched over the real
-// 2026 theatrical Moana, which had no EG entry at all). Used to
-// disambiguate multi-result searches: Phase 0 found genuine title
-// collisions (two different 2026 movies both titled "The Odyssey"), and a
-// real EG theatrical date is a stronger signal than popularity alone for
-// "this is the one actually playing in Egypt's cinemas."
-export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string | null> {
+// Returns a country's THEATRICAL release_date entry for a movie, or null if
+// TMDB has no theatrical entry for that country (a digital/TV-only entry
+// does not count; confirmed necessary after Moana 2 (a 2024 Disney+
+// release) had an EG entry of type 4/digital and was nearly auto-matched
+// over the real 2026 theatrical Moana, which had no EG entry at all).
+async function getTheatricalReleaseDate(tmdbId: number, country: string): Promise<string | null> {
   const apiKey = requireApiKey();
   const res = await tmdbFetch(
     `/movie/${tmdbId}/release_dates`,
@@ -264,12 +260,30 @@ export async function getEgTheatricalReleaseDate(tmdbId: number): Promise<string
     throw new Error(`TMDB release_dates request failed: ${res.status}`);
   }
   const data: TmdbReleaseDatesResponse = await res.json();
-  const eg = data.results.find((r) => r.iso_3166_1 === 'EG');
-  if (!eg) return null;
+  const entry = data.results.find((r) => r.iso_3166_1 === country);
+  if (!entry) return null;
   // type 2 = limited theatrical, 3 = theatrical. Digital (4), physical (5),
   // TV (6), and premiere (1) entries don't indicate a cinema release.
-  const theatrical = eg.release_dates.find((d) => d.type === 2 || d.type === 3);
+  const theatrical = entry.release_dates.find((d) => d.type === 2 || d.type === 3);
   return theatrical?.release_date ?? null;
+}
+
+// Used to disambiguate multi-result searches: Phase 0 found genuine title
+// collisions (two different 2026 movies both titled "The Odyssey"), and a
+// real EG theatrical date is a stronger signal than popularity alone for
+// "this is the one actually playing in Egypt's cinemas."
+export function getEgTheatricalReleaseDate(tmdbId: number): Promise<string | null> {
+  return getTheatricalReleaseDate(tmdbId, 'EG');
+}
+
+// Fallback display date when a movie has no EG (nor elCinema) release date
+// yet: TMDB's own top-level `release_date` field is not reliably any
+// particular country's date (confirmed for real: "Primetime" resolved to
+// Canada's date there, while TMDB's own website prominently shows the US
+// date instead) -- the US theatrical date is at least a real, labelable
+// anchor rather than an arbitrary one.
+export function getUsTheatricalReleaseDate(tmdbId: number): Promise<string | null> {
+  return getTheatricalReleaseDate(tmdbId, 'US');
 }
 
 // Looks up a movie by IMDb ID: a much more reliable cross-reference
