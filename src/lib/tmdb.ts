@@ -265,7 +265,15 @@ async function getTheatricalReleaseDate(tmdbId: number, country: string): Promis
   // type 2 = limited theatrical, 3 = theatrical. Digital (4), physical (5),
   // TV (6), and premiere (1) entries don't indicate a cinema release.
   const theatrical = entry.release_dates.find((d) => d.type === 2 || d.type === 3);
-  return theatrical?.release_date ?? null;
+  if (!theatrical) return null;
+  // This endpoint returns a full ISO timestamp ("2026-09-25T00:00:00.000Z"),
+  // unlike every other date this codebase handles (elCinema's, and TMDB's
+  // own top-level /movie/{id} release_date) which are plain YYYY-MM-DD --
+  // confirmed necessary after this value was persisted as-is into
+  // movies.release_date (a `date` column) and stored the full timestamp
+  // string instead of a clean date. Truncate rather than reformat, since
+  // the value is already UTC midnight.
+  return theatrical.release_date.slice(0, 10);
 }
 
 // Used to disambiguate multi-result searches: Phase 0 found genuine title

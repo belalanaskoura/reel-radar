@@ -42,7 +42,12 @@ export async function resolveDisplayReleaseDate(
     // fall through to the ambiguous top-level date below
   }
 
-  return { releaseDate: tmdbFallbackDate, isEgyptConfirmed: false };
+  // TMDB's top-level release_date can be an empty string, not null, for a
+  // movie with no confirmed date at all (confirmed for real: "Shamshon W
+  // Dalila" returns release_date: "") -- normalize it the same way the
+  // pre-existing `egyptInfo.releaseDate || m.release_date || null` call
+  // sites always did, so a `date` column never gets an empty string.
+  return { releaseDate: tmdbFallbackDate || null, isEgyptConfirmed: false };
 }
 
 // elCinema is the source of truth for a matched movie's Egypt release
