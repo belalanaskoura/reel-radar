@@ -3,7 +3,7 @@ import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { fetchUpcomingMovies } from '@/lib/tmdb';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
 import { isLikelyEgyptRelease } from '@/lib/matching/egypt-distributor-filter';
-import { getEgyptReleaseInfo } from '@/lib/matching/egypt-release-date';
+import { getEgyptReleaseInfo, resolveDisplayReleaseDate } from '@/lib/matching/egypt-release-date';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
 import { notifyNewReleases } from '@/lib/matching/notify-new-releases';
@@ -104,6 +104,7 @@ async function runSync(
     original_title: string;
     poster_path: string | null;
     release_date: string | null;
+    release_date_confirmed_eg: boolean;
     popularity: number;
     match_status: 'matched';
   };
@@ -113,6 +114,7 @@ async function runSync(
 
   await mapWithConcurrency(movies, SYNC_CONCURRENCY, async (m) => {
     const egyptInfo = await getEgyptReleaseInfo(supabase, m.id, m.title);
+    const displayDate = await resolveDisplayReleaseDate(egyptInfo, m.id, m.release_date || null);
     const existingPlaceholderId = await findExistingMovieByTitle(supabase, m.title, {
       placeholdersOnly: true,
     });
@@ -121,7 +123,8 @@ async function runSync(
       title: m.title,
       original_title: m.original_title,
       poster_path: m.poster_path || egyptInfo.posterUrl || null,
-      release_date: egyptInfo.releaseDate || m.release_date || null,
+      release_date: displayDate.releaseDate,
+      release_date_confirmed_eg: displayDate.isEgyptConfirmed,
       popularity: m.popularity,
       match_status: 'matched' as const,
     };

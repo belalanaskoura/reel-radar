@@ -1,10 +1,48 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchWorkDetails, searchElCinema, sleep, REQUEST_DELAY_MS } from '../elcinema/fetcher';
 import { normalizeTitle } from './normalize';
+import { getUsTheatricalReleaseDate } from '../tmdb';
 
 export interface EgyptReleaseInfo {
   releaseDate: string | null;
   posterUrl: string | null;
+}
+
+export interface DisplayReleaseDate {
+  releaseDate: string | null;
+  // false whenever `releaseDate` is a fallback (TMDB's US date, or its
+  // ambiguous top-level release_date as a last resort) rather than a real
+  // Egypt-confirmed one -- callers use this to label the date in the UI
+  // instead of presenting a guess as fact.
+  isEgyptConfirmed: boolean;
+}
+
+// Resolves the date to actually display for a movie: elCinema's Egypt date
+// (already-fetched via getEgyptReleaseInfo, passed in rather than
+// re-fetched since callers already need that same call for the poster
+// fallback too) when known, else TMDB's real US theatrical date, else
+// TMDB's own ambiguous top-level release_date as a last resort (confirmed
+// for real: TMDB's top-level field is not reliably any one country --
+// "Primetime" resolved to Canada's date there while TMDB's own website
+// prominently shows the US date instead). `tmdbFallbackDate` is the
+// caller's already-fetched TmdbMovie.release_date.
+export async function resolveDisplayReleaseDate(
+  egyptInfo: EgyptReleaseInfo,
+  tmdbId: number,
+  tmdbFallbackDate: string | null,
+): Promise<DisplayReleaseDate> {
+  if (egyptInfo.releaseDate) {
+    return { releaseDate: egyptInfo.releaseDate, isEgyptConfirmed: true };
+  }
+
+  try {
+    const usDate = await getUsTheatricalReleaseDate(tmdbId);
+    if (usDate) return { releaseDate: usDate, isEgyptConfirmed: false };
+  } catch {
+    // fall through to the ambiguous top-level date below
+  }
+
+  return { releaseDate: tmdbFallbackDate, isEgyptConfirmed: false };
 }
 
 // elCinema is the source of truth for a matched movie's Egypt release

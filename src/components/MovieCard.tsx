@@ -8,6 +8,7 @@ export interface MovieCardData {
   id: string;
   title: string;
   release_date: string | null;
+  release_date_confirmed_eg: boolean;
   poster_path: string | null;
   branches?: { branch_id: string; branch_name: string; bookable: boolean; bookableDayCount: number }[];
 }
@@ -87,7 +88,9 @@ export function MovieCard({
           </Link>
           <p className="mt-0.5 text-xs tabular-nums" style={{ color: 'var(--ink-dim)' }}>
             {movie.release_date
-              ? `${isBookable ? 'Released' : 'Release'}: ${movie.release_date}`
+              ? `${isBookable ? 'Released' : 'Release'}: ${movie.release_date}${
+                  !isBookable && !movie.release_date_confirmed_eg ? ' (US)' : ''
+                }`
               : 'Release date TBA'}
           </p>
         </div>

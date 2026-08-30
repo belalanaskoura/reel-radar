@@ -5,6 +5,7 @@ create table "public"."movies" (
   "original_title" text,
   "poster_path"    text,
   "release_date"   date,
+  "release_date_confirmed_eg" boolean       not null default false,
   "match_status"   text                     not null default 'unmatched'::text,
   "created_at"     timestamp with time zone not null default now(),
   "popularity"     numeric,
@@ -19,6 +20,12 @@ alter table "public"."movies"
   enable row level security;
 
 create index movies_release_date_idx on public.movies using btree (release_date);
+
+-- release_date_confirmed_eg is false whenever release_date is a fallback
+-- (TMDB's US theatrical date, or its ambiguous top-level release_date as a
+-- last resort) rather than a real elCinema/EG-confirmed date -- see
+-- resolveDisplayReleaseDate() in src/lib/matching/egypt-release-date.ts.
+-- The UI labels an unconfirmed date instead of presenting a guess as fact.
 
 -- Written only by scrape-scene/scrape-vox on placeholder insert, to close
 -- a duplicate-movie race -- see migration 0103's comment for the full
