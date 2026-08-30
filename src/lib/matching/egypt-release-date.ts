@@ -29,30 +29,39 @@ export async function getEgyptReleaseInfo(
 ): Promise<EgyptReleaseInfo> {
   const { data: existing } = await supabase
     .from('egypt_releases')
-    .select('elcinema_id, release_date, poster_url')
+    .select('elcinema_id, release_date, release_year, poster_url')
     .eq('tmdb_id', tmdbId)
     .maybeSingle();
 
   if (existing) {
-    // `poster_url` was added after the original historical backfill
-    // populated this table, so a cached row with no poster_url means
-    // "never checked for a poster," not "confirmed no poster." Do one
-    // cheap targeted re-fetch of the already-known work page (no search
-    // needed) to backfill it in that case, rather than trusting a stale
-    // null forever.
-    if (existing.poster_url === null && existing.elcinema_id) {
+    // A cached row with a null poster_url or null release_date means
+    // "never (successfully) found one," not "confirmed absent forever" --
+    // elCinema's own release-dates table genuinely fills in over time as a
+    // distributor confirms a country's date (confirmed for real: "Primetime"
+    // had zero country entries at match time, Canada's date appeared later).
+    // Re-check both together with one cheap targeted re-fetch of the
+    // already-known work page (no search needed) rather than trusting a
+    // stale null forever. Bounded to release_year >= last year so this
+    // doesn't keep re-fetching an old title that will never get a date.
+    const releaseDateStillPending =
+      existing.release_date === null &&
+      (existing.release_year === null || existing.release_year >= new Date().getFullYear() - 1);
+    if ((existing.poster_url === null || releaseDateStillPending) && existing.elcinema_id) {
       try {
         const details = await fetchWorkDetails(existing.elcinema_id);
         await sleep(REQUEST_DELAY_MS);
-        if (details.posterUrl) {
-          await supabase
-            .from('egypt_releases')
-            .update({ poster_url: details.posterUrl })
-            .eq('elcinema_id', existing.elcinema_id);
+        const update: Record<string, string> = {};
+        if (details.posterUrl) update.poster_url = details.posterUrl;
+        if (details.releaseDate) update.release_date = details.releaseDate;
+        if (Object.keys(update).length > 0) {
+          await supabase.from('egypt_releases').update(update).eq('elcinema_id', existing.elcinema_id);
         }
-        return { releaseDate: existing.release_date ?? null, posterUrl: details.posterUrl };
+        return {
+          releaseDate: details.releaseDate ?? existing.release_date ?? null,
+          posterUrl: details.posterUrl ?? existing.poster_url ?? null,
+        };
       } catch {
-        return { releaseDate: existing.release_date ?? null, posterUrl: null };
+        return { releaseDate: existing.release_date ?? null, posterUrl: existing.poster_url ?? null };
       }
     }
 
