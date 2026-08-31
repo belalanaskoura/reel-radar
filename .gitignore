@@ -22,7 +22,13 @@
 
 # misc
 .DS_Store
+Thumbs.db
+desktop.ini
 *.pem
+
+# editors
+.vscode/
+.idea/
 
 # debug
 npm-debug.log*
@@ -59,3 +65,9 @@ AGENTS.md
 # reason: it lists the findings that are still OPEN, with file and line.
 # In a public repo fronting a live site that is a roadmap, not a changelog.
 /docs/SECURITY-CHANGES.md
+
+# Impeccable design skill's own scratch output (screenshots, generated
+# comps) -- .impeccable/config.json itself stays tracked, this only
+# ignores the working directories the skill writes during a session.
+.impeccable/review/
+.impeccable/mocks/

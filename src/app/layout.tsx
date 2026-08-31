@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Bebas_Neue, Inter } from "next/font/google";
+import { Poppins, Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import { NavBar } from "@/components/NavBar";
 import { SearchProvider } from "@/components/SearchProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -26,14 +27,41 @@ const NO_FLASH_THEME_SCRIPT = `
 })();
 `;
 
-const bebasNeue = Bebas_Neue({
+// Curve Retro -- a single-weight retro display face, commercially
+// licensed for this app (confirmed by the user; 1001fonts FFP license
+// bundled with the download is personal-use-only on its own). Replaces
+// Athelas as the brand's display voice: headlines, wordmark, movie
+// titles. One weight, no italic -- accent treatment uses color, not a
+// faux-italic/faux-bold the font file doesn't actually provide.
+const curveRetro = localFont({
+  src: "../fonts/CurveRetro-Regular.ttf",
   variable: "--font-marquee",
   weight: "400",
+  display: "swap",
+});
+
+// Poppins -- a geometric grotesk (SIL OFL, free for commercial use),
+// replacing Athelas as the body/UI voice everywhere .font-display isn't
+// used. Loaded via next/font/google (Poppins is a real Google Fonts
+// family) rather than the local .ttf files in the project's poppins.zip,
+// for automatic subsetting/self-hosting with no extra local font files
+// to maintain -- same visual result, less to carry in the repo.
+const poppins = Poppins({
+  variable: "--font-body",
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
-const inter = Inter({
-  variable: "--font-body",
+// Space Grotesk -- a geometric grotesk with more character than Poppins
+// (SIL OFL, free for commercial use; the project's space-grotesk.zip is
+// the same real Google Fonts family, loaded here via next/font/google
+// instead for the same reason Poppins is). Used only for section
+// sub-headings on the landing page ("Trending in Cairo" and its trending
+// movie card titles) -- a distinct voice between Curve Retro's big
+// display headlines and Poppins' body/UI text, not a site-wide swap.
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-subhead",
+  weight: ["500", "700"],
   subsets: ["latin"],
 });
 
@@ -111,7 +139,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   }
 
   return (
-    <html lang="en" className={`${bebasNeue.variable} ${inter.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${curveRetro.variable} ${poppins.variable} ${spaceGrotesk.variable}`} suppressHydrationWarning>
       <head>
         <Script id="no-flash-theme" strategy="beforeInteractive">
           {NO_FLASH_THEME_SCRIPT}
