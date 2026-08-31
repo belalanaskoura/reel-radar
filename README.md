@@ -239,7 +239,8 @@ up a fresh project, you'll need to create the core tables yourself:
 `notification_log`, `notification_deliveries`, `profiles`,
 `push_subscriptions`, `feedback`, `egypt_releases`, `egypt_distributors`,
 `scene_price_templates`, `analytics_events`, `welcome_email_log`,
-`error_log`, `rate_limits`.
+`error_log`, `rate_limits` (plus the `check_rate_limit()` function
+rate-limiting depends on — see `supabase/migrations/0100_rate_limits.sql`).
 
 ### Environment Variables
 
@@ -259,6 +260,7 @@ up a fresh project, you'll need to create the core tables yourself:
 | `ADMIN_SESSION_SECRET` | Server-only, signs a short-lived (60s) cache cookie so rapid `/admin` tab clicks skip re-verifying with Supabase Auth on every single navigation. Any long random string, e.g. `openssl rand -base64 32`. |
 | `VAPID_SUBJECT` | `mailto:` contact address sent with every push message, per the Web Push spec |
 | `OMDB_API_KEY` | [OMDb API](https://www.omdbapi.com/apikey.aspx) key, used for IMDb/Metacritic/Rotten Tomatoes ratings on the movie detail page's Reviews tab |
+| `NEXT_PUBLIC_SITE_URL` | Canonical production URL (e.g. `https://reelradar.online`), used for metadata/sitemap/robots.txt, password-reset redirects, and building absolute links in notification emails/push messages. Falls back to `https://reelradar.online` where the code allows it, but should be set explicitly for any other deployment. |
 
 Google sign-in is configured entirely in the Supabase dashboard
 (Authentication → Providers → Google) and the corresponding Google Cloud
@@ -329,6 +331,19 @@ backfills / corrections, not part of the regular scheduled-job loop:
   in missing posters from elCinema, then Scene Cinemas, for existing
   movies that have neither a TMDB nor (in the first script's case) an
   elCinema poster.
+- `backfill-vox-posters.ts` — the VOX-specific equivalent, for movies
+  discovered only via `scrape-vox` before it had its own poster
+  fallback.
+- `recheck-tmdb-release-dates.ts` — re-checks every already-matched
+  movie's release date against the current elCinema/TMDB fallback chain,
+  a superset of `backfill-movie-release-dates.ts` that also catches a
+  row whose stored TMDB date has since drifted.
+- `cleanup-title-duplicates.ts` — one-time collapse of duplicate `movies`
+  rows created before the TMDB-sync/scraper title-check fix
+  (`find-existing-movie.ts`).
+- `dedupe-slug-race-condition.ts` — one-time cleanup for duplicate
+  placeholder rows created by a scrape-scene check-then-insert race,
+  before the `(branch_id, slug)` unique constraint existed.
 - `cleanup-distributor-filter.ts` — retroactively re-checks the catalog
   against a tightened distributor allowlist.
 
