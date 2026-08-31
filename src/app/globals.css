@@ -152,10 +152,59 @@ body {
   border-color: var(--accent);
 }
 
-/* Marquee display face -- used for the wordmark and movie titles only. */
+/* Marquee display face (Curve Retro) -- used for the wordmark and movie
+   titles. Single weight, no italic; a small positive tracking suits its
+   rounded retro letterforms better than either of the previous two
+   pairings' spacing choices. */
 .font-display {
   font-family: var(--font-marquee), var(--font-body), sans-serif;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+}
+
+/* Sub-heading face (Space Grotesk) -- landing-page-only, scoped to
+   section labels below the main Curve Retro hero (see page.tsx). Not a
+   site-wide class the way .font-display is. */
+.font-subhead {
+  font-family: var(--font-subhead), var(--font-body), sans-serif;
+}
+
+/* Landing page CTAs -- a real pressed/lifted state instead of the site's
+   default opacity-fade hover, reserved for this page's two primary
+   commitment buttons (every other button/link site-wide keeps the
+   existing hover:opacity pattern, unchanged). */
+.marquee-cta-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 2px 0 0 color-mix(in srgb, var(--accent) 55%, black 30%);
+}
+.marquee-cta-primary:hover {
+  box-shadow: 0 3px 0 0 color-mix(in srgb, var(--accent) 55%, black 30%);
+}
+.marquee-cta-primary:active {
+  box-shadow: 0 1px 0 0 color-mix(in srgb, var(--accent) 55%, black 30%);
+}
+
+.marquee-cta-secondary {
+  border-color: var(--rule);
+  color: var(--ink);
+  background: var(--surface);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.marquee-cta-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.marquee-text-link {
+  position: relative;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+.marquee-text-link:hover {
+  text-decoration-color: var(--accent-dim);
+  color: var(--ink);
 }
 
 .poster-card {
@@ -303,6 +352,16 @@ body {
   .poster-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 0 0 1px var(--rule), 0 0 20px 0 color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  .marquee-cta-primary {
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .marquee-cta-primary:hover {
+    transform: translateY(-1px);
+  }
+  .marquee-cta-primary:active {
+    transform: translateY(1px);
   }
 
   .showtime-pill {

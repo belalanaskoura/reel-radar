@@ -58,16 +58,11 @@ export default async function LandingPage() {
         />
 
         <div className="relative mx-auto flex max-w-5xl flex-col items-center px-4 py-24 text-center sm:px-6 sm:py-36">
-          {/* Live pill */}
-          <div
-            className="mb-8 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-medium tracking-widest uppercase"
-            style={{ borderColor: 'var(--rule)', background: 'var(--surface)', color: 'var(--accent-dim)' }}
-          >
-            Cairo Cinema Updates
-          </div>
-
-          {/* Headline */}
-          <h1 className="font-display mb-6 leading-none" style={{ color: 'var(--ink)' }}>
+          {/* Headline -- Curve Retro is a single-weight display face with
+              no real italic, so the accent line uses a solid color swap
+              (this app's existing convention) rather than a faux-italic,
+              which would distort a display face's letterforms. */}
+          <h1 className="font-display mb-3 leading-none" style={{ color: 'var(--ink)' }}>
             <span className="block text-6xl sm:text-8xl lg:text-[110px]">NEVER MISS A</span>
             <span
               className="block text-6xl sm:text-8xl lg:text-[110px]"
@@ -88,16 +83,14 @@ export default async function LandingPage() {
           <div className="flex flex-col items-center gap-3 sm:flex-row">
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2 rounded-sm px-6 py-3 text-sm font-semibold tracking-wide transition-opacity hover:opacity-90"
-              style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+              className="marquee-cta-primary inline-flex items-center gap-2 rounded-sm px-6 py-3 text-sm font-semibold tracking-wide"
             >
               START YOUR WATCHLIST
               <ArrowRight />
             </Link>
             <Link
               href="/cinemas"
-              className="inline-flex items-center gap-2 rounded-sm border px-6 py-3 text-sm font-semibold tracking-wide transition-opacity hover:opacity-80"
-              style={{ borderColor: 'var(--rule)', color: 'var(--ink)', background: 'var(--surface)' }}
+              className="marquee-cta-secondary inline-flex items-center gap-2 rounded-sm border px-6 py-3 text-sm font-semibold tracking-wide"
             >
               BROWSE CINEMAS
             </Link>
@@ -114,7 +107,7 @@ export default async function LandingPage() {
           <div className="mb-8 flex items-end justify-between">
             <div>
               <h2
-                className="font-display text-4xl leading-none sm:text-5xl"
+                className="font-subhead text-3xl font-bold leading-none sm:text-4xl"
                 style={{ color: 'var(--ink)' }}
               >
                 TRENDING IN CAIRO
@@ -187,15 +180,14 @@ export default async function LandingPage() {
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2 rounded-sm px-6 py-3 text-sm font-semibold tracking-wide transition-opacity hover:opacity-90"
-              style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
+              className="marquee-cta-primary inline-flex items-center gap-2 rounded-sm px-6 py-3 text-sm font-semibold tracking-wide"
             >
               CREATE FREE ACCOUNT
               <ArrowRight />
             </Link>
             <Link
               href="/browse"
-              className="text-sm transition-opacity hover:opacity-70"
+              className="marquee-text-link text-sm"
               style={{ color: 'var(--ink-dim)' }}
             >
               Or browse without signing up
@@ -328,7 +320,7 @@ function TrendingCard({
       {/* Info at bottom */}
       <div className="absolute right-0 bottom-0 left-0 p-4">
         <h3
-          className="font-display mb-1 text-2xl leading-tight"
+          className="font-subhead mb-1 text-xl font-bold leading-tight"
           style={{ color: '#ffffff' }}
         >
           {title}
