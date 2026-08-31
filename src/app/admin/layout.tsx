@@ -4,6 +4,11 @@ import { createClient } from '@/lib/supabase/server';
 import { isAdminUser } from '@/lib/admin';
 import { ADMIN_VERIFIED_HEADER } from '@/proxy';
 
+// Raised from Hobby's default 10s so triggerJob's admin-initiated
+// scrape-scene re-scrape (actions.ts) can loop every offset batch for a
+// branch in one request instead of timing out partway through.
+export const maxDuration = 60;
+
 // The real gate is in proxy.ts (a redirect thrown here can't reliably
 // change the response status once the root layout has started
 // streaming -- see proxy.ts's comment). This is a second, redundant

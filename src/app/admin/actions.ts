@@ -33,6 +33,15 @@ async function requireAdmin() {
   }
 }
 
+// scrape-scene processes one BATCH_SIZE=10 slice of a branch's listing
+// per call (?offset=) -- cron-job.org covers a full branch by calling it
+// several times at staggered offsets, but an admin's single "Re-scrape"
+// click was only ever calling offset=0, so it could never reach (and
+// never clear the staleness of) any listing past the first 10 movies.
+// Capped at 20 batches (200 movies) so a runaway listing can't turn one
+// click into an unbounded loop against admin/layout.tsx's maxDuration=60.
+const MAX_SCRAPE_SCENE_BATCHES = 20;
+
 export async function triggerJob(
   job: JobName,
   params?: { branch?: string },
@@ -45,18 +54,53 @@ export async function triggerJob(
     return { ok: false, message: 'Missing NEXT_PUBLIC_SITE_URL or SYNC_SECRET configuration' };
   }
 
-  const url = new URL(JOB_ROUTES[job], siteUrl);
-  if (params?.branch) url.searchParams.set('branch', params.branch);
-
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'x-sync-secret': secret },
-    });
-    const body = await res.json().catch(() => null);
+    let body: unknown;
 
-    if (!res.ok) {
-      return { ok: false, message: (body?.error as string) ?? `Request failed (${res.status})` };
+    if (job === 'scrape-scene') {
+      const batches: unknown[] = [];
+      for (let i = 0; i < MAX_SCRAPE_SCENE_BATCHES; i++) {
+        const url = new URL(JOB_ROUTES[job], siteUrl);
+        if (params?.branch) url.searchParams.set('branch', params.branch);
+        url.searchParams.set('offset', String(i * 10));
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'x-sync-secret': secret },
+        });
+        const batchBody = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: (batchBody?.error as string) ?? `Request failed (${res.status})`,
+          };
+        }
+
+        batches.push(batchBody);
+
+        const coveredFullBatch = Object.values(batchBody as Record<string, unknown>).every(
+          (stats) => ((stats as Record<string, unknown>).batchSize as number | undefined) === 10,
+        );
+        if (!coveredFullBatch) break;
+      }
+      body = mergeScrapeSceneBatches(batches);
+    } else {
+      const url = new URL(JOB_ROUTES[job], siteUrl);
+      if (params?.branch) url.searchParams.set('branch', params.branch);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'x-sync-secret': secret },
+      });
+      body = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: ((body as Record<string, unknown>)?.error as string) ?? `Request failed (${res.status})`,
+        };
+      }
     }
 
     revalidatePath('/admin');
@@ -68,6 +112,29 @@ export async function triggerJob(
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Request failed' };
   }
+}
+
+// Combines each offset batch's per-branch { listed, batchSize, bookable }
+// into one summary: listed/bookable counts add up across batches (the
+// admin-facing message should reflect the whole re-scrape, not just the
+// last slice), batchSize is dropped so summarize()'s "(batch of N)" note
+// -- accurate for a single partial batch -- doesn't misleadingly imply
+// this multi-batch run only covered part of the branch.
+function mergeScrapeSceneBatches(batches: unknown[]): Record<string, unknown> {
+  const merged: Record<string, { listed: number; bookable: number }> = {};
+  for (const batch of batches) {
+    if (!batch || typeof batch !== 'object') continue;
+    for (const [branch, stats] of Object.entries(batch as Record<string, unknown>)) {
+      const s = stats as Record<string, unknown>;
+      const listed = (s.listed as number) ?? 0;
+      const bookable = (s.bookable as number) ?? 0;
+      // listed is the branch's total listing size, same every batch --
+      // take the max seen rather than summing it.
+      const prev = merged[branch] ?? { listed: 0, bookable: 0 };
+      merged[branch] = { listed: Math.max(prev.listed, listed), bookable: prev.bookable + bookable };
+    }
+  }
+  return merged;
 }
 
 // Fetches live TMDB candidates for one backlog movie, on demand (not for
