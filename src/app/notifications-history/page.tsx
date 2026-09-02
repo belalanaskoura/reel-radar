@@ -108,10 +108,13 @@ export default async function NotificationsHistoryPage() {
 function NotificationRow({ notification }: { notification: LogRow }) {
   const isUnread = !notification.read_at;
   const date = new Date(notification.sent_at);
-  const dateLabel = date.toLocaleDateString(undefined, {
+  const dateLabel = date.toLocaleString('en-US', {
+    timeZone: 'Africa/Cairo',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 
   const body = (

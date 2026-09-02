@@ -23,5 +23,15 @@ export interface LineupRemovedNotification {
 }
 
 export function formatCheckedTimestamp(): string {
-  return new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')} EET`;
 }
