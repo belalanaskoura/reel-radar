@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@sparticuz/chromium-min": "^149.0.0",
-    "@supabase/ssr": "^0.12.4",
+    "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.0",
     "@tailwindcss/postcss": "^4.3.3",
     "cheerio": "^1.2.0",
