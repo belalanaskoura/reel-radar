@@ -79,8 +79,11 @@ export function MovieCard({
       <div className="flex flex-col gap-1.5 p-2.5">
         <div>
           <Link href={`/movies/${movie.id}`} className="block hover:opacity-80">
+            {/* Curve Retro sets wide, all-caps letterforms, so text-lg truncated
+                most titles in the two-up mobile grid; step it down below sm and
+                keep the original size once the cards get wider. */}
             <h3
-              className="font-display line-clamp-1 text-lg leading-tight uppercase"
+              className="font-display line-clamp-1 text-sm leading-tight uppercase sm:text-lg"
               style={{ color: 'var(--ink)' }}
             >
               {movie.title}

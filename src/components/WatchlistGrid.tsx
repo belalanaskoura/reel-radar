@@ -318,8 +318,10 @@ export function WatchlistGrid({
                 <div className="flex flex-1 flex-col gap-2 p-3">
                   <div>
                     <Link href={`/movies/${movie.id}`} className="hover:opacity-80">
+                      {/* Matches MovieCard: the all-caps display face is too wide
+                          at text-lg for the two-up mobile grid. */}
                       <h2
-                        className="font-display line-clamp-1 text-lg leading-tight uppercase"
+                        className="font-display line-clamp-1 text-sm leading-tight uppercase sm:text-lg"
                         style={{ color: 'var(--ink)' }}
                       >
                         {movie.title}
