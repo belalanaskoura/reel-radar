@@ -58,7 +58,14 @@ export function CinemaFilterDropdown({
       {mounted && (
         <ul
           role="listbox"
-          className={`absolute top-full right-0 z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-lg border shadow-lg ${animationClass}`}
+          /* Anchored to the trigger's LEFT edge, unlike FilterDropdown's
+             right-anchored menu: this dropdown is the first control in the
+             filter row, so a right-anchored w-56 panel hangs off the left
+             of the trigger and, on a phone-width screen where the trigger
+             sits near the page's left padding, spills past the viewport
+             edge and gets clipped mid-label. Left-anchoring keeps the panel
+             growing inward from a control that's already at the left. */
+          className={`absolute top-full left-0 z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] origin-top-left overflow-hidden rounded-lg border shadow-lg ${animationClass}`}
           style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
         >
           <li>
