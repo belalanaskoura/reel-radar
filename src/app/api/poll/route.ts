@@ -18,6 +18,16 @@ import { mapWithConcurrency } from '@/lib/concurrency';
 // uses for TMDB calls.
 const NOTIFY_CONCURRENCY = 10;
 
+// Pairs checked (one real Scene/elCinema request each) per call. Poll
+// grew past cron-job.org's 30s job timeout and admin's manual-trigger
+// maxDuration=60 alike once the watched catalog reached 54 pairs (real
+// runs logging duration_ms in the 60000-70000 range) -- both reported
+// the job as failed even though it always finished with pair_errors: 0.
+// Same offset-batching fix as scrape-scene: cron-job.org calls this
+// several times at staggered offsets to cover every watched pair each
+// sweep, and admin's "Re-run" loops offsets itself (see actions.ts).
+const BATCH_SIZE = 15;
+
 // The centralized poll job: checks bookability for every (movie, branch)
 // pair that at least one user is watching, never per-user (per the
 // Phase 1 scaling constraint), and notifies each watcher exactly once
@@ -28,6 +38,13 @@ const NOTIFY_CONCURRENCY = 10;
 export async function POST(request: Request) {
   if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const url = new URL(request.url);
+  const offsetParam = url.searchParams.get('offset');
+  const offset = offsetParam ? Number(offsetParam) : 0;
+  if (!Number.isFinite(offset) || offset < 0) {
+    return NextResponse.json({ error: `Invalid offset: ${offsetParam}` }, { status: 400 });
   }
 
   const startedAt = Date.now();
@@ -42,21 +59,30 @@ export async function POST(request: Request) {
   if (distinctMovieIds.length === 0) {
     logEvent({
       type: 'poll_run',
-      payload: { checked: 0, notified: 0, pair_errors: 0, duration_ms: Date.now() - startedAt },
+      payload: { checked: 0, notified: 0, pair_errors: 0, duration_ms: Date.now() - startedAt, batchSize: 0, offset },
     });
-    return NextResponse.json({ checked: 0, notified: 0 });
+    return NextResponse.json({ checked: 0, notified: 0, batchSize: 0 });
   }
 
-  const { data: slugRows } = await supabase
+  // Ordered explicitly: without it Postgres gives no row-order guarantee
+  // at all, so staggered offset calls (0, 15, 30, ...) could each see a
+  // differently-shuffled result set, skipping some pairs and re-checking
+  // others instead of the whole watched set being covered exactly once
+  // per sweep.
+  const { data: allSlugRows } = await supabase
     .from('movie_branch_slugs')
     .select('movie_id, branch_id, slug')
-    .in('movie_id', distinctMovieIds);
+    .in('movie_id', distinctMovieIds)
+    .order('movie_id', { ascending: true })
+    .order('branch_id', { ascending: true });
+
+  const slugRows = (allSlugRows ?? []).slice(offset, offset + BATCH_SIZE);
 
   let checked = 0;
   let notified = 0;
   let pairErrors = 0;
 
-  for (const row of slugRows ?? []) {
+  for (const row of slugRows) {
     const branch = row.branch_id;
 
     try {
@@ -144,10 +170,17 @@ export async function POST(request: Request) {
 
   logEvent({
     type: 'poll_run',
-    payload: { checked, notified, pair_errors: pairErrors, duration_ms: Date.now() - startedAt },
+    payload: {
+      checked,
+      notified,
+      pair_errors: pairErrors,
+      duration_ms: Date.now() - startedAt,
+      batchSize: slugRows.length,
+      offset,
+    },
   });
 
-  return NextResponse.json({ checked, notified });
+  return NextResponse.json({ checked, notified, batchSize: slugRows.length });
 }
 
 async function notifyWatchers(

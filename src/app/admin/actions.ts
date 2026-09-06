@@ -42,6 +42,15 @@ async function requireAdmin() {
 // click into an unbounded loop against admin/layout.tsx's maxDuration=60.
 const MAX_SCRAPE_SCENE_BATCHES = 20;
 
+// poll has the same shape of problem: it processes BATCH_SIZE=15
+// watched (movie, branch) pairs per call (?offset=) since the full set
+// started taking 60-70s in one shot, well past both cron-job.org's 30s
+// job timeout and this layout's own maxDuration=60 -- both reported the
+// job as failed even though it always completed with pair_errors: 0.
+// Capped at 20 batches (300 pairs) for the same runaway-catalog reason
+// as scrape-scene above.
+const MAX_POLL_BATCHES = 20;
+
 export async function triggerJob(
   job: JobName,
   params?: { branch?: string },
@@ -85,6 +94,31 @@ export async function triggerJob(
         if (!coveredFullBatch) break;
       }
       body = mergeScrapeSceneBatches(batches);
+    } else if (job === 'poll') {
+      const batches: unknown[] = [];
+      for (let i = 0; i < MAX_POLL_BATCHES; i++) {
+        const url = new URL(JOB_ROUTES[job], siteUrl);
+        url.searchParams.set('offset', String(i * 15));
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'x-sync-secret': secret },
+        });
+        const batchBody = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: (batchBody?.error as string) ?? `Request failed (${res.status})`,
+          };
+        }
+
+        batches.push(batchBody);
+
+        const coveredFullBatch = (batchBody as Record<string, unknown> | null)?.batchSize === 15;
+        if (!coveredFullBatch) break;
+      }
+      body = mergePollBatches(batches);
     } else {
       const url = new URL(JOB_ROUTES[job], siteUrl);
       if (params?.branch) url.searchParams.set('branch', params.branch);
@@ -135,6 +169,21 @@ function mergeScrapeSceneBatches(batches: unknown[]): Record<string, unknown> {
     }
   }
   return merged;
+}
+
+// checked/notified both add up across offset batches -- unlike
+// mergeScrapeSceneBatches's per-branch `listed`, poll has no "total size"
+// figure that would be wrong to sum, so this is simpler.
+function mergePollBatches(batches: unknown[]): Record<string, unknown> {
+  let checked = 0;
+  let notified = 0;
+  for (const batch of batches) {
+    if (!batch || typeof batch !== 'object') continue;
+    const b = batch as Record<string, unknown>;
+    checked += (b.checked as number) ?? 0;
+    notified += (b.notified as number) ?? 0;
+  }
+  return { checked, notified };
 }
 
 // Fetches live TMDB candidates for one backlog movie, on demand (not for

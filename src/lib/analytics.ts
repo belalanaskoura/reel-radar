@@ -26,7 +26,17 @@ type AnalyticsEvent =
     }
   | {
       type: 'poll_run';
-      payload: { checked: number; notified: number; pair_errors: number; duration_ms: number };
+      payload: {
+        checked: number;
+        notified: number;
+        pair_errors: number;
+        duration_ms: number;
+        // poll is now batched by offset for the same reason scrape-scene
+        // is (see poll/route.ts) -- batchSize/offset describe what this
+        // specific run covered, not the full watched-pairs count.
+        batchSize?: number;
+        offset?: number;
+      };
     }
   | {
       type: 'match_run';
