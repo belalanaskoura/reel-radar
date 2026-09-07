@@ -202,7 +202,7 @@ export default async function LandingPage() {
         style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
       >
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
             <div className="col-span-2 sm:col-span-2">
               <div className="mb-2 flex items-center gap-2">
                 <RadarLogo size={24} />
@@ -227,6 +227,29 @@ export default async function LandingPage() {
               </p>
               <ul className="flex flex-col gap-2">
                 {[['Movies', '/browse'], ['Cinemas', '/cinemas'], ['Watchlist', '/watchlist']].map(
+                  ([label, href]) => (
+                    <li key={label}>
+                      <Link
+                        href={href}
+                        className="text-xs transition-opacity hover:opacity-70"
+                        style={{ color: 'var(--ink-dim)' }}
+                      >
+                        {label}
+                      </Link>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+            <div>
+              <p
+                className="mb-3 text-[10px] font-semibold tracking-widest uppercase"
+                style={{ color: 'var(--accent-dim)' }}
+              >
+                Legal
+              </p>
+              <ul className="flex flex-col gap-2">
+                {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Cookies', '/cookies']].map(
                   ([label, href]) => (
                     <li key={label}>
                       <Link

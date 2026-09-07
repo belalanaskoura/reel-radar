@@ -96,6 +96,18 @@ export default async function SignupPage({
             Sign in
           </Link>
         </p>
+
+        <p className="mt-6 text-xs leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
+          By signing up, you agree to our{' '}
+          <Link href="/terms" className="underline" style={{ color: 'var(--accent)' }}>
+            Terms
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy" className="underline" style={{ color: 'var(--accent)' }}>
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </div>
     </main>
   );

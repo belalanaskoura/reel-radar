@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { PageTransition } from "@/components/PageTransition";
 import { PushPrompt } from "@/components/PushPrompt";
 import { ProductUpdates } from "@/components/ProductUpdates";
+import { CookieNotice } from "@/components/CookieNotice";
 import { createClient } from "@/lib/supabase/server";
 import { logError } from "@/lib/logger";
 import "./globals.css";
@@ -151,6 +152,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <NavBar />
             <PageTransition>{children}</PageTransition>
             {showPushPrompt ? <PushPrompt /> : user ? <ProductUpdates /> : null}
+            <CookieNotice />
           </SearchProvider>
         </ThemeProvider>
       </body>
