@@ -26,7 +26,20 @@ const NOTIFY_CONCURRENCY = 10;
 // Same offset-batching fix as scrape-scene: cron-job.org calls this
 // several times at staggered offsets to cover every watched pair each
 // sweep, and admin's "Re-run" loops offsets itself (see actions.ts).
-const BATCH_SIZE = 15;
+//
+// Batched per chain, not as one flat interleaved list: a flat BATCH_SIZE
+// mixed cheap Scene bookability checks with expensive VOX ones unevenly
+// -- confirmed for real, a 15-pair batch that happened to land 9 VOX
+// pairs (each a full elCinema detail fetch, some hitting the fetcher's
+// per-request timeout, plus a 1s delay between each) took over 30s on
+// its own while a Scene-only batch of the same size finished in single
+// digits. Scene stays large since each check is cheap; VOX is kept to 2
+// so even a full-timeout worst case (2 x (REQUEST_TIMEOUT_MS + 1s delay))
+// stays comfortably under cron-job.org's 30s job ceiling.
+const BATCH_SIZE: Record<'scene' | 'vox', number> = {
+  scene: 15,
+  vox: 2,
+};
 
 // The centralized poll job: checks bookability for every (movie, branch)
 // pair that at least one user is watching, never per-user (per the
@@ -41,6 +54,12 @@ export async function POST(request: Request) {
   }
 
   const url = new URL(request.url);
+  const chainParam = url.searchParams.get('chain');
+  if (chainParam && chainParam !== 'scene' && chainParam !== 'vox') {
+    return NextResponse.json({ error: `Unknown chain: ${chainParam}` }, { status: 400 });
+  }
+  const chainFilter = chainParam as 'scene' | 'vox' | null;
+
   const offsetParam = url.searchParams.get('offset');
   const offset = offsetParam ? Number(offsetParam) : 0;
   if (!Number.isFinite(offset) || offset < 0) {
@@ -76,7 +95,17 @@ export async function POST(request: Request) {
     .order('movie_id', { ascending: true })
     .order('branch_id', { ascending: true });
 
-  const slugRows = (allSlugRows ?? []).slice(offset, offset + BATCH_SIZE);
+  // Split by chain before paging: a flat index-based slice across both
+  // chains is what caused the offset=30 batch to land mostly-VOX pairs
+  // and blow the timeout (see BATCH_SIZE's comment). No ?chain= (an old
+  // caller, or the distinctMovieIds-empty short-circuit above) covers
+  // every pair in one list, matching the pre-split behavior.
+  const chainRows = (allSlugRows ?? []).filter((row) => {
+    if (!chainFilter) return true;
+    return chainForBranch(row.branch_id) === chainFilter;
+  });
+  const effectiveBatchSize = chainFilter ? BATCH_SIZE[chainFilter] : BATCH_SIZE.scene + BATCH_SIZE.vox;
+  const slugRows = chainRows.slice(offset, offset + effectiveBatchSize);
 
   let checked = 0;
   let notified = 0;
@@ -177,6 +206,7 @@ export async function POST(request: Request) {
       duration_ms: Date.now() - startedAt,
       batchSize: slugRows.length,
       offset,
+      chain: chainFilter ?? undefined,
     },
   });
 

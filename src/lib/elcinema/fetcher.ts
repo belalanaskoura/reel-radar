@@ -4,7 +4,11 @@ const BASE_URL = 'https://elcinema.com';
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/120.0 Safari/537.36';
-const REQUEST_TIMEOUT_MS = 15_000;
+// Lowered from 15s: poll batches VOX pairs in small groups sized so a
+// full-timeout worst case still fits well under cron-job.org's 30s job
+// ceiling (see /api/poll's BATCH_SIZE comment) -- a stuck request eating
+// a third of that budget by itself defeated the point of a small batch.
+const REQUEST_TIMEOUT_MS = 8_000;
 
 // elCinema's robots.txt allows all crawlers (`User-agent: * / Allow: /`),
 // a real difference from Scene Cinemas' disallow-all policy; still

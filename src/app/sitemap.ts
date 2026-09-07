@@ -9,6 +9,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${siteUrl}/browse`, changeFrequency: 'hourly', priority: 0.9 },
     { url: `${siteUrl}/cinemas`, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${siteUrl}/signup`, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${siteUrl}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${siteUrl}/terms`, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${siteUrl}/cookies`, changeFrequency: 'yearly', priority: 0.2 },
   ];
 
   // A CI build with no repo secrets (a Dependabot PR, or any external

@@ -33,9 +33,13 @@ type AnalyticsEvent =
         duration_ms: number;
         // poll is now batched by offset for the same reason scrape-scene
         // is (see poll/route.ts) -- batchSize/offset describe what this
-        // specific run covered, not the full watched-pairs count.
+        // specific run covered, not the full watched-pairs count. chain
+        // is set once batching is also split per chain (Scene vs VOX
+        // have very different per-pair costs); absent for an unfiltered
+        // call covering both.
         batchSize?: number;
         offset?: number;
+        chain?: 'scene' | 'vox';
       };
     }
   | {
