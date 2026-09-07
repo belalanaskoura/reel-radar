@@ -16,7 +16,7 @@ export function SortToggle({
     <button
       type="button"
       onClick={() => onChange(value === 'asc' ? 'desc' : 'asc')}
-      className="flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm transition-opacity hover:opacity-80"
+      className="flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2"
       style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)', color: 'var(--ink)' }}
     >
       <SortIcon direction={value} />

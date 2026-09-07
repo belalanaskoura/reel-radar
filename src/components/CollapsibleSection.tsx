@@ -42,7 +42,7 @@ export function CollapsibleSection({
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-opacity hover:opacity-80"
+        className="flex w-full items-center gap-2.5 rounded-lg px-4 py-3 text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
       >
         {icon && (
           <div className="flex shrink-0 items-center" style={{ color: 'var(--accent)' }}>

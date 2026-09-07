@@ -7,23 +7,31 @@ export const metadata: Metadata = {
   description: 'The terms that govern your use of ReelRadar.',
 };
 
-const LAST_UPDATED = 'September 7, 2026';
+const LAST_UPDATED = 'September 8, 2026';
 const CONTACT_EMAIL = 'belalhamada489@gmail.com';
 
 export default function TermsPage() {
   return (
     <LegalPage title="Terms &amp; Conditions" updated={LAST_UPDATED}>
       <p>
-        These terms govern your use of ReelRadar (reelradar.online). By creating an account or
-        using the site, you agree to them. If you don&rsquo;t agree, please don&rsquo;t use the
-        service.
+        These terms govern your use of ReelRadar (reelradar.online), operated by an individual,
+        not a registered company. By creating an account or using the site, you agree to them.
+        If you don&rsquo;t agree, please don&rsquo;t use the service.
       </p>
 
       <LegalSection heading="1. What ReelRadar is">
         <p>
-          ReelRadar tracks movie showtimes at partner Cairo cinemas and notifies you when a movie
+          ReelRadar tracks movie showtimes at tracked Cairo cinemas and notifies you when a movie
           you&rsquo;re watching becomes bookable. We surface publicly available showtime and
           pricing information for your convenience.
+        </p>
+        <p>
+          <strong style={{ color: 'var(--ink)' }}>
+            ReelRadar is not affiliated with, endorsed by, or officially connected to any cinema
+            chain, distributor, or the TMDB/OMDb services referenced on this site.
+          </strong>{' '}
+          All cinema names, logos, and showtime data belong to their respective owners and are
+          used only to identify the cinemas and describe their public listings.
         </p>
         <p>
           <strong style={{ color: 'var(--ink)' }}>We do not sell tickets.</strong> ReelRadar

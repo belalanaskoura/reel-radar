@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: 'How ReelRadar collects, uses, and protects your data.',
 };
 
-const LAST_UPDATED = 'September 7, 2026';
+const LAST_UPDATED = 'September 8, 2026';
 const CONTACT_EMAIL = 'belalhamada489@gmail.com';
 
 export default function PrivacyPolicyPage() {
@@ -16,8 +16,9 @@ export default function PrivacyPolicyPage() {
       <p>
         ReelRadar (&ldquo;ReelRadar&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) operates
         reelradar.online, a service for browsing movies playing at Cairo cinemas and getting
-        notified when tickets go on sale. This policy explains what data we collect, why, and
-        what choices you have about it.
+        notified when tickets go on sale. ReelRadar is operated by an individual, not a
+        registered company. This policy explains what data we collect, why, and what choices you
+        have about it.
       </p>
 
       <LegalSection heading="1. Data we collect">
@@ -134,9 +135,10 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>
             <strong style={{ color: 'var(--ink)' }}>Portability and objection.</strong> Depending
-            on where you live, you may have additional rights (e.g. under GDPR if you&rsquo;re in
-            the EU/EEA/UK) to request a copy of your data or object to certain processing.
-            Contact us and we&rsquo;ll do our best to help.
+            on where you live, you may have additional rights to request a copy of your data or
+            object to certain processing — for example, if you&rsquo;re in Egypt, under Law No.
+            151 of 2020 on the Protection of Personal Data, or if you&rsquo;re in the EU/EEA/UK,
+            under GDPR. Contact us and we&rsquo;ll do our best to help.
           </li>
         </ul>
       </LegalSection>

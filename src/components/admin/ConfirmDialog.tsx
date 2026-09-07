@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 export function ConfirmDialog({
@@ -13,6 +14,20 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Same gap as the non-admin ConfirmDialog (see its comment) -- focus
+  // moves into the dialog on mount and Escape cancels, matching the
+  // backdrop-click behavior that already existed.
+  useEffect(() => {
+    confirmButtonRef.current?.focus();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onCancel();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
+
   // Portaled to <body>: rendered inline, this would sit inside
   // PageTransition's animated wrapper (globals.css's .page-transition
   // applies a `transform`), which makes that wrapper a containing block
@@ -46,10 +61,11 @@ export function ConfirmDialog({
         </p>
         <div className="mt-5 flex items-center gap-3">
           <button
+            ref={confirmButtonRef}
             type="button"
             onClick={onConfirm}
             disabled={isPending}
-            className="rounded-sm px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="rounded-sm px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2"
             style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
           >
             {isPending ? 'Running…' : 'Confirm'}
@@ -58,7 +74,7 @@ export function ConfirmDialog({
             type="button"
             onClick={onCancel}
             disabled={isPending}
-            className="text-sm transition-opacity hover:opacity-70 disabled:opacity-60"
+            className="text-sm transition-opacity hover:opacity-70 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2"
             style={{ color: 'var(--ink-dim)' }}
           >
             Cancel

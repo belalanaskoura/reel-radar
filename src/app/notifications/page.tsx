@@ -37,7 +37,7 @@ export default async function NotificationsPage({
           Get notified
         </h1>
         <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-          One tap, no account setup, notified the second tickets go live.
+          One tap, no account setup, notified as soon as tickets go live.
         </p>
       </div>
 

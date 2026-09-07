@@ -42,7 +42,7 @@ export function PushBanner() {
         <BellIcon size={18} />
       </div>
       <p className="pr-6 text-sm" style={{ color: 'var(--ink)' }}>
-        Get notified the instant tickets go live:{' '}
+        Get notified as soon as tickets go live:{' '}
         <Link href="/notifications" className="underline" style={{ color: 'var(--accent)' }}>
           turn on push notifications
         </Link>

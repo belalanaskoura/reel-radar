@@ -57,6 +57,15 @@ const nextConfig: NextConfig = {
     // Next 16 defaults local image paths to allowing only an empty query
     // string, which blocks our own same-origin poster proxy
     // (/api/scene-poster?src=...) below -- explicit opt-in needed per path.
+    // SceneCinemasLogo.jpg/Vox_Cinemas_Logo.svg are Scene Cinemas' and VOX
+    // Cinemas' own trademarks, not ReelRadar's -- displayed under
+    // nominative fair use (identifying a real third party whose public
+    // listings this app tracks, not implying sponsorship/affiliation; see
+    // the explicit non-affiliation disclaimer in src/app/terms/page.tsx),
+    // the same basis any site referencing a brand it isn't officially
+    // partnered with relies on. Not license-cleared/permission-granted
+    // assets -- if either chain ever objects, swap for plain text/a
+    // generic icon instead of pushing this further.
     localPatterns: [
       { pathname: '/api/scene-poster' },
       { pathname: '/SceneCinemasLogo.jpg' },

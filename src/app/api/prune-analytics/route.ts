@@ -25,6 +25,11 @@ import { logError } from '@/lib/logger';
 // error_log (see src/lib/logger.ts) rides the same schedule too, pruned
 // via prune_error_log() -- same reasoning as notification_deliveries
 // above, a new unbounded-growth table doesn't need its own job.
+//
+// rate_limits rides the same schedule too -- prune_rate_limits() (see
+// supabase/schemas/public/functions/prune_rate_limits.sql) already
+// existed but nothing ever called it, the same dead-weight gap
+// prune_analytics_events had before this route was written.
 export async function POST(request: Request) {
   if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -64,6 +69,12 @@ export async function POST(request: Request) {
     logError('prune-analytics', errorLogError);
   }
 
+  const { error: rateLimitsError } = await supabase.rpc('prune_rate_limits');
+
+  if (rateLimitsError) {
+    logError('prune-analytics', rateLimitsError);
+  }
+
   logEvent({
     type: 'analytics_prune_run',
     payload: {
@@ -81,5 +92,6 @@ export async function POST(request: Request) {
     deliveriesError: deliveriesError?.message ?? null,
     errorLogDeleted: errorLogDeleted ?? 0,
     errorLogError: errorLogError?.message ?? null,
+    rateLimitsError: rateLimitsError?.message ?? null,
   });
 }
