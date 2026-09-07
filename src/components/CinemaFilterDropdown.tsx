@@ -20,6 +20,7 @@ export function CinemaFilterDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const { mounted, animationClass } = useAnimatedOpen(open);
 
   useEffect(() => {
@@ -32,6 +33,21 @@ export function CinemaFilterDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Same gap as FilterDropdown's own Escape handler (see its comment) --
+  // shared pattern, not extracted into useAnimatedOpen since that hook is
+  // purely about mount/animation timing, not interaction behavior.
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
+
   function select(next: string | null) {
     setOpen(false);
     onChange(next);
@@ -42,11 +58,12 @@ export function CinemaFilterDropdown({
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex min-h-11 items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors hover:opacity-90"
+        className="flex min-h-11 items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2"
         style={{ background: 'var(--bg-elevated)', color: 'var(--ink)' }}
       >
         {currentLabel}
@@ -74,7 +91,7 @@ export function CinemaFilterDropdown({
               role="option"
               aria-selected={value === null}
               onClick={() => select(null)}
-              className="block min-h-11 w-full px-4 py-2.5 text-left text-sm hover:opacity-80"
+              className="block min-h-11 w-full px-4 py-2.5 text-left text-sm hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
               style={{
                 color: value === null ? 'var(--accent)' : 'var(--ink)',
                 background: value === null ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
@@ -91,7 +108,7 @@ export function CinemaFilterDropdown({
                 role="option"
                 aria-selected={value === cinema.id}
                 onClick={() => select(cinema.id)}
-                className="block min-h-11 w-full px-4 py-2.5 text-left text-sm transition-[opacity,background-color,color] duration-150 hover:opacity-80"
+                className="block min-h-11 w-full px-4 py-2.5 text-left text-sm transition-[opacity,background-color,color] duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
                 style={{
                   color: value === cinema.id ? 'var(--accent)' : 'var(--ink)',
                   background: value === cinema.id ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',

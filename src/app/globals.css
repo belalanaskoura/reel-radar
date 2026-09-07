@@ -43,7 +43,14 @@
      was already fine at 11.32:1 and is untouched. */
   --accent: #007a6f;
   --accent-ink: #ffffff;
-  --accent-dim: #2b9a8e;
+  /* Darkened from the Figma-exact #2b9a8e -- that value only hit 3.11:1
+     against --bg, under WCAG AA's 4.5:1 minimum for normal text (this
+     token is used at text-xs/10px throughout -- e.g. "VIEW ALL" links,
+     section eyebrow labels -- well below the ~18.66px/bold-14px large-text
+     threshold that would allow the lower 3:1 minimum). #0f7268 hits
+     5.24:1 while staying visually distinct from the primary --accent.
+     Dark mode's #91d3c9 was already fine at 11.34:1 and is untouched. */
+  --accent-dim: #0f7268;
   --highlight: #007a6f;
   --ok-bg: #d6f5f0;
   --ok-ink: #007a6f;
@@ -103,7 +110,7 @@
   --rule: #d0d8d5;
   --accent: #007a6f;
   --accent-ink: #ffffff;
-  --accent-dim: #2b9a8e;
+  --accent-dim: #0f7268;
   --highlight: #007a6f;
   --ok-bg: #d6f5f0;
   --ok-ink: #007a6f;

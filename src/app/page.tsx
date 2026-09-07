@@ -3,7 +3,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { posterUrl } from '@/lib/tmdb-image';
-import { RadarLogo } from '@/components/RadarLogo';
 import { logPageView } from '@/lib/analytics';
 import { hidePosterlessMovies } from '@/lib/movie-visibility';
 
@@ -77,7 +76,7 @@ export default async function LandingPage() {
             style={{ color: 'var(--ink-dim)' }}
           >
             Track upcoming releases across Cairo cinemas, watchlist the ones
-            you care about, and get notified the second booking opens.
+            you care about, and get notified as soon as booking opens.
           </p>
 
           <div className="flex flex-col items-center gap-3 sm:flex-row">
@@ -174,8 +173,8 @@ export default async function LandingPage() {
           </h2>
           <p className="mb-10 text-sm leading-relaxed sm:text-base" style={{ color: 'var(--ink-dim)' }}>
             Create a free account to watchlist upcoming films and receive
-            instant push notifications the moment booking opens. No
-            refreshing cinema sites, no missed premieres.
+            push notifications as soon as booking opens. No refreshing
+            cinema sites, no manual checking.
           </p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link
@@ -196,83 +195,6 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* ── Footer ───────────────────────────────────────────────────── */}
-      <footer
-        className="border-t"
-        style={{ borderColor: 'var(--rule)', background: 'var(--bg-elevated)' }}
-      >
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
-            <div className="col-span-2 sm:col-span-2">
-              <div className="mb-2 flex items-center gap-2">
-                <RadarLogo size={24} />
-                <p
-                  className="font-display text-xl tracking-wider"
-                  style={{ color: 'var(--ink)' }}
-                >
-                  REELRADAR
-                </p>
-              </div>
-              <p className="max-w-xs text-xs leading-relaxed" style={{ color: 'var(--ink-dim)' }}>
-                Cinematic exploration in the heart of Cairo. Track, discover, and
-                experience the silver screen like never before.
-              </p>
-            </div>
-            <div>
-              <p
-                className="mb-3 text-[10px] font-semibold tracking-widest uppercase"
-                style={{ color: 'var(--accent-dim)' }}
-              >
-                Explore
-              </p>
-              <ul className="flex flex-col gap-2">
-                {[['Movies', '/browse'], ['Cinemas', '/cinemas'], ['Watchlist', '/watchlist']].map(
-                  ([label, href]) => (
-                    <li key={label}>
-                      <Link
-                        href={href}
-                        className="text-xs transition-opacity hover:opacity-70"
-                        style={{ color: 'var(--ink-dim)' }}
-                      >
-                        {label}
-                      </Link>
-                    </li>
-                  ),
-                )}
-              </ul>
-            </div>
-            <div>
-              <p
-                className="mb-3 text-[10px] font-semibold tracking-widest uppercase"
-                style={{ color: 'var(--accent-dim)' }}
-              >
-                Legal
-              </p>
-              <ul className="flex flex-col gap-2">
-                {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Cookies', '/cookies']].map(
-                  ([label, href]) => (
-                    <li key={label}>
-                      <Link
-                        href={href}
-                        className="text-xs transition-opacity hover:opacity-70"
-                        style={{ color: 'var(--ink-dim)' }}
-                      >
-                        {label}
-                      </Link>
-                    </li>
-                  ),
-                )}
-              </ul>
-            </div>
-          </div>
-          <div
-            className="mt-10 border-t pt-6 text-center text-[10px] tracking-widest uppercase"
-            style={{ borderColor: 'var(--rule)', color: 'var(--ink-dim)' }}
-          >
-            © 2026 REELRADAR. ALL RIGHTS RESERVED.
-          </div>
-        </div>
-      </footer>
     </main>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Generic confirm/cancel modal, same fixed-overlay dialog shell
 // PushPrompt/FeatureAnnouncement already use (backdrop click dismisses,
@@ -28,6 +28,32 @@ export function ConfirmDialog({
   onCancel: (dontAskAgain: boolean) => void;
 }) {
   const [dontAskAgain, setDontAskAgain] = useState(false);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const dontAskAgainRef = useRef(dontAskAgain);
+
+  // Keeps the ref in sync without writing to it during render (refs
+  // should only be touched in effects/event handlers) -- read by the
+  // Escape handler below via closure so a later keypress sees the
+  // checkbox's current value without re-running the mount-focus effect
+  // (and re-stealing focus) every time the checkbox changes.
+  useEffect(() => {
+    dontAskAgainRef.current = dontAskAgain;
+  }, [dontAskAgain]);
+
+  // Moves keyboard focus into the dialog on mount (it otherwise stays on
+  // whatever triggered the dialog, now hidden behind the overlay) and
+  // lets Escape cancel, matching the backdrop-click behavior that already
+  // exists -- neither was wired up before, so a keyboard-only user had no
+  // way to dismiss this short of tabbing to the Cancel button blind.
+  useEffect(() => {
+    confirmButtonRef.current?.focus();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onCancel(dontAskAgainRef.current);
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
+
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center p-4"
@@ -66,9 +92,10 @@ export function ConfirmDialog({
         )}
         <div className="mt-5 flex items-center gap-3">
           <button
+            ref={confirmButtonRef}
             type="button"
             onClick={() => onConfirm(dontAskAgain)}
-            className="rounded-sm px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+            className="rounded-sm px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2"
             style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
           >
             {confirmLabel}
@@ -76,7 +103,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={() => onCancel(dontAskAgain)}
-            className="text-sm transition-opacity hover:opacity-70"
+            className="text-sm transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2"
             style={{ color: 'var(--ink-dim)' }}
           >
             {cancelLabel}
