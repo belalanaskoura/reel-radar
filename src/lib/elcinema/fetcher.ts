@@ -37,38 +37,6 @@ export async function fetchElCinemaHtml(url: string): Promise<string> {
   }
 }
 
-export interface BoxOfficeEntry {
-  elcinemaId: number;
-  title: string;
-}
-
-// Fetches one week's Egypt box office listing. Query params confirmed
-// against the site's own filter form (`year`/`week`, not path segments).
-export async function fetchBoxOfficeWeek(year: number, week: number): Promise<BoxOfficeEntry[]> {
-  const url = `${BASE_URL}/en/boxoffice/EG?country=EG&year=${year}&week=${week}`;
-  const html = await fetchElCinemaHtml(url);
-  const $ = cheerio.load(html);
-
-  const entries: BoxOfficeEntry[] = [];
-  const seen = new Set<number>();
-
-  $('a[href*="/en/work/"]').each((_, el) => {
-    const href = $(el).attr('href') ?? '';
-    const match = href.match(/\/en\/work\/(\d+)\/?$/);
-    if (!match) return;
-    const elcinemaId = Number(match[1]);
-    if (seen.has(elcinemaId)) return;
-
-    const title = $(el).text().trim();
-    if (!title) return;
-
-    seen.add(elcinemaId);
-    entries.push({ elcinemaId, title });
-  });
-
-  return entries;
-}
-
 export interface ElCinemaCredits {
   director: string | null;
   cast: string[];

@@ -8,8 +8,10 @@ type AnalyticsEvent =
   | {
       type: 'scrape_run';
       payload: {
-        source: 'scene' | 'vox';
-        branch: string;
+        source: 'scene' | 'vox' | 'rns';
+        // null for rns: it's not modeled as a `branches` row/chain (see
+        // scrape-rns/route.ts), so a single run has no branch to scope to.
+        branch: string | null;
         listed: number;
         bookable: number;
         delisted: number;
@@ -18,8 +20,8 @@ type AnalyticsEvent =
         // Only set for scene, which is now batched by offset (see
         // scrape-scene/route.ts) -- `listed` is the branch's FULL
         // listing count, `batchSize`/`offset` describe what this
-        // specific run actually covered. Absent for vox (unbatched, one
-        // run always covers the whole branch).
+        // specific run actually covered. Absent for vox/rns (unbatched,
+        // one run always covers everything).
         batchSize?: number;
         offset?: number;
       };
@@ -58,10 +60,6 @@ type AnalyticsEvent =
         batchSize?: number;
         error?: string | null;
       };
-    }
-  | {
-      type: 'sync_run';
-      payload: { accepted: number; rejected: number; duration_ms: number; error?: string | null };
     }
   | {
       type: 'admin_digest_run';

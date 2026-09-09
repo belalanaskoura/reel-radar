@@ -1,11 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-// Removes movies whose release_date has passed while Scene never listed
-// them on either branch (zero movie_branch_slugs rows) -- once that's
-// true, the movie is never coming to Egypt cinemas: Scene would have
-// created a page for it by its release date if it were. A movie Scene
-// has listed (even if never bookable, i.e. still "coming soon" there)
-// is left alone, since that's real evidence it's still expected.
+// Removes movies whose release_date has passed while neither Scene/VOX
+// (zero movie_branch_slugs rows) nor RNS (no rns_listings row) still list
+// them -- once that's true, the movie is never coming to Egypt cinemas: at
+// least one of these sources would have a real page for it by its release
+// date if it were. A movie any of these sources has listed (even if never
+// bookable, i.e. still "coming soon" there) is left alone, since that's
+// real evidence it's still expected -- RNS's own date can lag slightly
+// behind a real release, so an RNS listing alone is enough to exempt a
+// movie even past its currently-stored release_date.
 //
 // No movie_branch_slugs row also means no showtimes_cache/notification_log
 // rows exist for it (both are only ever created alongside a slug), so the
@@ -18,7 +21,7 @@ export async function removeUnreleasableMovies(
 
   const { data: candidates, error: candidatesError } = await supabase
     .from('movies')
-    .select('id, movie_branch_slugs(movie_id)')
+    .select('id, movie_branch_slugs(movie_id), rns_listings(movie_id)')
     .lt('release_date', today);
 
   if (candidatesError) {
@@ -26,7 +29,11 @@ export async function removeUnreleasableMovies(
   }
 
   const idsToRemove = (candidates ?? [])
-    .filter((m) => (m.movie_branch_slugs as unknown[]).length === 0)
+    .filter(
+      (m) =>
+        (m.movie_branch_slugs as unknown[]).length === 0 &&
+        (m.rns_listings as unknown[]).length === 0,
+    )
     .map((m) => m.id as string);
 
   if (idsToRemove.length === 0) {
