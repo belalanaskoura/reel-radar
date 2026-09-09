@@ -43,7 +43,11 @@ export function buildCsp(nonce: string): string {
       'https://image.tmdb.org',
       'https://*.elcinema.com',
       'https://*.scenecinemas.com',
+      // rnscinemas.net 301-redirects every request to rnscinemas.com --
+      // both hosts are needed since CSP checks the final redirected URL,
+      // not just the one initially requested.
       'https://rnscinemas.net',
+      'https://rnscinemas.com',
       supabaseOrigin,
     ]
       .filter(Boolean)
