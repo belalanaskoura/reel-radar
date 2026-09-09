@@ -181,7 +181,18 @@ export default async function MovieDetailPage({
   }));
 
   const backdrop = backdropUrl(details?.backdrop_path ?? null);
-  const poster = posterUrl(details?.poster_path ?? movie.poster_path);
+  // movies.poster_path is the single source of truth every scraper/matcher
+  // writes to (TMDB's poster on a normal match, but Scene/elCinema/RNS as
+  // deliberate fallbacks when TMDB has none, or -- for an RNS-linked row --
+  // kept in preference over TMDB even after matching, see
+  // match-to-tmdb.ts's applyTmdbMatch) -- this used to prefer TMDB's live-
+  // fetched poster first instead, silently overriding whichever poster was
+  // actually stored. Confirmed for real: "Avengers: Endgame Encore" (RNS
+  // poster stored, tmdb_id set only for cast/synopsis, deliberately not
+  // routed through applyTmdbMatch) showed TMDB's 2019 poster here despite
+  // movie.poster_path correctly holding RNS's own image. release_date just
+  // below already uses this same DB-first precedence; poster now matches.
+  const poster = posterUrl(movie.poster_path ?? details?.poster_path ?? null);
   const isBookable = movie.showtimes_cache.some((c) => c.bookable);
   const showWatchlistControl = !!user && (isWatchlisted || !isBookable);
   const releaseDate = movie.release_date ?? details?.release_date ?? null;
