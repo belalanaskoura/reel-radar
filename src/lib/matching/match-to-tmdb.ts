@@ -10,6 +10,38 @@ import { logError } from '@/lib/logger';
 
 const FUZZY_MATCH_THRESHOLD = 0.8;
 
+// Words that mark a listing as a theatrical re-release/re-issue of an
+// existing film, not a new one -- TMDB search for "<Title> Encore" (or
+// similar) usually returns the original film's single entry (TMDB rarely
+// has a separate id for a re-release), which the single-candidate
+// auto-accept path below would otherwise happily accept as a correct
+// match. Confirmed for real: "Avengers: Endgame Encore" (an RNS listing
+// for a real theatrical re-release) auto-matched to TMDB's 2019 "Avengers:
+// Endgame" entry and got silently renamed/merged into it, discarding the
+// distinct listing. A re-release keyword present in the source title but
+// absent from the sole candidate's own title means this is exactly that
+// case: surfaced as ambiguous for manual review (see /admin/matching)
+// instead of auto-merging two different theatrical runs into one row.
+const RE_RELEASE_KEYWORDS = [
+  'encore',
+  'anniversary',
+  're-release',
+  'rerelease',
+  're-issue',
+  'reissue',
+  "director's cut",
+  'directors cut',
+  'extended cut',
+  'remastered',
+];
+
+function isUnmarkedReRelease(query: string, candidateTitle: string): boolean {
+  const normalizedCandidate = normalizeTitle(candidateTitle);
+  return RE_RELEASE_KEYWORDS.some(
+    (keyword) => query.includes(keyword) && !normalizedCandidate.includes(keyword),
+  );
+}
+
 export type MatchOutcome = 'matched' | 'ambiguous' | 'unmatched';
 
 interface MatchResult {
@@ -46,6 +78,9 @@ export async function findTmdbMatch(title: string): Promise<TmdbMatch> {
     return { outcome: 'unmatched' };
   }
   if (candidates.length === 1) {
+    if (isUnmarkedReRelease(query, candidates[0].title)) {
+      return { outcome: 'ambiguous' };
+    }
     return { outcome: 'matched', movie: candidates[0] };
   }
 
@@ -160,6 +195,9 @@ async function disambiguate(candidates: TmdbMovie[], query: string): Promise<Tmd
   }
 
   if (withEgDates.length === 1) {
+    if (isUnmarkedReRelease(query, withEgDates[0].movie.title)) {
+      return { outcome: 'ambiguous' };
+    }
     return { outcome: 'matched', movie: withEgDates[0].movie };
   }
 
