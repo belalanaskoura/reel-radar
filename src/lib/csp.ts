@@ -43,6 +43,7 @@ export function buildCsp(nonce: string): string {
       'https://image.tmdb.org',
       'https://*.elcinema.com',
       'https://*.scenecinemas.com',
+      'https://rnscinemas.net',
       supabaseOrigin,
     ]
       .filter(Boolean)
