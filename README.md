@@ -235,9 +235,9 @@ linked project automatically on merge to `main`, so schema changes no
 longer need to be pasted into the SQL Editor by hand. If you're standing
 up a fresh project, you'll need to create the core tables yourself:
 `movies`, `branches`,
-`movie_branch_slugs`, `showtimes_cache`, `watchlist`, `cinema_follows`,
+`movie_branch_slugs`, `rns_listings`, `showtimes_cache`, `watchlist`, `cinema_follows`,
 `notification_log`, `notification_deliveries`, `profiles`,
-`push_subscriptions`, `feedback`, `egypt_releases`, `egypt_distributors`,
+`push_subscriptions`, `feedback`, `egypt_releases`,
 `scene_price_templates`, `analytics_events`, `welcome_email_log`,
 `error_log`, `rate_limits` (plus the `check_rate_limit()` function
 rate-limiting depends on — see `supabase/migrations/0100_rate_limits.sql`).
@@ -297,7 +297,7 @@ to be called on a real interval by an external scheduler (e.g.
 
 | Route | Purpose | Suggested interval |
 |---|---|---|
-| `POST /api/sync-movies` | Pulls upcoming movies from TMDB into the catalog | Daily |
+| `POST /api/scrape-rns` | Scrapes rnscinemas.com's coming-soon page — this app's catalog-discovery source (which movies are coming to Egypt at all), creating/attaching a `movies` placeholder per listing for `/api/match-movies` to resolve against TMDB, same as Scene/VOX placeholders | Daily |
 | `POST /api/scrape-scene?branch=<id>` | Scrapes a Scene branch's listings and bookability, notifying cinema-trackers of any movie newly added to that branch. Only checks one `BATCH_SIZE=10` slice per call — leave `?offset=` unset and it self-advances through the whole branch via a persisted cursor, so a single job per branch is enough; don't add several staggered-offset jobs, they'd race the same cursor | Every 15–30 min per branch |
 | `POST /api/scrape-scene-delist` | Clears bookability for Scene movies no longer listed at all, notifying cinema-trackers of the removal | Every 15–30 min |
 | `POST /api/scrape-vox` | Scrapes VOX showtimes (via elCinema) for all 3 branches, including delisting movies whose run has ended and notifying cinema-trackers of both additions and removals | Daily (full-detail fetch, more expensive per run) |
@@ -321,9 +321,6 @@ curl -X POST https://reelradar.online/api/poll \
 Run locally with `npx tsx scripts/<name>.ts` — these are historical
 backfills / corrections, not part of the regular scheduled-job loop:
 
-- `backfill-egypt-releases.ts` — scrapes ~4 years of elCinema's Egypt box
-  office history to build the distributor allowlist and release-date
-  ground truth.
 - `backfill-movie-release-dates.ts` — re-checks existing movies against
   elCinema and corrects release dates that predate the elCinema-preferred
   pipeline.
@@ -344,8 +341,6 @@ backfills / corrections, not part of the regular scheduled-job loop:
 - `dedupe-slug-race-condition.ts` — one-time cleanup for duplicate
   placeholder rows created by a scrape-scene check-then-insert race,
   before the `(branch_id, slug)` unique constraint existed.
-- `cleanup-distributor-filter.ts` — retroactively re-checks the catalog
-  against a tightened distributor allowlist.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

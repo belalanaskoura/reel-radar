@@ -17,11 +17,11 @@ import { createServiceRoleClient } from '@/lib/supabase/service-role';
 // the fact.
 type ErrorSource =
   | 'poll'
-  | 'sync-movies'
   | 'match-movies'
   | 'scrape-scene'
   | 'scrape-scene-delist'
   | 'scrape-vox'
+  | 'scrape-rns'
   | 'scrape-formats'
   | 'admin-digest'
   | 'welcome-email'

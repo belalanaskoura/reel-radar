@@ -16,6 +16,7 @@ const JOB_ROUTES = {
   'scrape-scene': '/api/scrape-scene',
   'scrape-scene-delist': '/api/scrape-scene-delist',
   'scrape-vox': '/api/scrape-vox',
+  'scrape-rns': '/api/scrape-rns',
   poll: '/api/poll',
   'match-movies': '/api/match-movies',
   'admin-digest': '/api/admin-digest',
@@ -314,6 +315,9 @@ function summarize(job: JobName, body: unknown): string {
   }
   if (job === 'admin-digest') {
     return `${b.issues ?? 0} issue(s). Email ${b.emailSent ? 'sent' : 'not sent'}, push sent to ${b.pushSent ?? 0}.`;
+  }
+  if (job === 'scrape-rns') {
+    return `Listed ${b.listed ?? 0}, created ${b.created ?? 0}, attached ${b.attached ?? 0}, removed ${b.removed ?? 0}.`;
   }
   if (job === 'scrape-scene-delist') {
     const entries = Object.entries(b);

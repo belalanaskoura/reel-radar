@@ -7,13 +7,13 @@ import { RunJobButton } from '@/components/admin/RunJobButton';
 import { ResolveMatchPanel } from '@/components/admin/ResolveMatchPanel';
 
 type MatchRunPayload = { matched: number; ambiguous: number; unmatched: number; merged: number; duration_ms: number };
-type SyncRunPayload = { accepted: number; rejected: number; duration_ms: number };
+type RnsRunPayload = { listed: number; created: number; attached: number; removed: number; duration_ms: number };
 type DigestRunPayload = { issues: number; emailSent: boolean; pushSent: number; duration_ms: number };
 
 export default async function AdminMatchingPage() {
   const supabase = createServiceRoleClient();
 
-  const [{ data: matchEvents }, { data: syncEvents }, { data: digestEvents }, { data: backlogMovies }] =
+  const [{ data: matchEvents }, { data: rnsEvents }, { data: digestEvents }, { data: backlogMovies }] =
     await Promise.all([
       supabase
         .from('analytics_events')
@@ -24,7 +24,8 @@ export default async function AdminMatchingPage() {
       supabase
         .from('analytics_events')
         .select('occurred_at, payload')
-        .eq('event_type', 'sync_run')
+        .eq('event_type', 'scrape_run')
+        .contains('payload', { source: 'rns' })
         .order('occurred_at', { ascending: false })
         .limit(10),
       supabase
@@ -42,7 +43,7 @@ export default async function AdminMatchingPage() {
     ]);
 
   const latestMatch = matchEvents?.[0]?.payload as MatchRunPayload | undefined;
-  const latestSync = syncEvents?.[0]?.payload as SyncRunPayload | undefined;
+  const latestRns = rnsEvents?.[0]?.payload as RnsRunPayload | undefined;
   const latestDigest = digestEvents?.[0]?.payload as DigestRunPayload | undefined;
   const latestDigestAt = digestEvents?.[0]?.occurred_at as string | undefined;
 
@@ -84,15 +85,28 @@ export default async function AdminMatchingPage() {
       </section>
 
       <section>
-        <SectionHeader>Latest sync (Egypt-release filter)</SectionHeader>
-        {latestSync ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <StatTile label="Accepted" value={latestSync.accepted} tone="ok" />
-            <StatTile label="Rejected" value={latestSync.rejected} />
+        <SectionHeader
+          action={
+            <RunJobButton
+              job="scrape-rns"
+              size="sm"
+              label="Re-run RNS scrape"
+              confirmText="Re-scrape rnscinemas.com's coming-soon page now?"
+            />
+          }
+        >
+          Latest RNS scrape (catalog discovery)
+        </SectionHeader>
+        {latestRns ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatTile label="Listed" value={latestRns.listed} />
+            <StatTile label="New movies" value={latestRns.created} tone="ok" />
+            <StatTile label="Attached" value={latestRns.attached} />
+            <StatTile label="Removed (stale)" value={latestRns.removed} />
           </div>
         ) : (
           <p className="text-sm" style={{ color: 'var(--ink-dim)' }}>
-            No sync runs logged yet.
+            No RNS scrape runs logged yet.
           </p>
         )}
       </section>
