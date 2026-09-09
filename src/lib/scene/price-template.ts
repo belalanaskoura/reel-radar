@@ -1,6 +1,7 @@
 import type { Browser } from 'playwright-core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BranchId } from '@/lib/scene/types';
+import { getOrSetCache } from '@/lib/ttl-cache';
 
 // Scene's real ticket price is only reachable by locking a live seat into
 // a booking-hold session (confirmed live: no static page or JSON response
@@ -16,19 +17,30 @@ export interface ScenePriceTemplateRow {
   verifiedAt: string;
 }
 
+// Read on every /movies/[id] view and every seat-plan request for a table
+// that only ever changes via a deliberate admin edit -- cached in-process
+// for 5 minutes so a burst of page views doesn't each pay a Supabase
+// round-trip for the same handful of rows. Short enough that an admin
+// price correction (check-scene-prices' spot-check job runs far less often
+// than this) is visible everywhere within one TTL window, not stale
+// indefinitely.
+const PRICE_TEMPLATE_TTL_MS = 5 * 60 * 1000;
+
 export async function getScenePriceTemplate(
   supabase: SupabaseClient,
 ): Promise<ScenePriceTemplateRow[]> {
-  const { data } = await supabase
-    .from('scene_price_templates')
-    .select('branch_id, format, price_egp, verified_at');
+  return getOrSetCache('scene-price-template', PRICE_TEMPLATE_TTL_MS, async () => {
+    const { data } = await supabase
+      .from('scene_price_templates')
+      .select('branch_id, format, price_egp, verified_at');
 
-  return (data ?? []).map((row) => ({
-    branchId: row.branch_id as BranchId,
-    format: row.format as string,
-    priceEgp: row.price_egp as number,
-    verifiedAt: row.verified_at as string,
-  }));
+    return (data ?? []).map((row) => ({
+      branchId: row.branch_id as BranchId,
+      format: row.format as string,
+      priceEgp: row.price_egp as number,
+      verifiedAt: row.verified_at as string,
+    }));
+  });
 }
 
 // A seat's real category name (Scene's own `st`, e.g. "Standard") doesn't
