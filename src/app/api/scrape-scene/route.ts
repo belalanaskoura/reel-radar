@@ -8,6 +8,7 @@ import { logError } from '@/lib/logger';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { notifyLineupAdditions } from '@/lib/matching/notify-cinema-lineup';
+import { readCursor, advanceCursor } from '@/lib/scrape-cursor';
 
 const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 
@@ -27,14 +28,17 @@ const BATCH_SIZE = 10;
 // Scrapes one Scene branch's listing pages and upserts a placeholder
 // `movies` row (tmdb_id null, match_status 'unmatched') for any slug not
 // already linked via `movie_branch_slugs`, checking bookability for one
-// BATCH_SIZE-sized slice of that branch's listing per call (?offset=,
-// defaults to 0) rather than the whole branch at once -- see BATCH_SIZE's
-// comment for why. cron-job.org calls this multiple times per branch at
-// staggered offsets to cover the full listing every sweep. Delisting
-// (marking a movie not-bookable once it's dropped from Scene's site
-// entirely) is NOT done here -- it needs the complete listing to know
-// what's really gone, which no single batch has; see
-// /api/scrape-scene-delist for that, run as its own separate job.
+// BATCH_SIZE-sized slice of that branch's listing per call rather than the
+// whole branch at once -- see BATCH_SIZE's comment for why. An omitted
+// ?offset= sweeps the branch automatically via a persisted per-branch
+// cursor (src/lib/scrape-cursor.ts) -- a single unconditional cron-job.org
+// job calling this on a timer covers the full listing over successive
+// calls, correct regardless of how large the listing grows. An explicit
+// ?offset= (admin's "Re-scrape" button loops these itself) bypasses the
+// cursor entirely. Delisting (marking a movie not-bookable once it's
+// dropped from Scene's site entirely) is NOT done here -- it needs the
+// complete listing to know what's really gone, which no single batch has;
+// see /api/scrape-scene-delist for that, run as its own separate job.
 export async function POST(request: Request) {
   if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -48,9 +52,12 @@ export async function POST(request: Request) {
   const branchesToScrape: BranchId[] = branchParam ? [branchParam as BranchId] : BRANCHES;
 
   const offsetParam = url.searchParams.get('offset');
-  const offset = offsetParam ? Number(offsetParam) : 0;
-  if (!Number.isFinite(offset) || offset < 0) {
-    return NextResponse.json({ error: `Invalid offset: ${offsetParam}` }, { status: 400 });
+  const isAutoOffset = offsetParam === null;
+  if (!isAutoOffset) {
+    const parsed = Number(offsetParam);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return NextResponse.json({ error: `Invalid offset: ${offsetParam}` }, { status: 400 });
+    }
   }
 
   const supabase = createServiceRoleClient();
@@ -58,6 +65,14 @@ export async function POST(request: Request) {
 
   for (const branch of branchesToScrape) {
     const branchStartedAt = Date.now();
+    // Each branch tracks its own resume point -- an unattended call (no
+    // ?offset=) picks up wherever the last unattended call for this
+    // branch left off, so a plain "call this on a timer" cron-job.org job
+    // sweeps the whole branch over successive calls with no manual offset
+    // math. An explicit ?offset= (admin's "Re-scrape" loop) never touches
+    // the cursor, so it can't desync the automatic sweep.
+    const cursorKey = `scrape-scene:${branch}`;
+    const offset = isAutoOffset ? await readCursor(supabase, cursorKey) : Number(offsetParam);
     try {
       const listings = await fetchAllListings(branch);
       const batch = listings.slice(offset, offset + BATCH_SIZE);
@@ -265,6 +280,10 @@ export async function POST(request: Request) {
 
       if (justBecameBookableMovieIds.length > 0) {
         await notifyLineupAdditions(supabase, branch, justBecameBookableMovieIds);
+      }
+
+      if (isAutoOffset) {
+        await advanceCursor(supabase, cursorKey, offset, batch.length, listings.length);
       }
 
       results[branch] = { listed: listings.length, batchSize: batch.length, bookable: bookableCount };

@@ -69,6 +69,7 @@ schema_paths = [
   "./schemas/public/tables/error_log.sql",
   "./schemas/public/tables/welcome_email_log.sql",
   "./schemas/public/tables/rate_limits.sql",
+  "./schemas/public/tables/scrape_cursors.sql",
   "./schemas/public/functions/check_rate_limit.sql",
   "./schemas/public/functions/prune_rate_limits.sql",
   "./schemas/public/functions/prune_analytics_events.sql",

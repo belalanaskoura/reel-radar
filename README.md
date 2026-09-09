@@ -298,12 +298,12 @@ to be called on a real interval by an external scheduler (e.g.
 | Route | Purpose | Suggested interval |
 |---|---|---|
 | `POST /api/sync-movies` | Pulls upcoming movies from TMDB into the catalog | Daily |
-| `POST /api/scrape-scene?branch=<id>` | Scrapes a Scene branch's listings and bookability, notifying cinema-trackers of any movie newly added to that branch | Every 15–30 min per branch |
+| `POST /api/scrape-scene?branch=<id>` | Scrapes a Scene branch's listings and bookability, notifying cinema-trackers of any movie newly added to that branch. Only checks one `BATCH_SIZE=10` slice per call — leave `?offset=` unset and it self-advances through the whole branch via a persisted cursor, so a single job per branch is enough; don't add several staggered-offset jobs, they'd race the same cursor | Every 15–30 min per branch |
 | `POST /api/scrape-scene-delist` | Clears bookability for Scene movies no longer listed at all, notifying cinema-trackers of the removal | Every 15–30 min |
 | `POST /api/scrape-vox` | Scrapes VOX showtimes (via elCinema) for all 3 branches, including delisting movies whose run has ended and notifying cinema-trackers of both additions and removals | Daily (full-detail fetch, more expensive per run) |
 | `POST /api/scrape-formats` | Records which showtime formats (Standard, IMAX, etc.) are available per Scene branch, for `/cinemas` | Every 30 min |
 | `POST /api/match-movies?offset=<n>` | Matches new listings to TMDB entries, one batch (`BATCH_SIZE=30`) at a time — same offset-batching shape as `scrape-scene`, needed once the unmatched backlog got large enough to risk the scheduler's own timeout | After each scrape run, staggered offsets |
-| `POST /api/poll` | Checks bookability for watched (movie, branch) pairs and notifies | Every 15–30 min |
+| `POST /api/poll?chain=<scene\|vox>` | Checks bookability for watched (movie, branch) pairs and notifies, one chain's batch per call. Leave `?offset=` unset — it self-advances through every watched pair for that chain via a persisted cursor, same as `scrape-scene` | Every 15–30 min per chain |
 | `POST /api/admin-digest` | Emails/pushes a data-quality summary to admins (missing posters, stuck matches, price drift) | Daily |
 | `POST /api/welcome-email` | Emails new signups a one-time welcome (feature pointers, plus push setup steps if they haven't turned it on yet) | Every 15–30 min |
 | `POST /api/check-scene-prices?branch=<id>&format=<name>` | Spot-checks one Scene branch+format's admin-maintained price template against a real live read | Daily per branch+format combo |

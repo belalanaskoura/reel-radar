@@ -12,6 +12,7 @@ import { sleep as elcinemaSleep, REQUEST_DELAY_MS as ELCINEMA_DELAY_MS } from '@
 import { logEvent } from '@/lib/analytics';
 import { logError } from '@/lib/logger';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { readCursor, advanceCursor } from '@/lib/scrape-cursor';
 
 // Watchers for one (movie, branch) pair are notified concurrently, not
 // sequentially -- see notifyWatchers below for why. Same cap sync-movies
@@ -23,9 +24,10 @@ const NOTIFY_CONCURRENCY = 10;
 // maxDuration=60 alike once the watched catalog reached 54 pairs (real
 // runs logging duration_ms in the 60000-70000 range) -- both reported
 // the job as failed even though it always finished with pair_errors: 0.
-// Same offset-batching fix as scrape-scene: cron-job.org calls this
-// several times at staggered offsets to cover every watched pair each
-// sweep, and admin's "Re-run" loops offsets itself (see actions.ts).
+// Same offset-batching fix as scrape-scene: an omitted ?offset= sweeps
+// every watched pair automatically via a persisted per-chain cursor
+// (src/lib/scrape-cursor.ts), and admin's "Re-run" loops explicit offsets
+// itself instead (see actions.ts).
 //
 // Batched per chain, not as one flat interleaved list: a flat BATCH_SIZE
 // mixed cheap Scene bookability checks with expensive VOX ones unevenly
@@ -61,13 +63,26 @@ export async function POST(request: Request) {
   const chainFilter = chainParam as 'scene' | 'vox' | null;
 
   const offsetParam = url.searchParams.get('offset');
-  const offset = offsetParam ? Number(offsetParam) : 0;
-  if (!Number.isFinite(offset) || offset < 0) {
-    return NextResponse.json({ error: `Invalid offset: ${offsetParam}` }, { status: 400 });
+  const isAutoOffset = offsetParam === null;
+  if (!isAutoOffset) {
+    const parsed = Number(offsetParam);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return NextResponse.json({ error: `Invalid offset: ${offsetParam}` }, { status: 400 });
+    }
   }
 
   const startedAt = Date.now();
   const supabase = createServiceRoleClient();
+
+  // An omitted ?offset= sweeps the watched set automatically via a
+  // persisted cursor (src/lib/scrape-cursor.ts), keyed per chain (or one
+  // flat cursor with no ?chain=) -- a single unconditional cron-job.org
+  // job calling this on a timer covers every watched pair over successive
+  // calls, correct regardless of how large the watchlist grows. An
+  // explicit ?offset= (admin's "Re-run" button loops these itself)
+  // bypasses the cursor entirely.
+  const cursorKey = `poll:${chainFilter ?? 'all'}`;
+  const offset = isAutoOffset ? await readCursor(supabase, cursorKey) : Number(offsetParam);
 
   // Only (movie, branch) pairs with a watcher AND a known Scene slug are
   // worth polling: this is the scaling constraint, cost is bounded by
@@ -195,6 +210,10 @@ export async function POST(request: Request) {
       pairErrors += 1;
       logError('poll', err, { movieId: row.movie_id, branchId: branch });
     }
+  }
+
+  if (isAutoOffset) {
+    await advanceCursor(supabase, cursorKey, offset, slugRows.length, chainRows.length);
   }
 
   logEvent({
