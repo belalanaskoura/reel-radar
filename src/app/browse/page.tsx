@@ -37,7 +37,7 @@ const getCachedCatalog = unstable_cache(
       supabase
         .from('movies')
         .select(
-          'id, title, release_date, release_date_confirmed_eg, poster_path, match_status, showtimes_cache(branch_id, bookable, was_ever_bookable, raw_showtimes, branches(name))',
+          'id, title, release_date, release_date_confirmed_eg, poster_path, match_status, showtimes_cache(branch_id, bookable, was_ever_bookable, raw_showtimes, branches(name)), rns_listings(movie_id)',
           { count: 'exact' },
         )
         .in('match_status', ['matched', 'unmatched', 'ambiguous'])
@@ -75,13 +75,16 @@ export default async function BrowsePage() {
   // a truncated fetch, not on every keystroke.
   //
   // 'ambiguous' rows (unresolved TMDB match) are fetched too, but only
-  // kept below if they have a real showtimes_cache row -- an ambiguous
-  // TMDB-only candidate with no Scene listing at all is still hidden
-  // (no clean title to trust yet), but one Scene actually lists is a
-  // real, physically-real movie: its title was never touched by the
-  // failed TMDB match (findTmdbMatch only overwrites title/poster on a
-  // confirmed match), so it's exactly the Scene-sourced title, safe to
-  // show. Being listed on the real site is what matters most here.
+  // kept below if they have a real showtimes_cache row or an rns_listings
+  // row -- an ambiguous TMDB-only candidate with no real-world listing at
+  // all is still hidden (no clean title to trust yet), but one Scene/VOX
+  // or RNS actually lists is a real, physically-real movie: its title was
+  // never touched by the failed TMDB match (findTmdbMatch only overwrites
+  // title/poster on a confirmed match), so it's exactly the source's own
+  // title, safe to show. Being listed on a real site is what matters most
+  // here -- confirmed for real with "Avengers: Endgame Encore" (an RNS-
+  // only re-release ResolveMatchPanel has no "leave unlinked" option for,
+  // see match-to-tmdb.ts's re-release-keyword guard).
   //
   // The catalog fetch doesn't depend on `user`, so it runs concurrently
   // with the auth check rather than waiting on it.
@@ -136,7 +139,9 @@ export default async function BrowsePage() {
     const isStaleListing =
       neverBookableAnywhere && !!m.release_date && m.release_date < staleCutoffStr;
 
-    return (m.match_status !== 'ambiguous' || branches.length > 0) && !hasEndedEverywhere && !isStaleListing;
+    const hasRealListing = branches.length > 0 || (m.rns_listings ?? []).length > 0;
+
+    return (m.match_status !== 'ambiguous' || hasRealListing) && !hasEndedEverywhere && !isStaleListing;
   });
 
   let watchedIds: string[] = [];
