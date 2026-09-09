@@ -65,7 +65,13 @@ alter table "public"."rns_listings" enable row level security;
 
 alter table "public"."scrape_cursors" enable row level security;
 
-alter table "public"."movies" add column "release_date_confirmed_eg" boolean not null default false;
+-- release_date_confirmed_eg was already live in production before this
+-- migration was generated (predates the schema-sync pipeline itself, see
+-- CLAUDE.md's Phase 8 notes) -- the auto-diff's tracked baseline didn't
+-- reflect that, so it proposed re-adding an already-existing column,
+-- which aborted this entire migration's transaction on first apply
+-- (42701 duplicate_column). Removed here as a no-op; nothing about the
+-- real schema changes as a result.
 
 CREATE UNIQUE INDEX rns_listings_pkey ON public.rns_listings USING btree (movie_id);
 
