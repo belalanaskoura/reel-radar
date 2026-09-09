@@ -347,6 +347,27 @@ export async function applyTmdbMatch(
   // when TMDB has none (see egypt-release-date.ts).
   const egyptInfo = await getEgyptReleaseInfo(supabase, tmdbMovie.id, tmdbMovie.title);
   const displayDate = await resolveDisplayReleaseDate(egyptInfo, tmdbMovie.id, tmdbMovie.release_date || null);
+
+  // RNS's own poster is kept over TMDB's for a movie it discovered, even
+  // once matched -- RNS is the most-trusted Egypt-specific source, and
+  // its poster is what a re-scrape would keep re-asserting anyway (see
+  // scrape-rns/route.ts's own "never overwrite an existing poster" rule).
+  // Cast/synopsis/release date still come from TMDB/elCinema as normal;
+  // this only changes which poster wins.
+  const { data: rnsLink } = await supabase
+    .from('rns_listings')
+    .select('movie_id')
+    .eq('movie_id', movieId)
+    .maybeSingle();
+  const { data: currentRow } = await supabase
+    .from('movies')
+    .select('poster_path')
+    .eq('id', movieId)
+    .maybeSingle();
+  const posterPath = rnsLink && currentRow?.poster_path
+    ? currentRow.poster_path
+    : tmdbMovie.poster_path || egyptInfo.posterUrl || null;
+
   await supabase
     .from('movies')
     .update({
@@ -363,7 +384,7 @@ export async function applyTmdbMatch(
       // the unique constraint on a fresh insert attempt instead of
       // reusing this one.
       normalized_title: normalizeTitle(tmdbMovie.title),
-      poster_path: tmdbMovie.poster_path || egyptInfo.posterUrl || null,
+      poster_path: posterPath,
       release_date: displayDate.releaseDate,
       release_date_confirmed_eg: displayDate.isEgyptConfirmed,
       popularity: tmdbMovie.popularity,
@@ -423,6 +444,48 @@ async function mergeIntoExistingRow(
       .eq('movie_id', sceneMovieId)
       .eq('branch_id', row.branch_id);
     takenCache.add(row.branch_id);
+  }
+
+  // rns_listings.movie_id is a primary key (one row per movie, unlike
+  // movie_branch_slugs' one-per-branch shape), so the source's row can
+  // only be repointed onto the target when the target doesn't already
+  // have one of its own -- otherwise this insert would collide on that
+  // PK. Without this, deleting sceneMovieId below cascades away its
+  // rns_listings row (and with it, the RNS-poster-preference signal
+  // applyTmdbMatch's caller relies on) whenever a movie RNS discovered
+  // turns out to match a tmdb_id some other source already claimed.
+  const { data: sceneRnsLink } = await supabase
+    .from('rns_listings')
+    .select('slug')
+    .eq('movie_id', sceneMovieId)
+    .maybeSingle();
+
+  if (sceneRnsLink) {
+    const { data: targetRnsLink } = await supabase
+      .from('rns_listings')
+      .select('movie_id')
+      .eq('movie_id', targetMovieId)
+      .maybeSingle();
+
+    if (!targetRnsLink) {
+      await supabase
+        .from('rns_listings')
+        .update({ movie_id: targetMovieId })
+        .eq('movie_id', sceneMovieId);
+
+      // Same "RNS poster wins" preference as applyTmdbMatch's own adopt
+      // path -- only applied here once the link has actually moved onto
+      // targetMovieId, and only when the source row had a real poster to
+      // offer (never clobber the target's existing poster with null).
+      const { data: sceneRow } = await supabase
+        .from('movies')
+        .select('poster_path')
+        .eq('id', sceneMovieId)
+        .maybeSingle();
+      if (sceneRow?.poster_path) {
+        await supabase.from('movies').update({ poster_path: sceneRow.poster_path }).eq('id', targetMovieId);
+      }
+    }
   }
 
   await supabase.from('movies').delete().eq('id', sceneMovieId);
