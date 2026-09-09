@@ -315,6 +315,16 @@ export async function applyTmdbMatch(
       tmdb_id: tmdbMovie.id,
       title: tmdbMovie.title,
       original_title: tmdbMovie.original_title,
+      // Kept in sync with the new title, not left as the placeholder's
+      // stale scraped-title normalization -- confirmed for real: a
+      // "movies_normalized_title_key" row left at the pre-match value
+      // (e.g. "avengers: endgame encore" after title became "Avengers:
+      // Endgame") makes findExistingMovieByTitle's exact-match check
+      // (which compares against the current `title`) unable to ever find
+      // this row again, so a re-scrape of the same source listing hits
+      // the unique constraint on a fresh insert attempt instead of
+      // reusing this one.
+      normalized_title: normalizeTitle(tmdbMovie.title),
       poster_path: tmdbMovie.poster_path || egyptInfo.posterUrl || null,
       release_date: displayDate.releaseDate,
       release_date_confirmed_eg: displayDate.isEgyptConfirmed,
