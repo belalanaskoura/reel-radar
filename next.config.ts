@@ -129,6 +129,14 @@ const nextConfig: NextConfig = {
         hostname: 'ezckygwfbodsjfhfsseg.supabase.co',
         pathname: '/storage/v1/object/public/avatars/**',
       },
+      {
+        // RNS (rnscinemas.com) poster fallback -- media is served from a
+        // separate .net domain (rnscinemas.net), not the site's own host,
+        // confirmed against real listing pages.
+        protocol: 'https',
+        hostname: 'rnscinemas.net',
+        pathname: '/storage/app/movies/**',
+      },
     ],
   },
 };
