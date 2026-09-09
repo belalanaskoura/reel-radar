@@ -130,11 +130,21 @@ const nextConfig: NextConfig = {
         pathname: '/storage/v1/object/public/avatars/**',
       },
       {
-        // RNS (rnscinemas.com) poster fallback -- media is served from a
-        // separate .net domain (rnscinemas.net), not the site's own host,
-        // confirmed against real listing pages.
+        // RNS (rnscinemas.com) poster fallback -- the listing page links
+        // to media on a separate .net domain (rnscinemas.net), but that
+        // host 301-redirects every request to the .com domain instead
+        // (confirmed live: Location: https://rnscinemas.com/storage/...) --
+        // the same shape of same-site cross-domain redirect
+        // statics.scenecinemas.com's own entry above exists for. Both
+        // hosts are listed since a CSP/image-optimizer host check applies
+        // to the final redirected URL, not just the one initially linked.
         protocol: 'https',
         hostname: 'rnscinemas.net',
+        pathname: '/storage/app/movies/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'rnscinemas.com',
         pathname: '/storage/app/movies/**',
       },
     ],
