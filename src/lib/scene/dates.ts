@@ -8,9 +8,16 @@ export function isValidShowtimeDate(date: string): boolean {
 
 // Shape check for a Scene movie slug, for the same reason: a slug is
 // spliced into the URL path. Scene's own slugs are lowercase words joined
-// by hyphens, sometimes with digits (a year or a sequel number).
+// by hyphens or underscores, sometimes with digits (a year or a sequel
+// number) -- confirmed for real that underscore-joined slugs are common,
+// not an edge case ("resident_evil", "fall_2", "mahmoud_eltany",
+// "practical_magic_2", "shish_dou" all live on CFC's listing at once).
+// The original hyphen-only version silently broke the showtime picker
+// for every one of these titles: isValidSceneSlug rejected the slug,
+// getDayShowtimes threw before any fetch, and the client's generic
+// "couldn't load" error looked identical to a real network failure.
 export function isValidSceneSlug(slug: string): boolean {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(slug) && slug.length <= 120;
+  return /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/i.test(slug) && slug.length <= 120;
 }
 
 // Scene's own date format throughout this app: DD-MM-YYYY, matching the

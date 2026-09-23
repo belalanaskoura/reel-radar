@@ -23,6 +23,19 @@ describe('isValidSceneSlug', () => {
     expect(isValidSceneSlug('toy-story-5-2d')).toBe(true);
   });
 
+  it('accepts underscore-joined slugs', () => {
+    // Real Scene slugs, confirmed live: underscores are common, not an
+    // edge case -- the original hyphen-only regex rejected all of these
+    // and silently broke the showtime picker for them.
+    expect(isValidSceneSlug('resident_evil')).toBe(true);
+    expect(isValidSceneSlug('fall_2')).toBe(true);
+    expect(isValidSceneSlug('mahmoud_eltany')).toBe(true);
+  });
+
+  it('accepts slugs mixing hyphens and underscores', () => {
+    expect(isValidSceneSlug('practical_magic-2')).toBe(true);
+  });
+
   it('rejects a query-string injection attempt', () => {
     expect(isValidSceneSlug('toy-story?business_day=1')).toBe(false);
   });

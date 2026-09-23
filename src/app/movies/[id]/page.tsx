@@ -23,6 +23,18 @@ import { VoxShowtimePicker } from '@/components/VoxShowtimePicker';
 import { MovieDetailTabs } from '@/components/MovieDetailTabs';
 import { logPageView } from '@/lib/analytics';
 
+// Raised from Hobby's default 10s -- ShowtimePicker's getDayShowtimes
+// server action (actions.ts) fetches Scene's AJAX fragment with its own
+// 15s timeout (REQUEST_TIMEOUT_MS in src/lib/scene/fetcher.ts), which
+// Vercel's default would silently kill first: the invocation gets torn
+// down before our own AbortController ever fires, so the action's catch
+// block (and its logError call) never runs at all -- confirmed for real,
+// a live "couldn't load showtimes" report left zero matching rows in
+// error_log despite the same request succeeding when tested directly
+// against Scene outside Vercel. Same fix shape as admin/layout.tsx's
+// own maxDuration=60 for the same underlying reason.
+export const maxDuration = 30;
+
 export async function generateMetadata({
   params,
 }: {
