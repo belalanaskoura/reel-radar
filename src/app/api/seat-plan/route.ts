@@ -10,6 +10,18 @@ import { logEvent } from '@/lib/analytics';
 // Hobby's default function timeout is 10s; a full booking-hold browser
 // flow (page load + redirect + waiting for the seat-plan XHR) ran close to
 // that in testing, so this asks for the max Hobby allows.
+//
+// Real production timing (2026-09-23, via the seat_plan_fetch analytics
+// event below): a call reporting 18.9s in Vercel's own function log broke
+// down as only ~7.3s inside this route's own code (launch+goto+XHR), a
+// ~11.6s gap happening BEFORE any of that -- traced to the deployment
+// still running on Vercel's default `iad1` (Washington, D.C.) region
+// despite users/Scene both being Egypt-based, and the request landing at
+// Vercel's Frankfurt edge (fra1) first. Fixed by pinning the function
+// region to `dub1` (Dublin) in vercel.json -- chosen over the
+// geographically-closer `fra1` because the Supabase database itself
+// lives in eu-west-1/Dublin, and most requests in this app make several
+// sequential database calls, not just one Scene-facing scrape.
 export const maxDuration = 60;
 
 // On-demand, per-page-view seat grid fetch -- not cached like showtimes_cache,
