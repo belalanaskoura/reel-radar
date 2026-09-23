@@ -8,6 +8,7 @@
     "src/app/api/scrape-formats/route.ts": { "regions": ["iad1"] },
     "src/app/api/check-scene-prices/route.ts": { "regions": ["iad1"] },
     "src/app/api/seat-plan/route.ts": { "regions": ["iad1"] },
+    "src/app/api/scene-poster/route.ts": { "regions": ["iad1"] },
     "src/app/movies/[id]/page.tsx": { "regions": ["iad1"] },
     "src/app/cinemas/[id]/page.tsx": { "regions": ["iad1"] }
   }
