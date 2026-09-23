@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Skeleton } from '@/components/Skeleton';
 import { TicketIcon } from '@/components/icons';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { Seat } from '@/lib/scene/seat-plan';
 
 // Renders a real Scene Cinemas seat grid fetched via /api/seat-plan, as a
@@ -104,6 +105,31 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
 
   const selectedSeats = seats.filter((s) => selected.has(s.appId));
 
+  // Scene's own "Choose Seats" page can't receive a picked selection from
+  // here (confirmed live: seat locking is tied server-side to the exact
+  // browser session that clicked it -- there's no URL param or token a
+  // separate session could reuse, and browsers block a script from one
+  // site touching another site's page regardless), so the user still has
+  // to click the same seats there by hand. This dialog is the one thing
+  // that CAN happen on our own side of that handoff: a clear last look at
+  // exactly what was picked, right as they're about to leave for Scene's
+  // site, so it's freshly in mind instead of something to scroll back up
+  // and re-read. Not a yes/no decision -- the only action is acknowledging
+  // and continuing, since "Continue to booking" already meant they're
+  // ready to go.
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+  function handleContinueClick(e: React.MouseEvent) {
+    if (selectedSeats.length === 0) return;
+    e.preventDefault();
+    setShowLeaveConfirm(true);
+  }
+
+  function confirmLeave() {
+    setShowLeaveConfirm(false);
+    window.open(bookingUrl, '_blank', 'noopener,noreferrer');
+  }
+
   if (seats.length === 0) {
     return (
       <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
@@ -184,7 +210,22 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
           seats selected, ~72px empty; 96px covers both with margin). */}
       <div className="h-24" aria-hidden="true" />
 
-      <SelectionBar selectedSeats={selectedSeats} bookingUrl={bookingUrl} />
+      <SelectionBar
+        selectedSeats={selectedSeats}
+        bookingUrl={bookingUrl}
+        onContinueClick={handleContinueClick}
+      />
+
+      {showLeaveConfirm && (
+        <ConfirmDialog
+          title="Heading to Scene Cinemas"
+          description={`You picked ${selectedSeats.map((s) => s.label).join(', ')} here — pick the same seats on Scene's site to finish booking. We can't select them for you there.`}
+          confirmLabel="Continue to Scene"
+          cancelLabel="Stay here"
+          onConfirm={confirmLeave}
+          onCancel={() => setShowLeaveConfirm(false)}
+        />
+      )}
     </div>
   );
 }
@@ -242,7 +283,15 @@ function SeatButton({
 // bottom of the page a user would have to scroll all the way down to see.
 // Mirrors Scene's own "Choose Seats" page, which keeps its seat count +
 // Checkout button pinned in view throughout, not a one-time footer.
-function SelectionBar({ selectedSeats, bookingUrl }: { selectedSeats: Seat[]; bookingUrl: string }) {
+function SelectionBar({
+  selectedSeats,
+  bookingUrl,
+  onContinueClick,
+}: {
+  selectedSeats: Seat[];
+  bookingUrl: string;
+  onContinueClick: (e: React.MouseEvent) => void;
+}) {
   const hasSelection = selectedSeats.length > 0;
   // Only shown once every selected seat has a known template price --
   // a partial total (e.g. 2 of 3 seats priced) would understate the real
@@ -301,6 +350,7 @@ function SelectionBar({ selectedSeats, bookingUrl }: { selectedSeats: Seat[]; bo
           href={bookingUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={onContinueClick}
           className="inline-block shrink-0 rounded-sm px-4 py-2.5 text-center text-sm font-medium whitespace-nowrap transition-opacity hover:opacity-90"
           style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
         >
