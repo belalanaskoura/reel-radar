@@ -136,18 +136,18 @@ type AnalyticsEvent =
   | {
       type: 'seat_plan_fetch';
       payload: {
-        // Per-stage breakdown of /api/seat-plan's real cost, added to find
-        // out where a reported 10-20s+ production wait actually goes --
-        // a local timing test (same fetchSeatPlan call, full `playwright`
-        // with an already-installed Chromium binary) came back at a
-        // consistent ~1.8s total, so the gap has to be something specific
-        // to the production path (most likely Vercel's chromium-min
-        // pulling its ~66MB binary pack over the network on every cold
-        // invocation, which the local test never pays since its binary
-        // was already on disk) -- this confirms or rules that out with
-        // real numbers instead of guessing.
+        // Per-stage breakdown of /api/seat-plan's real cost. Confirmed via
+        // real production numbers (2026-09-23) that launchMs (browser
+        // launch) is the single largest piece of this route's own cost --
+        // resolveExecutableMs/launchProcessMs split it further into
+        // chromium-min's binary-pack download+extract (executablePath())
+        // vs. actually starting the Chromium process (chromium.launch()),
+        // so a slow launch can be attributed to the right cause instead
+        // of guessed at.
         branchId: string | null;
         launchMs: number;
+        resolveExecutableMs: number;
+        launchProcessMs: number;
         gotoMs: number;
         xhrWaitMs: number;
         totalMs: number;

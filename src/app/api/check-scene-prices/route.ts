@@ -123,7 +123,7 @@ export async function POST(request: Request) {
   // (matchingShowtime.format, e.g. "Standard") to find a free seat in the
   // live seat-plan response -- not the template's possibly-combined
   // format string ("Standard & Deluxe" isn't a real st_name value).
-  const browser = await launchBrowser();
+  const { browser } = await launchBrowser();
   let liveObservedPriceEgp: number | null;
   try {
     liveObservedPriceEgp = await fetchScenePriceForFormat(

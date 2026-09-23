@@ -84,18 +84,16 @@ export async function POST(request: Request) {
     branchId && branchId in branchBaseUrls ? (branchId as BranchId) : null;
 
   // Stage timing, logged regardless of outcome -- added to find out where
-  // a reported 10-20s+ production wait actually goes. A local timing test
-  // of fetchSeatPlan's own gotoMs/xhrWaitMs (same code, full `playwright`
-  // with an already-installed Chromium binary) came back consistently
-  // around ~1.6s combined, so if production's launchMs/gotoMs/xhrWaitMs
-  // also come back small, the real cost is something this breakdown
-  // doesn't cover yet -- most likely Vercel's chromium-min downloading
-  // its ~66MB binary pack over the network on every cold invocation
-  // (executablePath() in browser.ts), which a local run never pays since
-  // its binary is already on disk.
+  // a reported 10-20s+ production wait actually goes. Real production
+  // numbers (2026-09-23) confirmed launchBrowser's own cost (Chromium
+  // binary resolve+launch) as the single largest piece of this route's
+  // own ~7s, split further below into resolveExecutableMs/launchProcessMs
+  // by launchBrowser itself so a slow launch can be attributed to the
+  // right cause (binary download vs. process startup) instead of guessed
+  // at.
   const totalStart = Date.now();
   const launchStart = Date.now();
-  const browser = await launchBrowser();
+  const { browser, timing: launchTiming } = await launchBrowser();
   const launchMs = Date.now() - launchStart;
 
   try {
@@ -116,6 +114,8 @@ export async function POST(request: Request) {
       payload: {
         branchId: resolvedBranchId,
         launchMs,
+        resolveExecutableMs: launchTiming.resolveExecutableMs,
+        launchProcessMs: launchTiming.launchProcessMs,
         gotoMs: seatPlan.timing.gotoMs,
         xhrWaitMs: seatPlan.timing.xhrWaitMs,
         totalMs: Date.now() - totalStart,
@@ -130,6 +130,8 @@ export async function POST(request: Request) {
       payload: {
         branchId: resolvedBranchId,
         launchMs,
+        resolveExecutableMs: launchTiming.resolveExecutableMs,
+        launchProcessMs: launchTiming.launchProcessMs,
         gotoMs: -1,
         xhrWaitMs: -1,
         totalMs: Date.now() - totalStart,
