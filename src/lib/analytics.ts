@@ -148,6 +148,12 @@ type AnalyticsEvent =
         launchMs: number;
         resolveExecutableMs: number;
         launchProcessMs: number;
+        // Whether CHROMIUM_PACK_URL was actually read from the runtime
+        // env at request time -- added to tell "the self-hosted Blob
+        // copy isn't configured/deployed yet" apart from "it's configured
+        // but not actually faster than GitHub" directly from this event,
+        // rather than inferring it from resolveExecutableMs alone.
+        usedCustomPackUrl: boolean;
         gotoMs: number;
         xhrWaitMs: number;
         totalMs: number;
