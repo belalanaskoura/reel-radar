@@ -132,6 +132,27 @@ type AnalyticsEvent =
         notified: number;
         duration_ms: number;
       };
+    }
+  | {
+      type: 'seat_plan_fetch';
+      payload: {
+        // Per-stage breakdown of /api/seat-plan's real cost, added to find
+        // out where a reported 10-20s+ production wait actually goes --
+        // a local timing test (same fetchSeatPlan call, full `playwright`
+        // with an already-installed Chromium binary) came back at a
+        // consistent ~1.8s total, so the gap has to be something specific
+        // to the production path (most likely Vercel's chromium-min
+        // pulling its ~66MB binary pack over the network on every cold
+        // invocation, which the local test never pays since its binary
+        // was already on disk) -- this confirms or rules that out with
+        // real numbers instead of guessing.
+        branchId: string | null;
+        launchMs: number;
+        gotoMs: number;
+        xhrWaitMs: number;
+        totalMs: number;
+        error: string | null;
+      };
     };
 
 // Route params reach logPageView straight off the URL, so they're

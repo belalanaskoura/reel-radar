@@ -5,6 +5,7 @@ import { fetchSeatPlan } from '@/lib/scene/seat-plan';
 import { getScenePriceTemplate, matchPriceForCategory } from '@/lib/scene/price-template';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { logEvent } from '@/lib/analytics';
 
 // Hobby's default function timeout is 10s; a full booking-hold browser
 // flow (page load + redirect + waiting for the seat-plan XHR) ran close to
@@ -66,7 +67,21 @@ export async function POST(request: Request) {
   const resolvedBranchId =
     branchId && branchId in branchBaseUrls ? (branchId as BranchId) : null;
 
+  // Stage timing, logged regardless of outcome -- added to find out where
+  // a reported 10-20s+ production wait actually goes. A local timing test
+  // of fetchSeatPlan's own gotoMs/xhrWaitMs (same code, full `playwright`
+  // with an already-installed Chromium binary) came back consistently
+  // around ~1.6s combined, so if production's launchMs/gotoMs/xhrWaitMs
+  // also come back small, the real cost is something this breakdown
+  // doesn't cover yet -- most likely Vercel's chromium-min downloading
+  // its ~66MB binary pack over the network on every cold invocation
+  // (executablePath() in browser.ts), which a local run never pays since
+  // its binary is already on disk.
+  const totalStart = Date.now();
+  const launchStart = Date.now();
   const browser = await launchBrowser();
+  const launchMs = Date.now() - launchStart;
+
   try {
     const [seatPlan, priceTemplate] = await Promise.all([
       fetchSeatPlan(browser, showtimeUrl),
@@ -80,8 +95,31 @@ export async function POST(request: Request) {
         }))
       : seatPlan.seats;
 
+    logEvent({
+      type: 'seat_plan_fetch',
+      payload: {
+        branchId: resolvedBranchId,
+        launchMs,
+        gotoMs: seatPlan.timing.gotoMs,
+        xhrWaitMs: seatPlan.timing.xhrWaitMs,
+        totalMs: Date.now() - totalStart,
+        error: null,
+      },
+    });
+
     return NextResponse.json({ ...seatPlan, seats });
   } catch (err) {
+    logEvent({
+      type: 'seat_plan_fetch',
+      payload: {
+        branchId: resolvedBranchId,
+        launchMs,
+        gotoMs: -1,
+        xhrWaitMs: -1,
+        totalMs: Date.now() - totalStart,
+        error: String(err).slice(0, 500),
+      },
+    });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to fetch seat plan' },
       { status: 502 },

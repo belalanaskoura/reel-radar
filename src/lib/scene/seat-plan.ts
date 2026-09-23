@@ -39,6 +39,17 @@ export interface SeatPlan {
   // properly initializes the booking widget's state before it redirects
   // into /booking-<id> itself, which a direct /booking-<id> visit skips.
   bookingUrl: string;
+  // Stage breakdown of this call's own cost, in ms -- added to find out
+  // where a reported 10-20s+ production wait actually goes, since a local
+  // timing test of this exact function (same code, full `playwright` with
+  // an already-installed Chromium binary) came back consistently around
+  // ~1.6s combined for both stages below. If production's real numbers
+  // for THESE two stages come back similarly small, that would point the
+  // real cost at something outside this function entirely -- most likely
+  // Vercel's chromium-min downloading its ~66MB binary pack over the
+  // network on every cold invocation (see launchBrowser in browser.ts),
+  // which a local run never pays since its binary is already on disk.
+  timing: { gotoMs: number; xhrWaitMs: number };
 }
 
 const USER_AGENT =
@@ -125,9 +136,14 @@ export async function fetchSeatPlan(browser: Browser, showtimeUrl: string): Prom
       { timeout: 20_000 },
     );
 
+    const gotoStart = Date.now();
     await page.goto(showtimeUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    const gotoMs = Date.now() - gotoStart;
 
+    const xhrWaitStart = Date.now();
     const res = await seatPlanResponse;
+    const xhrWaitMs = Date.now() - xhrWaitStart;
+
     const body = (await res.json()) as { status: number; data: SeatPlanApiRow[] };
 
     if (body.status !== 1 || !Array.isArray(body.data)) {
@@ -162,7 +178,7 @@ export async function fetchSeatPlan(browser: Browser, showtimeUrl: string): Prom
       });
     }
 
-    return { seats, bookingUrl: showtimeUrl };
+    return { seats, bookingUrl: showtimeUrl, timing: { gotoMs, xhrWaitMs } };
   } finally {
     await context.close();
   }
