@@ -32,17 +32,9 @@ export function ShowtimePicker({
   const [errorDate, setErrorDate] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  function selectDate(date: string) {
-    if (selectedDate === date) {
-      setSelectedDate(null);
-      return;
-    }
-    setSelectedDate(date);
-    setErrorDate(null);
-
-    if (showtimesByDate[date]) return;
-
+  function loadDate(date: string) {
     setLoadingDate(date);
+    setErrorDate(null);
     startTransition(async () => {
       try {
         const result = await getDayShowtimes(branchId, slug, date);
@@ -53,6 +45,19 @@ export function ShowtimePicker({
         setLoadingDate(null);
       }
     });
+  }
+
+  function selectDate(date: string) {
+    if (selectedDate === date) {
+      setSelectedDate(null);
+      return;
+    }
+    setSelectedDate(date);
+    setErrorDate(null);
+
+    if (showtimesByDate[date]) return;
+
+    loadDate(date);
   }
 
   const dateTabs = dates.map((date) => ({ date, label: formatSceneDateLabel(date) }));
@@ -67,9 +72,19 @@ export function ShowtimePicker({
           {loadingDate === selectedDate ? (
             <DayShowtimesSkeleton />
           ) : errorDate === selectedDate ? (
-            <p className="text-xs" style={{ color: 'var(--error-ink)' }}>
-              Couldn&apos;t load showtimes. Try again.
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-xs" style={{ color: 'var(--error-ink)' }}>
+                Couldn&apos;t load showtimes.
+              </p>
+              <button
+                type="button"
+                onClick={() => loadDate(selectedDate)}
+                className="focus-visible:ring-2 text-xs font-semibold underline"
+                style={{ color: 'var(--accent)' }}
+              >
+                Try again
+              </button>
+            </div>
           ) : showtimes && showtimes.length > 0 ? (
             <div className="flex flex-col gap-4">
               {groupByFormat(showtimes).map(([format, group]) => {

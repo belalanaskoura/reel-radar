@@ -23,6 +23,7 @@ type ErrorSource =
   | 'scrape-vox'
   | 'scrape-rns'
   | 'scrape-formats'
+  | 'showtime-fetch'
   | 'admin-digest'
   | 'welcome-email'
   | 'broadcast'

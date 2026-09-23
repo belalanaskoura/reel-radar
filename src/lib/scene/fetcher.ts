@@ -104,7 +104,15 @@ export async function fetchAllListings(branch: BranchId): Promise<SceneMovieList
 // A movie-details page always has a "no showtimes available" message,
 // which is only hidden once the day-selector list (.glxDaysList) is
 // populated with real date links (Phase 0 finding, ported directly from
-// spider-bot's is_bookable()).
+// spider-bot's is_bookable()). Confirmed in production (2026-09-23) that
+// this alone is not sufficient: Scene sometimes lists a future day in
+// the calendar before that day's AJAX fragment actually has any
+// showtime rows in it, which produced real false "bookable" notifications
+// up to a day before a movie was actually listed on Scene's own site. So
+// the earliest calendar day is now cross-checked against its own AJAX
+// fragment (fetchDayShowtimes) before bookable is reported true -- one
+// extra request, but only paid when the calendar shows days at all
+// (most checks are "no days yet" and return here for free).
 export async function checkBookability(movieDetailsUrl: string): Promise<BookabilityResult> {
   const html = await get(movieDetailsUrl);
   const $ = cheerio.load(html);
@@ -130,7 +138,25 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
     if (match) availableDates.push(match[1]);
   });
 
-  return { bookable: availableDates.length > 0, availableDates, posterUrl };
+  if (availableDates.length === 0) {
+    return { bookable: false, availableDates: [], posterUrl };
+  }
+
+  // Verify the earliest listed day actually has real showtime rows.
+  // Failure to fetch/parse this (network hiccup, unexpected markup)
+  // is treated as "not confirmed yet" rather than propagating an
+  // error -- a transient miss here should just delay a real
+  // notification by one poll cycle, not throw and abort the caller's
+  // whole batch over what is ultimately a confirmation step.
+  let hasRealShowtimes = false;
+  try {
+    const earliest = await fetchDayShowtimes(movieDetailsUrl, availableDates[0]);
+    hasRealShowtimes = earliest.showtimes.length > 0;
+  } catch {
+    hasRealShowtimes = false;
+  }
+
+  return { bookable: hasRealShowtimes, availableDates, posterUrl };
 }
 
 // Last-resort cast/crew fallback (TMDB, then elCinema, then this) for

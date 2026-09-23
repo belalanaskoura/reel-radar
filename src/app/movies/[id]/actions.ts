@@ -4,6 +4,7 @@ import { fetchDayShowtimes } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import type { SceneDayShowtimes } from '@/lib/scene/types';
 import { isValidSceneSlug, isValidShowtimeDate } from '@/lib/scene/dates';
+import { logError } from '@/lib/logger';
 
 // Fetches one specific day's showtimes for one branch, on demand: called
 // only when a user expands a day in the UI, not eagerly for every bookable
@@ -28,5 +29,17 @@ export async function getDayShowtimes(
   if (!isValidSceneSlug(slug)) throw new Error('Invalid slug');
   if (!isValidShowtimeDate(date)) throw new Error('Invalid date');
   const movieDetailsUrl = `${baseUrl}/movie-details/${slug}.html`;
-  return fetchDayShowtimes(movieDetailsUrl, date);
+  try {
+    return await fetchDayShowtimes(movieDetailsUrl, date);
+  } catch (err) {
+    // No server-side record of this path's failures existed before this
+    // (unlike every scrape/poll job, which already wraps its fetches in
+    // logError) -- the client only ever showed a generic "couldn't load"
+    // with no detail, so a real fetch failure (Cloudflare block, timeout,
+    // Scene markup change) was indistinguishable from any other cause.
+    // Re-thrown unchanged so the client's existing error handling is
+    // unaffected; this only adds visibility.
+    logError('showtime-fetch', err, { branchId, slug, date });
+    throw err;
+  }
 }
