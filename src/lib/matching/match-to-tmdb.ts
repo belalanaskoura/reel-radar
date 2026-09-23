@@ -7,6 +7,7 @@ import { searchElCinema, fetchWorkDetails, sleep, REQUEST_DELAY_MS } from '../el
 import { chainForBranch } from '../branches';
 import { mapWithConcurrency } from '../concurrency';
 import { logError } from '@/lib/logger';
+import { isRecentOrUpcoming } from './recency';
 
 const FUZZY_MATCH_THRESHOLD = 0.8;
 
@@ -206,25 +207,50 @@ async function disambiguate(candidates: TmdbMovie[], query: string): Promise<Tmd
   // for this movie yet (confirmed for real: "Above & Below", a real 2026
   // release, has zero EG release_dates entries at all, same as every
   // other candidate TMDB's loose title search returned alongside it).
+  // Everything below only fires in this zero-EG-date case: 2+ candidates
+  // with an EG date is a stronger, already-ambiguous signal on its own
+  // (two real distinct EG theatrical runs of the same title) that
+  // recency shouldn't try to override.
+  if (withEgDates.length > 0) {
+    return { outcome: 'ambiguous' };
+  }
+
   // Fall back to an exact normalized-title match: only trusted when
   // exactly one candidate's own title is an exact match to the search
   // query, never on a looser signal -- a candidate that merely contains
   // or resembles the query is exactly the kind of noise TMDB's search
   // returns by the dozen (confirmed: this query alone returned ~20
-  // candidates, only one an exact title match). Two candidates sharing an
-  // exact normalized title is a real, separate risk (a genuine title
-  // collision, per Phase 0's "The Odyssey" finding) and correctly falls
-  // through to ambiguous rather than guessing between them.
-  if (withEgDates.length === 0) {
-    const exactTitleMatches = candidates.filter((c) => normalizeTitle(c.title) === query);
-    if (exactTitleMatches.length === 1) {
-      return { outcome: 'matched', movie: exactTitleMatches[0] };
+  // candidates, only one an exact title match).
+  const exactTitleMatches = candidates.filter((c) => normalizeTitle(c.title) === query);
+  if (exactTitleMatches.length === 1) {
+    return { outcome: 'matched', movie: exactTitleMatches[0] };
+  }
+
+  // Two or more candidates sharing an exact normalized title is a real,
+  // separate risk (a genuine title collision, per Phase 0's "The Odyssey"
+  // finding, e.g. "Resident Evil" 2026 vs. the 2002 original). Last
+  // resort before giving up: recency is a genuinely strong signal here --
+  // this app only ever cares about movies currently showing or about to
+  // show at an Egyptian cinema, so nobody is booking a ticket for a
+  // 24-year-old theatrical run. Only applied among candidates that
+  // already passed the exact-title check above (never widens the pool),
+  // and only when it narrows to exactly one -- if two candidates are both
+  // recent (a real close call, e.g. two different re-releases of the same
+  // era), this still correctly falls through to ambiguous rather than
+  // guessing between them.
+  if (exactTitleMatches.length > 1) {
+    const recent = exactTitleMatches.filter((c) => isRecentOrUpcoming(c.release_date));
+    if (recent.length === 1) {
+      if (isUnmarkedReRelease(query, recent[0].title)) {
+        return { outcome: 'ambiguous' };
+      }
+      return { outcome: 'matched', movie: recent[0] };
     }
   }
 
-  // Zero (with no exact-title fallback available) or 2+ candidates with
-  // an EG release date is genuinely ambiguous: per Phase 5 sign-off,
-  // popularity alone isn't a strong enough signal to auto-pick here.
+  // Nothing above narrowed to exactly one candidate: genuinely ambiguous.
+  // Per Phase 5 sign-off, popularity alone isn't a strong enough signal
+  // to auto-pick here.
   return { outcome: 'ambiguous' };
 }
 
