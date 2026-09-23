@@ -14,14 +14,18 @@ import { logEvent } from '@/lib/analytics';
 // Real production timing (2026-09-23, via the seat_plan_fetch analytics
 // event below): a call reporting 18.9s in Vercel's own function log broke
 // down as only ~7.3s inside this route's own code (launch+goto+XHR), a
-// ~11.6s gap happening BEFORE any of that -- traced to the deployment
-// still running on Vercel's default `iad1` (Washington, D.C.) region
-// despite users/Scene both being Egypt-based, and the request landing at
-// Vercel's Frankfurt edge (fra1) first. Fixed by pinning the function
-// region to `dub1` (Dublin) in vercel.json -- chosen over the
-// geographically-closer `fra1` because the Supabase database itself
-// lives in eu-west-1/Dublin, and most requests in this app make several
-// sequential database calls, not just one Scene-facing scrape.
+// ~11.6s gap happening BEFORE any of that -- traced to the app running on
+// Vercel's default `iad1` (Washington, D.C.) region despite users/Scene
+// both being Egypt-based. The rest of the app was moved to `dub1`
+// (Dublin, colocated with the Supabase database) the same day, but this
+// route was pinned back to `iad1` specifically (see vercel.json's
+// `functions` override) once that same-day migration revealed a second,
+// more serious issue: Scene Cinemas' Cloudflare returns a hard 403 to
+// every request from Vercel's `dub1` IP range (confirmed live, and via
+// error_log's showtime-fetch entries spiking with 403s the moment `dub1`
+// went live) -- `iad1` was the one already confirmed working before any
+// of this, so every Scene-facing route stays there rather than risk
+// hitting the same block from a different, unverified region.
 export const maxDuration = 60;
 
 // On-demand, per-page-view seat grid fetch -- not cached like showtimes_cache,

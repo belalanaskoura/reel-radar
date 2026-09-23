@@ -35,6 +35,19 @@ import { logPageView } from '@/lib/analytics';
 // own maxDuration=60 for the same underlying reason.
 export const maxDuration = 30;
 
+// Pinned to `iad1` in vercel.json's `functions` override, overriding the
+// rest of the app's `dub1` default -- Scene Cinemas' Cloudflare returns a
+// hard 403 to every request from Vercel's `dub1` (Dublin) IP range
+// (confirmed live, 2026-09-23, immediately after the app-wide region
+// migration -- error_log's showtime-fetch entries spiked with 403s the
+// moment `dub1` went live across every Scene branch). Stays on `iad1`,
+// the region already confirmed working for Scene before any of this,
+// since this page's showtime-picker component (ShowtimePicker.tsx via
+// actions.ts) makes the same kind of direct Scene-facing request. (Next's
+// own `preferredRegion` export can't express this on Vercel -- it's
+// deprecated and only accepts 'auto'/'global'/'home', not a real region
+// code -- so the pin lives in vercel.json instead.)
+
 export async function generateMetadata({
   params,
 }: {
