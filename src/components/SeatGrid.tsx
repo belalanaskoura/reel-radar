@@ -25,7 +25,22 @@ import type { Seat } from '@/lib/scene/seat-plan';
 // mirroring Scene's own "Choose Seats" page, which keeps its own selection
 // count + Checkout button pinned in a header bar throughout -- not a
 // pixel-for-pixel copy, adapted to this app's own dark teal system.
-export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: string }) {
+export function SeatGrid({
+  seats,
+  bookingUrl,
+  branchName,
+}: {
+  seats: Seat[];
+  bookingUrl: string;
+  // The specific Scene branch this showtime belongs to (e.g. "Cairo
+  // Festival City"), not a hardcoded chain name -- more branches may be
+  // added later, and the leave-confirmation dialog below should always
+  // name the real one the user is actually headed to. VOX has no seat-
+  // level booking flow (its own showtime picker links straight to VOX's
+  // general showtimes page, never a seat grid), so SeatGrid itself stays
+  // Scene-only regardless of how many Scene branches exist.
+  branchName: string;
+}) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { rows, categories, cheapestPriceEgp } = useMemo(() => {
@@ -218,9 +233,9 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
 
       {showLeaveConfirm && (
         <ConfirmDialog
-          title="Heading to Scene Cinemas"
-          description={`You picked ${selectedSeats.map((s) => s.label).join(', ')} here — pick the same seats on Scene's site to finish booking. We can't select them for you there.`}
-          confirmLabel="Continue to Scene"
+          title={`Heading to ${branchName}`}
+          description={`You picked ${selectedSeats.map((s) => s.label).join(', ')} here. Pick the same seats on ${branchName}'s site to finish booking; we can't select them for you there.`}
+          confirmLabel={`Continue to ${branchName}`}
           cancelLabel="Stay here"
           onConfirm={confirmLeave}
           onCancel={() => setShowLeaveConfirm(false)}

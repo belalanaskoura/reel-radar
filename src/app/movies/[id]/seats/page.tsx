@@ -173,7 +173,7 @@ export default function SeatsPage({ params }: { params: Promise<{ id: string }> 
           Couldn&apos;t load the seat map for this showtime. It may have already started or sold out.
         </p>
       ) : (
-        <SeatGrid seats={seats} bookingUrl={bookingUrl ?? showtimeUrl} />
+        <SeatGrid seats={seats} bookingUrl={bookingUrl ?? showtimeUrl} branchName={branchName || 'Scene Cinemas'} />
       )}
     </main>
   );
