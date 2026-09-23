@@ -27,7 +27,7 @@ import type { Seat } from '@/lib/scene/seat-plan';
 export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: string }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const { rows, categories } = useMemo(() => {
+  const { rows, categories, cheapestPriceEgp } = useMemo(() => {
     const byRow = new Map<number, Seat[]>();
     for (const seat of seats) {
       if (!byRow.has(seat.row)) byRow.set(seat.row, []);
@@ -48,7 +48,24 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
     // where lower numbers land, matching Scene's real layout.
     const sortedRows = [...byRow.entries()]
       .sort(([a], [b]) => b - a)
-      .map(([, rowSeats]) => rowSeats.sort((a, b) => b.col - a.col));
+      .map(([, rowSeats]) => {
+        const sorted = rowSeats.sort((a, b) => b.col - a.col);
+        // Real aisle width between two consecutive seats, derived from
+        // the actual gap in Scene's own column numbers -- fetchSeatPlan
+        // only ever returns real, bookable seats (Blank/SeatRowTitle
+        // cells are dropped before this point), so a jump of e.g. 4
+        // between col 13 and col 9 means 3 real Blank columns sit between
+        // them. Confirmed live against a real hall (CFC's Resident Evil
+        // 4DX showtime): aisle width and position varies per row and
+        // isn't symmetric (one row had gaps of 1, 3, and 1 columns at
+        // three different points), so this can't be a fixed pattern --
+        // it has to come from the real per-seat column numbers.
+        const withGaps = sorted.map((seat, idx) => ({
+          seat,
+          gapBefore: idx === 0 ? 0 : Math.abs(sorted[idx - 1].col - seat.col) - 1,
+        }));
+        return withGaps;
+      });
 
     // Price rides along with category rather than as a separate lookup:
     // every seat sharing a category name carries the same priceEgp (set
@@ -60,7 +77,19 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
       if (s.category && !categoryPrices.has(s.category)) categoryPrices.set(s.category, s.priceEgp);
     }
 
-    return { rows: sortedRows, categories: [...categoryPrices.entries()] };
+    // The hall's cheapest real, priced category -- used to rank every
+    // other category as "premium" (priced above it) rather than matching
+    // specific format names. Category names are genuinely open-ended
+    // (confirmed live: "4DX" alongside "Standard"/"Premiere"/"Deluxe"/
+    // "ScreenX" across different halls), so a hardcoded keyword list
+    // always lags whatever format Scene adds next -- this scales to any
+    // name using data already attached to each seat. Null (no price
+    // template on file for this branch yet) means there's no ranking
+    // signal at all, not that every category is equally cheap.
+    const pricedValues = [...categoryPrices.values()].filter((p): p is number => p != null);
+    const cheapestPriceEgp = pricedValues.length > 0 ? Math.min(...pricedValues) : null;
+
+    return { rows: sortedRows, categories: [...categoryPrices.entries()], cheapestPriceEgp };
   }, [seats]);
 
   function toggleSeat(seat: Seat) {
@@ -95,11 +124,9 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
             seats, which shifted each row's true center off-axis by however
             wide the label was, since only the label side had that extra
             space. */}
-        <div className="mx-auto flex w-fit flex-col items-center gap-2.5 py-1 pr-2 pl-6">
+        <div className="mx-auto flex w-fit flex-col items-center gap-1.5 py-1 pr-2 pl-6">
           {rows.map((rowSeats, i) => {
             const rowLabel = rowLetterFor(rowSeats);
-            const seatCount = rowSeats.length;
-            const rowCenter = (seatCount - 1) / 2;
 
             return (
               <div key={i} className="relative flex items-center">
@@ -109,27 +136,38 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
                 >
                   {rowLabel}
                 </span>
-                <div className="flex gap-1">
-                  {rowSeats.map((seat, seatIdx) => {
+                {/* No shared flex `gap` here -- each seat's own leading
+                    space is rendered explicitly below (one 22px "seat
+                    pitch" per real Blank column Scene reports before it,
+                    same pitch a normally-adjacent pair already renders at
+                    via SeatButton's own 20px width + this row's 2px
+                    baseline), since a uniform gap can't represent Scene's
+                    actual (asymmetric, per-row) aisle layout. Flat, no
+                    per-seat curve/lift -- confirmed against Scene's own
+                    "Choose Seats" page that its real grid is flat, not
+                    bowed; the earlier curve effect was a stylistic guess
+                    this app added, not something Scene's layout has. */}
+                <div className="flex">
+                  {rowSeats.map(({ seat, gapBefore }, seatIdx) => {
                     const isSelected = selected.has(seat.appId);
-                    // Real theater curvature: seats bow slightly toward the
-                    // screen as they approach the row's edges (a fixed
-                    // parabola across seat position, not tied to
-                    // row-to-row distance) -- rows near the front curve a
-                    // little more than rows near the back, like a real
-                    // raked/curved auditorium.
-                    const distanceFromRowCenter = rowCenter > 0 ? Math.abs(seatIdx - rowCenter) / rowCenter : 0;
-                    const curveStrength = 1 - i / Math.max(1, rows.length - 1);
-                    const liftPx = distanceFromRowCenter ** 2 * 8 * curveStrength;
+                    // Adjacent seats (gapBefore 0) sit almost touching, a
+                    // 1px seam -- confirmed against Scene's own picker
+                    // that its real within-block spacing reads as nearly
+                    // continuous, closer than this app's earlier 4px gap.
+                    // A real aisle (gapBefore > 0) still gets a full seat
+                    // pitch per missing column, so the aisle itself stays
+                    // clearly wider than the seam between ordinary seats.
+                    const marginLeftPx = seatIdx === 0 ? 0 : 1 + gapBefore * 21;
 
                     return (
-                      <SeatButton
-                        key={seat.appId}
-                        seat={seat}
-                        isSelected={isSelected}
-                        liftPx={liftPx}
-                        onToggle={() => toggleSeat(seat)}
-                      />
+                      <span key={seat.appId} style={{ marginLeft: marginLeftPx }}>
+                        <SeatButton
+                          seat={seat}
+                          isSelected={isSelected}
+                          cheapestPriceEgp={cheapestPriceEgp}
+                          onToggle={() => toggleSeat(seat)}
+                        />
+                      </span>
                     );
                   })}
                 </div>
@@ -139,7 +177,7 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
         </div>
       </div>
 
-      <Legend categories={categories} />
+      <Legend categories={categories} cheapestPriceEgp={cheapestPriceEgp} />
 
       {/* Spacer so the sticky bar below never covers the legend/last row --
           height matches the bar's own real height (measured: ~88px with
@@ -154,32 +192,31 @@ export function SeatGrid({ seats, bookingUrl }: { seats: Seat[]; bookingUrl: str
 function SeatButton({
   seat,
   isSelected,
-  liftPx,
+  cheapestPriceEgp,
   onToggle,
 }: {
   seat: Seat;
   isSelected: boolean;
-  liftPx: number;
+  cheapestPriceEgp: number | null;
   onToggle: () => void;
 }) {
   return (
-    // The visual seat stays a compact 24px (a real hall row can be 25+
-    // seats wide -- 44px marks would force far more horizontal scrolling
-    // than the tap-forgiveness is worth), but the actual tappable area
-    // is padded out toward the 44px touch-target minimum by wrapping it
-    // in a larger invisible hit box, matching Scene's own row-tight
-    // layout while still meeting the real minimum.
-    <span
-      className="-m-2.5 inline-flex h-11 w-11 shrink-0 items-center justify-center"
-      style={{ transform: `translateY(${liftPx}px)` }}
-    >
+    // The visual seat is a compact 20px -- tightened from an earlier 24px
+    // to match how close together Scene's own "Choose Seats" page packs
+    // seats within a block (confirmed side by side against a real
+    // screenshot: Scene's seats sit almost touching, this app's read as
+    // visibly more spaced out at 24px+4px gaps) -- but the actual
+    // tappable area is still padded out to the real 44px touch-target
+    // minimum via a larger invisible hit box, so the tighter visual
+    // packing doesn't cost real tap accuracy.
+    <span className="-m-3 inline-flex h-11 w-11 shrink-0 items-center justify-center">
       <button
         type="button"
         title={`${seat.label}${seat.category ? ` · ${seat.category}` : ''}`}
         disabled={seat.availability !== 'free'}
         onClick={onToggle}
-        className="relative h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px] text-[9px] leading-6 font-medium disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:scale-105 enabled:active:scale-90"
-        style={seatStyle(seat, isSelected)}
+        className="relative h-5 w-5 shrink-0 rounded-t-md rounded-b-[3px] text-[8px] leading-5 font-medium disabled:cursor-not-allowed enabled:cursor-pointer enabled:hover:scale-105 enabled:active:scale-90"
+        style={seatStyle(seat, isSelected, cheapestPriceEgp)}
       >
         {isSelected && (
           <svg
@@ -310,14 +347,14 @@ export function SeatGridSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-hidden="true">
       <Screen />
-      <div className="mx-auto flex w-fit flex-col items-center gap-2.5 py-1 pr-2 pl-6">
+      <div className="mx-auto flex w-fit flex-col items-center gap-1.5 py-1 pr-2 pl-6">
         {ROW_PATTERNS.map((pattern, i) => (
-          <div key={i} className="flex gap-1">
+          <div key={i} className="flex gap-0.5">
             {pattern.split('').map((cell, j) =>
               cell === 'X' ? (
-                <Skeleton key={j} className="h-6 w-6 shrink-0 rounded-t-md rounded-b-[3px]" />
+                <Skeleton key={j} className="h-5 w-5 shrink-0 rounded-t-md rounded-b-[3px]" />
               ) : (
-                <div key={j} className="h-6 w-6 shrink-0" />
+                <div key={j} className="h-5 w-5 shrink-0" />
               ),
             )}
           </div>
@@ -332,8 +369,8 @@ export function SeatGridSkeleton() {
   );
 }
 
-function rowLetterFor(rowSeats: Seat[]): string {
-  const match = rowSeats[0]?.label.match(/^[A-Z]+/);
+function rowLetterFor(rowSeats: { seat: Seat }[]): string {
+  const match = rowSeats[0]?.seat.label.match(/^[A-Z]+/);
   return match ? match[0] : '';
 }
 
@@ -353,21 +390,39 @@ function Screen() {
   );
 }
 
-function Legend({ categories }: { categories: [string, number | null][] }) {
+function Legend({
+  categories,
+  cheapestPriceEgp,
+}: {
+  categories: [string, number | null][];
+  cheapestPriceEgp: number | null;
+}) {
   return (
     <div className="flex flex-col gap-2 text-[11px]" style={{ color: 'var(--ink-dim)' }}>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 xs:flex xs:flex-wrap xs:items-center xs:gap-x-4">
-        <LegendItem swatch={seatStyle({ availability: 'free', category: '' } as Seat, false)} label="Available" />
-        <LegendItem swatch={seatStyle({ availability: 'free', category: '' } as Seat, true)} label="Selected" />
-        <LegendItem swatch={seatStyle({ availability: 'occupied', category: '' } as Seat, false)} label="Taken" />
-        <LegendItem swatch={seatStyle({ availability: 'hold', category: '' } as Seat, false)} label="On hold" />
+        <LegendItem
+          swatch={seatStyle({ availability: 'free', category: '', priceEgp: null }, false, cheapestPriceEgp)}
+          label="Available"
+        />
+        <LegendItem
+          swatch={seatStyle({ availability: 'free', category: '', priceEgp: null }, true, cheapestPriceEgp)}
+          label="Selected"
+        />
+        <LegendItem
+          swatch={seatStyle({ availability: 'occupied', category: '', priceEgp: null }, false, cheapestPriceEgp)}
+          label="Taken"
+        />
+        <LegendItem
+          swatch={seatStyle({ availability: 'hold', category: '', priceEgp: null }, false, cheapestPriceEgp)}
+          label="On hold"
+        />
       </div>
       {categories.length > 1 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t pt-2" style={{ borderColor: 'var(--rule)' }}>
           {categories.map(([category, priceEgp]) => (
             <LegendItem
               key={category}
-              swatch={seatStyle({ availability: 'free', category } as Seat, false)}
+              swatch={seatStyle({ availability: 'free', category, priceEgp }, false, cheapestPriceEgp)}
               label={priceEgp != null ? `${category} · ${priceEgp} EGP` : category}
             />
           ))}
@@ -392,7 +447,11 @@ function LegendItem({ swatch, label }: { swatch: React.CSSProperties; label: str
 // tight teal/status system (see globals.css), and most halls only ever
 // have 1-3 categories, so a border variant reads clearly without
 // introducing an unrelated categorical ramp.
-function seatStyle(seat: Pick<Seat, 'availability' | 'category'>, isSelected: boolean): React.CSSProperties {
+function seatStyle(
+  seat: Pick<Seat, 'availability' | 'category' | 'priceEgp'>,
+  isSelected: boolean,
+  cheapestPriceEgp: number | null,
+): React.CSSProperties {
   // Single source of truth for the seat's transition (previously also
   // duplicated as a Tailwind transition-transform class on the button
   // itself, which fought with this inline style for the same property --
@@ -411,12 +470,33 @@ function seatStyle(seat: Pick<Seat, 'availability' | 'category'>, isSelected: bo
     return { ...base, background: 'var(--listed-bg)', color: 'var(--listed-ink)', opacity: 0.7 };
   }
 
-  const category = seat.category?.toLowerCase() ?? '';
-  if (category.includes('premiere') || category.includes('vip')) {
+  // Premium is ranked by price, not by matching specific category names --
+  // Scene's real category names are open-ended (confirmed live: "4DX"
+  // alongside "Standard"/"Premiere"/"Deluxe"/"ScreenX" across different
+  // halls), so a fixed keyword list always misses whatever format Scene
+  // adds next (confirmed: "4DX" fell through to the plain look under the
+  // old premiere/vip/deluxe-only check). Any category priced above the
+  // hall's cheapest gets the same premium border regardless of its name --
+  // one premium tier, not a name-keyed ramp, matching this app's
+  // deliberately tight status-color palette.
+  const isPremium =
+    cheapestPriceEgp != null && seat.priceEgp != null && seat.priceEgp > cheapestPriceEgp;
+  if (isPremium) {
     return { ...base, background: 'var(--ok-bg)', color: 'var(--ok-ink)', boxShadow: 'inset 0 0 0 1.5px var(--ok-ink)' };
   }
-  if (category.includes('deluxe')) {
-    return { ...base, background: 'var(--ok-bg)', color: 'var(--ok-ink)', boxShadow: 'inset 0 0 0 1.5px var(--accent-dim)' };
+
+  // No price data at all (template not on file for this branch yet) --
+  // fall back to the old keyword hints as a best-effort rather than
+  // rendering every category identically.
+  if (cheapestPriceEgp == null) {
+    const category = seat.category?.toLowerCase() ?? '';
+    if (category.includes('premiere') || category.includes('vip')) {
+      return { ...base, background: 'var(--ok-bg)', color: 'var(--ok-ink)', boxShadow: 'inset 0 0 0 1.5px var(--ok-ink)' };
+    }
+    if (category.includes('deluxe')) {
+      return { ...base, background: 'var(--ok-bg)', color: 'var(--ok-ink)', boxShadow: 'inset 0 0 0 1.5px var(--accent-dim)' };
+    }
   }
+
   return { ...base, background: 'var(--ok-bg)', color: 'var(--ok-ink)' };
 }
