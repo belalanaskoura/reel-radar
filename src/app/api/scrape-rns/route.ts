@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyCronSecret, verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { fetchComingSoon, sleep, REQUEST_DELAY_MS } from '@/lib/rns/fetcher';
+import { fetchComingSoon } from '@/lib/rns/fetcher';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
@@ -32,8 +32,11 @@ import { logError } from '@/lib/logger';
 // scheduler being set up. POST with x-sync-secret still works for
 // cron-job.org and admin's "Re-run RNS scrape" button.
 //
-// The per-listing REQUEST_DELAY_MS sleep below makes a full run take
-// roughly one second per listing, so give it headroom past the default.
+// No per-listing delay: the loop only talks to Supabase, never to RNS
+// (the single coming-soon fetch above is the only request RNS sees), so
+// the 1s-per-listing sleep this used to have only pushed a 25-listing run
+// to ~25s, right at cron-job.org's 30s timeout. maxDuration is headroom
+// for the new-release notification fan-out.
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
@@ -220,8 +223,6 @@ async function runScrape() {
       if (listing.releaseDate && !previousReleaseDate) {
         newlyDatedMovieIds.push(movieId);
       }
-
-      await sleep(REQUEST_DELAY_MS);
     }
 
     let newReleasesNotified = 0;

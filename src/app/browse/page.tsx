@@ -7,6 +7,7 @@ import type { MovieCardData } from '@/components/MovieCard';
 import { sortBranchesForDisplay } from '@/lib/branches';
 import { logPageView } from '@/lib/analytics';
 import { hidePosterlessMovies } from '@/lib/movie-visibility';
+import { hasEmbeddedRow } from '@/lib/matching/has-embedded-row';
 
 // Real catalog was 117 browsable movies when this was chosen (checked
 // directly against production) -- generous headroom over that without
@@ -139,7 +140,7 @@ export default async function BrowsePage() {
     const isStaleListing =
       neverBookableAnywhere && !!m.release_date && m.release_date < staleCutoffStr;
 
-    const hasRealListing = branches.length > 0 || (m.rns_listings ?? []).length > 0;
+    const hasRealListing = branches.length > 0 || hasEmbeddedRow(m.rns_listings);
 
     return (m.match_status !== 'ambiguous' || hasRealListing) && !hasEndedEverywhere && !isStaleListing;
   });

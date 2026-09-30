@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { hasEmbeddedRow } from './has-embedded-row';
 
 // Removes movies whose release_date has passed while neither Scene/VOX
 // (zero movie_branch_slugs rows) nor RNS (no rns_listings row) still list
@@ -29,11 +30,7 @@ export async function removeUnreleasableMovies(
   }
 
   const idsToRemove = (candidates ?? [])
-    .filter(
-      (m) =>
-        (m.movie_branch_slugs as unknown[]).length === 0 &&
-        (m.rns_listings as unknown[]).length === 0,
-    )
+    .filter((m) => !hasEmbeddedRow(m.movie_branch_slugs) && !hasEmbeddedRow(m.rns_listings))
     .map((m) => m.id as string);
 
   if (idsToRemove.length === 0) {
