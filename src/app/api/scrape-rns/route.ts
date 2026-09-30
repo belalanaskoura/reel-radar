@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifySyncSecret } from '@/lib/verify-sync-secret';
+import { verifyCronSecret, verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { fetchComingSoon, sleep, REQUEST_DELAY_MS } from '@/lib/rns/fetcher';
+import { fetchComingSoon } from '@/lib/rns/fetcher';
 import { findExistingMovieByTitle } from '@/lib/matching/find-existing-movie';
 import { normalizeTitle } from '@/lib/matching/normalize';
 import { removeUnreleasableMovies } from '@/lib/matching/remove-unreleasable';
@@ -25,11 +25,35 @@ import { logError } from '@/lib/logger';
 // pagination -- confirmed for real, 25/25 titles present in one fetch),
 // so unlike scrape-scene/scrape-vox this needs no batching/offset/BATCH_SIZE
 // to stay under cron-job.org's 30s timeout.
+//
+// Scheduled daily by Vercel Cron (vercel.json's `crons`), which calls GET
+// with CRON_SECRET -- once a day is all Hobby allows, and all this job
+// needs, so unlike the 15-30 min jobs it doesn't depend on an external
+// scheduler being set up. POST with x-sync-secret still works for
+// cron-job.org and admin's "Re-run RNS scrape" button.
+//
+// No per-listing delay: the loop only talks to Supabase, never to RNS
+// (the single coming-soon fetch above is the only request RNS sees), so
+// the 1s-per-listing sleep this used to have only pushed a 25-listing run
+// to ~25s, right at cron-job.org's 30s timeout. maxDuration is headroom
+// for the new-release notification fan-out.
+export const maxDuration = 60;
+
+export async function GET(request: Request) {
+  if (!verifyCronSecret(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return runScrape();
+}
+
 export async function POST(request: Request) {
   if (!verifySyncSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  return runScrape();
+}
 
+async function runScrape() {
   const startedAt = Date.now();
   const supabase = createServiceRoleClient();
 
@@ -199,8 +223,6 @@ export async function POST(request: Request) {
       if (listing.releaseDate && !previousReleaseDate) {
         newlyDatedMovieIds.push(movieId);
       }
-
-      await sleep(REQUEST_DELAY_MS);
     }
 
     let newReleasesNotified = 0;

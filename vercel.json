@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["dub1"],
+  "crons": [{ "path": "/api/scrape-rns", "schedule": "0 4 * * *" }],
   "functions": {
     "src/app/api/scrape-scene/route.ts": { "regions": ["iad1"] },
     "src/app/api/poll/route.ts": { "regions": ["iad1"] },

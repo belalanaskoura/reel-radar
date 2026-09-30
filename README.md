@@ -297,7 +297,7 @@ to be called on a real interval by an external scheduler (e.g.
 
 | Route | Purpose | Suggested interval |
 |---|---|---|
-| `POST /api/scrape-rns` | Scrapes rnscinemas.com's coming-soon page — this app's catalog-discovery source (which movies are coming to Egypt at all), creating/attaching a `movies` placeholder per listing for `/api/match-movies` to resolve against TMDB, same as Scene/VOX placeholders | Daily |
+| `POST /api/scrape-rns` | Scrapes rnscinemas.com's coming-soon page — this app's catalog-discovery source (which movies are coming to Egypt at all), creating/attaching a `movies` placeholder per listing for `/api/match-movies` to resolve against TMDB, same as Scene/VOX placeholders. **Already scheduled** via Vercel Cron (`vercel.json`, daily 04:00 UTC, `GET` with `Authorization: Bearer $CRON_SECRET`) — no external job needed | Daily (built in) |
 | `POST /api/scrape-scene?branch=<id>` | Scrapes a Scene branch's listings and bookability, notifying cinema-trackers of any movie newly added to that branch. Only checks one `BATCH_SIZE=10` slice per call — leave `?offset=` unset and it self-advances through the whole branch via a persisted cursor, so a single job per branch is enough; don't add several staggered-offset jobs, they'd race the same cursor | Every 15–30 min per branch |
 | `POST /api/scrape-scene-delist` | Clears bookability for Scene movies no longer listed at all, notifying cinema-trackers of the removal | Every 15–30 min |
 | `POST /api/scrape-vox` | Scrapes VOX showtimes (via elCinema) for all 3 branches, including delisting movies whose run has ended and notifying cinema-trackers of both additions and removals | Daily (full-detail fetch, more expensive per run) |

@@ -14,14 +14,24 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 // length: timingSafeEqual throws on a length mismatch, and guarding that
 // with an early length check would leak the secret's length instead.
 export function verifySyncSecret(request: Request): boolean {
-  const expected = process.env.SYNC_SECRET;
+  return secretsMatch(request.headers.get('x-sync-secret'), process.env.SYNC_SECRET);
+}
 
+// Vercel Cron's own auth: it calls the scheduled path with GET and an
+// `Authorization: Bearer <CRON_SECRET>` header, set from the project's
+// CRON_SECRET env var. Kept separate from SYNC_SECRET so the Vercel-side
+// secret can be rotated without touching the external scheduler's jobs.
+export function verifyCronSecret(request: Request): boolean {
+  const header = request.headers.get('authorization');
+  const provided = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : null;
+  return secretsMatch(provided, process.env.CRON_SECRET);
+}
+
+function secretsMatch(provided: string | null, expected: string | undefined): boolean {
   // No secret configured means no request can be authorized. Failing
   // closed here matters: an unset env var in a new environment would
   // otherwise make `undefined === undefined` authorize everyone.
   if (!expected) return false;
-
-  const provided = request.headers.get('x-sync-secret');
   if (!provided) return false;
 
   const providedHash = createHash('sha256').update(provided).digest();
