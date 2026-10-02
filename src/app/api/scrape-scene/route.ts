@@ -255,6 +255,17 @@ export async function POST(request: Request) {
             .eq('id', movieId);
         }
 
+        // formats is deliberately left untouched here, not reset to '{}'
+        // or refetched -- getting it would mean an extra fetchDayShowtimes
+        // request per movie, which is exactly the per-movie HTTP cost
+        // BATCH_SIZE's own comment above documents this route as unable to
+        // afford. /api/scrape-formats (separate daily job) is the sole
+        // writer of per-movie formats for Scene. A movie that goes
+        // delisted (formats cleared to '{}' by scrape-scene-delist) and
+        // then reappears here will show no experience-filter matches for
+        // up to one day until that job's next run -- fails safe (under-
+        // matching, never a wrong match) rather than blowing this route's
+        // cron timeout budget.
         await supabase.from('showtimes_cache').upsert(
           {
             movie_id: movieId,

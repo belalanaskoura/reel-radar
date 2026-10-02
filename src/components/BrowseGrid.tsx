@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { MovieCard, type MovieCardData } from '@/components/MovieCard';
 import { FilterDropdown, type StatusFilter } from '@/components/FilterDropdown';
 import { CinemaFilterDropdown, type CinemaOption } from '@/components/CinemaFilterDropdown';
+import { FormatFilterDropdown } from '@/components/FormatFilterDropdown';
 import { useSearchQuery } from '@/components/SearchProvider';
 import { useEqualRowHeights } from '@/components/useEqualRowHeights';
 import { getFullCatalogSearchResults } from '@/app/browse/actions';
@@ -51,8 +52,23 @@ export function BrowseGrid({
   const { query } = useSearchQuery();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [cinemaFilter, setCinemaFilter] = useState<string | null>(null);
+  const [formatFilter, setFormatFilter] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const watchedIdSet = useMemo(() => new Set(watchedIds), [watchedIds]);
+
+  // Derived from whatever's actually in the loaded catalog, not a fixed
+  // list -- Scene and VOX each scrape their own free-form format strings
+  // (see CLAUDE.md's Scene/VOX sections), so hardcoding "IMAX, 4DX,
+  // ScreenX" here would drift the moment a branch adds or renames one.
+  const availableFormats = useMemo(() => {
+    const set = new Set<string>();
+    for (const movie of movies) {
+      for (const branch of movie.branches ?? []) {
+        for (const format of branch.formats) set.add(format);
+      }
+    }
+    return [...set].sort();
+  }, [movies]);
 
   // Rare fallback: a search that matches nothing in the initial (possibly
   // truncated) fetch gets one real network call to check the rest of the
@@ -115,6 +131,10 @@ export function BrowseGrid({
       result = result.filter((m) => m.branches?.some((b) => b.branch_id === cinemaFilter));
     }
 
+    if (formatFilter) {
+      result = result.filter((m) => m.branches?.some((b) => b.formats.includes(formatFilter)));
+    }
+
     if (query.trim()) {
       result = result.filter((m) => matchesSearch(m.title, query));
     }
@@ -142,7 +162,7 @@ export function BrowseGrid({
     });
 
     return result;
-  }, [moviesWithFallback, statusFilter, cinemaFilter, query]);
+  }, [moviesWithFallback, statusFilter, cinemaFilter, formatFilter, query]);
 
   // "Load More" appends in place rather than paging, so how many items
   // are currently visible is local UI state, not something worth
@@ -154,8 +174,8 @@ export function BrowseGrid({
   // during render, is how this component notices without an effect) so
   // switching filters doesn't leave a previous search's worth of extra
   // rows rendered against a possibly much smaller new result set.
-  const [prevFilterKey, setPrevFilterKey] = useState(`${query}:${statusFilter}:${cinemaFilter}`);
-  const filterKey = `${query}:${statusFilter}:${cinemaFilter}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(`${query}:${statusFilter}:${cinemaFilter}:${formatFilter}`);
+  const filterKey = `${query}:${statusFilter}:${cinemaFilter}:${formatFilter}`;
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
     setVisibleCount(PAGE_SIZE);
@@ -192,6 +212,9 @@ export function BrowseGrid({
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <CinemaFilterDropdown cinemas={cinemas} value={cinemaFilter} onChange={setCinemaFilter} />
+          {availableFormats.length > 0 && (
+            <FormatFilterDropdown formats={availableFormats} value={formatFilter} onChange={setFormatFilter} />
+          )}
           <FilterDropdown value={statusFilter} onChange={updateStatusFilter} />
         </div>
       </div>

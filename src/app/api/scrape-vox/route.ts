@@ -232,6 +232,11 @@ export async function POST(request: Request) {
       const isBookable = dayDetails.length > 0;
       if (isBookable) bookableCount += 1;
 
+      // Same experience-filter data Scene gets from /api/scrape-formats,
+      // but free here: VOX's own per-day fetch above already has every
+      // format string in dayDetails, so no extra request is needed.
+      const formats = [...new Set(dayDetails.flatMap((d) => d.formats.map((f) => f.format)))].sort();
+
       await supabase.from('showtimes_cache').upsert(
         {
           movie_id: movieId,
@@ -239,6 +244,7 @@ export async function POST(request: Request) {
           bookable: isBookable,
           last_checked_at: new Date().toISOString(),
           raw_showtimes: dayDetails,
+          formats,
         },
         { onConflict: 'movie_id,branch_id' },
       );
@@ -327,6 +333,7 @@ export async function POST(request: Request) {
           .update({
             bookable: false,
             raw_showtimes: [],
+            formats: [],
             pending_removal_since: null,
             last_checked_at: new Date().toISOString(),
           })

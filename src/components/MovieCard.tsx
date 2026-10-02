@@ -10,7 +10,13 @@ export interface MovieCardData {
   release_date: string | null;
   release_date_confirmed_eg: boolean;
   poster_path: string | null;
-  branches?: { branch_id: string; branch_name: string; bookable: boolean; bookableDayCount: number }[];
+  branches?: {
+    branch_id: string;
+    branch_name: string;
+    bookable: boolean;
+    bookableDayCount: number;
+    formats: string[];
+  }[];
 }
 
 export function MovieCard({
