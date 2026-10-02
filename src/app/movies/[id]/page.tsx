@@ -85,10 +85,10 @@ export default async function MovieDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; tab?: string }>;
 }) {
   const { id } = await params;
-  const { from } = await searchParams;
+  const { from, tab } = await searchParams;
   const supabase = await createClient();
 
   // Independent of each other (the movie lookup doesn't need `user`), so
@@ -444,7 +444,7 @@ export default async function MovieDetailPage({
 
       <div className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">
         <MovieDetailTabs
-          initialTab={fromBranchBookable ? 'showtimes' : 'overview'}
+          initialTab={fromBranchBookable || tab === 'showtimes' ? 'showtimes' : 'overview'}
           overview={details?.overview ?? null}
           tagline={details?.tagline ?? null}
           cast={castWithImdbIds}

@@ -6,7 +6,7 @@ import { markAsRead, markAllAsRead } from './actions';
 
 type LogRow = {
   id: string;
-  kind: 'showtime' | 'new_release' | 'lineup_added' | 'lineup_removed';
+  kind: 'showtime' | 'new_release' | 'lineup_added' | 'lineup_removed' | 'showtime_reminder';
   title: string | null;
   message: string | null;
   url: string | null;
@@ -19,12 +19,13 @@ const KIND_LABELS: Record<LogRow['kind'], string> = {
   new_release: 'Release date',
   lineup_added: 'New at cinema',
   lineup_removed: 'Left cinema',
+  showtime_reminder: 'Reminder',
 };
 
 // Kinds whose url points at an internal page rather than an external
 // booking link -- rendered as a Next Link instead of a plain <a target=
 // "_blank">, same as new_release always has.
-const INTERNAL_LINK_KINDS: LogRow['kind'][] = ['new_release', 'lineup_added', 'lineup_removed'];
+const INTERNAL_LINK_KINDS: LogRow['kind'][] = ['new_release', 'lineup_added', 'lineup_removed', 'showtime_reminder'];
 
 export default async function NotificationsHistoryPage() {
   const supabase = await createClient();

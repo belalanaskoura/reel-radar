@@ -97,6 +97,34 @@ export async function updateLineupAlerts(values: {
   return { error: null };
 }
 
+// The daily "still on your radar" reminder (see /api/send-reminders).
+// Only this one column is written, whatever else the client sends.
+export async function updateShowtimeReminders(values: {
+  notify_showtime_reminders: boolean;
+}): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/signin');
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ notify_showtime_reminders: values.notify_showtime_reminders === true })
+    .eq('id', user.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/account');
+  revalidatePath('/account/edit');
+  return { error: null };
+}
+
 // Remembers the user's answer to WatchlistGrid's "Remove from
 // watchlist?" confirm dialog (shown when clicking View Showtimes on a
 // tracked movie) so it stops asking once they've told it what they

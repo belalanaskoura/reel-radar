@@ -29,6 +29,8 @@ type ErrorSource =
   | 'broadcast'
   | 'prune-analytics'
   | 'check-scene-prices'
+  | 'send-reminders'
+  | 'radar-remove'
   | 'auth'
   | 'rate-limit'
   | 'render';

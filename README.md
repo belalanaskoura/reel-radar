@@ -258,6 +258,7 @@ rate-limiting depends on — see `supabase/migrations/0100_rate_limits.sql`).
 | `VAPID_PRIVATE_KEY` | VAPID private key, server-only — used to sign push messages. Generate a pair with `npx web-push generate-vapid-keys`. Never expose to the client. |
 | `ADMIN_EMAILS` | Comma-separated allowlist of emails permitted to view `/admin` |
 | `ADMIN_SESSION_SECRET` | Server-only, signs a short-lived (60s) cache cookie so rapid `/admin` tab clicks skip re-verifying with Supabase Auth on every single navigation. Any long random string, e.g. `openssl rand -base64 32`. |
+| `RADAR_LINK_SECRET` | Server-only, signs the "Remove from radar" links in alert emails and push notifications. Keep it separate from `SYNC_SECRET`; rotating it breaks links already sent. If unset, alerts go out without the remove link. Any long random string, e.g. `openssl rand -base64 32`. |
 | `VAPID_SUBJECT` | `mailto:` contact address sent with every push message, per the Web Push spec |
 | `OMDB_API_KEY` | [OMDb API](https://www.omdbapi.com/apikey.aspx) key, used for IMDb/Metacritic/Rotten Tomatoes ratings on the movie detail page's Reviews tab |
 | `NEXT_PUBLIC_SITE_URL` | Canonical production URL (e.g. `https://reelradar.online`), used for metadata/sitemap/robots.txt, password-reset redirects, and building absolute links in notification emails/push messages. Falls back to `https://reelradar.online` where the code allows it, but should be set explicitly for any other deployment. |
@@ -304,6 +305,7 @@ to be called on a real interval by an external scheduler (e.g.
 | `POST /api/scrape-formats` | Records which showtime formats (Standard, IMAX, etc.) are available per Scene branch, for `/cinemas` | Every 30 min |
 | `POST /api/match-movies?offset=<n>` | Matches new listings to TMDB entries, one batch (`BATCH_SIZE=30`) at a time — same offset-batching shape as `scrape-scene`, needed once the unmatched backlog got large enough to risk the scheduler's own timeout | After each scrape run, staggered offsets |
 | `POST /api/poll?chain=<scene\|vox>` | Checks bookability for watched (movie, branch) pairs and notifies, one chain's batch per call. Leave `?offset=` unset — it self-advances through every watched pair for that chain via a persisted cursor, same as `scrape-scene` | Every 15–30 min per chain |
+| `POST /api/send-reminders` | Sends the daily "still on your radar" reminder (email + push) for movies a user was alerted about, still has on their radar, and that are still bookable. At most one per (user, movie) every 24h, only between 10:00 and 22:00 Cairo time; outside those hours it returns immediately | Every 30 min |
 | `POST /api/admin-digest` | Emails/pushes a data-quality summary to admins (missing posters, stuck matches, price drift) | Daily |
 | `POST /api/welcome-email` | Emails new signups a one-time welcome (feature pointers, plus push setup steps if they haven't turned it on yet) | Every 15–30 min |
 | `POST /api/check-scene-prices?branch=<id>&format=<name>` | Spot-checks one Scene branch+format's admin-maintained price template against a real live read | Daily per branch+format combo |

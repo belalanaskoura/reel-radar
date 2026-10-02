@@ -127,7 +127,7 @@ type AnalyticsEvent =
         // performance dashboard break duration/recipient count down per
         // fan-out path instead of lumping notifyWatchers,
         // notifyLineupAdditions/Removals, and notifyNewReleases together.
-        kind: 'showtime' | 'lineup_added' | 'lineup_removed' | 'new_release';
+        kind: 'showtime' | 'lineup_added' | 'lineup_removed' | 'new_release' | 'showtime_reminder';
         recipientCount: number;
         notified: number;
         duration_ms: number;

@@ -9,6 +9,7 @@ create table "public"."profiles" (
   "subscribed_branch_ids"          text[],
   "notify_cinema_lineup"           boolean                  not null default true,
   "watchlist_booking_click_action" text                     not null default 'ask'::text,
+  "notify_showtime_reminders"      boolean                  not null default true,
   constraint "profiles_id_fkey" foreign key (id) references auth.users(id) on delete cascade,
   constraint "profiles_pkey" primary key (id),
   constraint "profiles_watchlist_booking_click_action_check" check ((watchlist_booking_click_action = ANY (ARRAY['ask'::text, 'always_remove'::text, 'always_keep'::text])))

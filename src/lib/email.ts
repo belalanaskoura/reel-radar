@@ -4,8 +4,10 @@ import {
   type NewReleaseNotification,
   type LineupAddedNotification,
   type LineupRemovedNotification,
+  type ShowtimeReminderNotification,
 } from '@/lib/notifications';
 import type { DataQualityIssue } from '@/lib/matching/data-quality';
+import { radarRemoveUrl } from '@/lib/radar-link';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -22,6 +24,23 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// Secondary "Remove from radar" link shown under a watchlist alert's main
+// button. It points at a confirm page, not a direct delete, so a mail
+// scanner opening the link can't remove anything. Empty when there's no
+// token (RADAR_LINK_SECRET unset).
+function removeFromRadarHtml(removeToken: string | null, prompt: string): string {
+  if (!removeToken) return '';
+  return `
+      <p style="font-size: 13px; color: #5c6b67; margin-top: 16px;">
+        ${escapeHtml(prompt)}
+        <a href="${escapeHtml(radarRemoveUrl(removeToken))}" style="color: #00534c; font-weight: 600;">Remove from radar</a>
+      </p>`;
+}
+
+function removeFromRadarText(removeToken: string | null): string {
+  return removeToken ? `\nRemove from radar: ${radarRemoveUrl(removeToken)}` : '';
 }
 
 export async function notifyFeedbackByEmail(notification: FeedbackNotification): Promise<void> {
@@ -69,7 +88,7 @@ export async function notifyBookableByEmail(
   notification: BookableNotification,
 ): Promise<void> {
   const timestamp = formatCheckedTimestamp();
-  const text = `${notification.movieTitle} is bookable at ${notification.branchName}!\n${notification.bookingUrl}\nChecked: ${timestamp}`;
+  const text = `${notification.movieTitle} is bookable at ${notification.branchName}!\n${notification.bookingUrl}${removeFromRadarText(notification.removeToken)}\nChecked: ${timestamp}`;
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
       <h1 style="font-size: 20px; color: #14201d;">${escapeHtml(notification.movieTitle)} is bookable</h1>
@@ -81,7 +100,7 @@ export async function notifyBookableByEmail(
            style="display: inline-block; margin-top: 8px; padding: 10px 20px; border-radius: 4px; background: #00534c; color: #ffffff; text-decoration: none; font-weight: 600;">
           Book now
         </a>
-      </p>
+      </p>${removeFromRadarHtml(notification.removeToken, 'Already booked, or not interested anymore?')}
       <p style="font-size: 12px; color: #8ea19b; margin-top: 24px;">Checked: ${timestamp}</p>
     </div>
   `;
@@ -420,7 +439,7 @@ export async function notifyNewReleaseByEmail(
   toEmail: string,
   notification: NewReleaseNotification,
 ): Promise<void> {
-  const text = `${notification.movieTitle} is coming to Egypt on ${notification.releaseDate}!\n${notification.movieUrl}`;
+  const text = `${notification.movieTitle} is coming to Egypt on ${notification.releaseDate}!\n${notification.movieUrl}${removeFromRadarText(notification.removeToken)}`;
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
       <h1 style="font-size: 20px; color: #14201d;">${escapeHtml(notification.movieTitle)} release date confirmed</h1>
@@ -432,7 +451,7 @@ export async function notifyNewReleaseByEmail(
            style="display: inline-block; margin-top: 8px; padding: 10px 20px; border-radius: 4px; background: #00534c; color: #ffffff; text-decoration: none; font-weight: 600;">
           View movie
         </a>
-      </p>
+      </p>${removeFromRadarHtml(notification.removeToken, 'Not interested anymore?')}
     </div>
   `;
 
@@ -535,6 +554,75 @@ export async function notifyLineupRemovedByEmail(
         from: process.env.RESEND_FROM_EMAIL,
         to: toEmail,
         subject: `${notification.movieTitle} left ${notification.branchName}`,
+        html,
+        text,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Resend request failed: ${res.status}`);
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Daily follow-up while a movie stays on someone's radar and stays
+// bookable (see /api/send-reminders). One button per bookable branch,
+// since each chain has its own booking site.
+export async function notifyShowtimeReminderByEmail(
+  toEmail: string,
+  notification: ShowtimeReminderNotification,
+): Promise<void> {
+  const text =
+    [
+      `${notification.movieTitle} is still on your radar and still bookable.`,
+      ...notification.branches.map((b) => `Book at ${b.name}: ${b.bookingUrl}`),
+      `All showtimes: ${notification.showtimesUrl}`,
+    ].join('\n') +
+    removeFromRadarText(notification.removeToken) +
+    `\n\nTurn off daily reminders: ${notification.settingsUrl}`;
+
+  const branchButtons = notification.branches
+    .map(
+      (b) => `
+        <a href="${escapeHtml(b.bookingUrl)}"
+           style="display: inline-block; margin: 8px 8px 0 0; padding: 10px 20px; border-radius: 4px; background: #00534c; color: #ffffff; text-decoration: none; font-weight: 600;">
+          Book at ${escapeHtml(b.name)}
+        </a>`,
+    )
+    .join('');
+
+  const html = `
+    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
+      <h1 style="font-size: 20px; color: #14201d;">${escapeHtml(notification.movieTitle)} is still bookable</h1>
+      <p style="font-size: 15px; color: #5c6b67;">
+        It's on your radar and tickets are available now.
+      </p>
+      <p>${branchButtons}</p>
+      <p style="margin-top: 16px;">
+        <a href="${escapeHtml(notification.showtimesUrl)}" style="font-size: 15px; font-weight: 600; color: #00534c; text-decoration: none;">View showtimes &rarr;</a>
+      </p>${removeFromRadarHtml(notification.removeToken, 'Already booked, or not interested anymore?')}
+      <p style="font-size: 12px; color: #8ea19b; margin-top: 24px;">
+        You get one reminder a day while a movie on your radar is bookable.
+        <a href="${escapeHtml(notification.settingsUrl)}" style="color: #8ea19b;">Turn off daily reminders</a>
+      </p>
+    </div>
+  `;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: toEmail,
+        subject: `Still on your radar: ${notification.movieTitle}`,
         html,
         text,
       }),

@@ -13,6 +13,7 @@ import { logEvent } from '@/lib/analytics';
 import { logError } from '@/lib/logger';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { readCursor, advanceCursor } from '@/lib/scrape-cursor';
+import { radarRemoveToken } from '@/lib/radar-link';
 
 // Watchers for one (movie, branch) pair are notified concurrently, not
 // sequentially -- see notifyWatchers below for why. Same cap sync-movies
@@ -187,22 +188,28 @@ export async function POST(request: Request) {
 
       checked += 1;
 
+      // Decided from notification_log, not from wasBookable alone.
+      // scrape-scene and scrape-vox also write showtimes_cache.bookable, and
+      // scrape-scene runs a few minutes before this job. When a scraper
+      // flipped a pair to bookable first, this run read wasBookable = true
+      // and skipped the alert for good. The delist sweeps caused the mirror
+      // problem: a false to false read here never cleared the log, so the
+      // next re-opening stayed suppressed too.
       if (!bookable) {
-        if (wasBookable) {
-          // Transitioned back to not-bookable: clear the log so a future
-          // re-opening (added showtimes, re-release) notifies again.
-          await supabase
-            .from('notification_log')
-            .delete()
-            .eq('movie_id', row.movie_id)
-            .eq('branch_id', branch)
-            .eq('kind', 'showtime');
-        }
+        // Clear the log so a future re-opening (added showtimes,
+        // re-release) notifies again. A no-op when nothing was logged.
+        await supabase
+          .from('notification_log')
+          .delete()
+          .eq('movie_id', row.movie_id)
+          .eq('branch_id', branch)
+          .eq('kind', 'showtime');
         continue;
       }
 
-      if (wasBookable) continue; // already bookable last poll, nothing new
-
+      // Every bookable pair, every run: notifyWatchers skips anyone the
+      // log says was already told, so this only sends to watchers who
+      // haven't heard about this branch yet.
       notified += await notifyWatchers(supabase, row.movie_id, branch, bookingUrl);
     } catch (err) {
       // One bad pair (a scraper hiccup, a transient Supabase error) must
@@ -238,14 +245,6 @@ async function notifyWatchers(
   branch: string,
   bookingUrl: string,
 ): Promise<number> {
-  const { data: movieRow } = await supabase.from('movies').select('title').eq('id', movieId).single();
-  const { data: branchInfoRow } = await supabase.from('branches').select('name').eq('id', branch).single();
-  if (!movieRow || !branchInfoRow) return 0;
-  // Narrowed to non-null locals so the closure below doesn't need TS to
-  // re-derive narrowing across the function boundary.
-  const movie = movieRow;
-  const branchRow = branchInfoRow;
-
   const { data: watchers } = await supabase.from('watchlist').select('user_id').eq('movie_id', movieId);
   if (!watchers || watchers.length === 0) return 0;
 
@@ -257,27 +256,72 @@ async function notifyWatchers(
     .eq('kind', 'showtime');
   const alreadyNotifiedIds = new Set((alreadyNotified ?? []).map((r) => r.user_id));
 
-  async function notifyOneWatcher(watcher: { user_id: string }): Promise<boolean> {
-    if (alreadyNotifiedIds.has(watcher.user_id)) return false;
+  // Runs for every bookable pair on every poll now (see the loop above),
+  // so the common case of "everyone already told" has to stay cheap: two
+  // queries and out, no movie/branch/profile reads.
+  const pendingIds = watchers.map((w) => w.user_id).filter((id) => !alreadyNotifiedIds.has(id));
+  if (pendingIds.length === 0) return 0;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('email, notify_cinema_showtimes, subscribed_branch_ids')
-      .eq('id', watcher.user_id)
-      .single();
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, email, notify_cinema_showtimes, subscribed_branch_ids')
+    .in('id', pendingIds);
 
-    if (!profile?.notify_cinema_showtimes) return false;
-    // null means "every branch" (the default, and what every existing
-    // user effectively had before this column existed) -- only a
-    // non-null array narrows to specific branches. Not logged as
-    // notified: if this user later subscribes to this branch, they
-    // should still be able to see this movie is already bookable here,
-    // not have it permanently marked "already told you" for a
-    // notification they never actually got.
-    if (profile.subscribed_branch_ids && !profile.subscribed_branch_ids.includes(branch)) return false;
-    if (!profile.email) return false; // nothing to notify with, skip entirely
+  // null subscribed_branch_ids means "every branch" (the default, and what
+  // every existing user effectively had before this column existed); only
+  // a non-null array narrows to specific branches. Skipped users aren't
+  // logged as notified, so subscribing to this branch later (or turning
+  // alerts back on) gets them the alert on a later poll instead of it
+  // being marked "already told" for a notification they never got.
+  const recipients: { id: string; email: string }[] = [];
+  for (const p of profiles ?? []) {
+    if (!p.notify_cinema_showtimes) continue;
+    if (p.subscribed_branch_ids && !p.subscribed_branch_ids.includes(branch)) continue;
+    if (!p.email) continue; // nothing to notify with, skip entirely
+    recipients.push({ id: p.id, email: p.email });
+  }
+  if (recipients.length === 0) return 0;
 
-    const payload = { movieTitle: movie.title, branchName: branchRow.name, bookingUrl };
+  const { data: movieRow } = await supabase.from('movies').select('title').eq('id', movieId).single();
+  const { data: branchInfoRow } = await supabase.from('branches').select('name').eq('id', branch).single();
+  if (!movieRow || !branchInfoRow) return 0;
+  // Narrowed to non-null locals so the closure below doesn't need TS to
+  // re-derive narrowing across the function boundary.
+  const movie = movieRow;
+  const branchRow = branchInfoRow;
+
+  async function notifyOneWatcher(recipient: { id: string; email: string }): Promise<boolean> {
+    const userId = recipient.id;
+    const payload = {
+      movieId,
+      movieTitle: movie.title,
+      branchName: branchRow.name,
+      bookingUrl,
+      removeToken: radarRemoveToken(userId, movieId),
+    };
+
+    // Claimed before sending, the same way welcome_email_log works: the
+    // partial unique index notification_log_showtime_unique lets exactly
+    // one insert win for this (user, movie, branch), so two overlapping
+    // poll runs (a cron call and an admin Re-run, say) can't both send,
+    // and a failed log write means no send rather than a resend on every
+    // later poll. supabase-js returns errors instead of throwing, so the
+    // result is checked directly. title/message/url are a display snapshot
+    // for the /notifications-history feed, since re-deriving "what did we
+    // actually tell this person" later from movies/branches state would
+    // give the wrong answer once either changes. A send that then fails
+    // stays logged: this job has no retry for either channel, so it skips
+    // this watcher for this bookable stretch rather than resending.
+    const { error: claimError } = await supabase.from('notification_log').insert({
+      user_id: userId,
+      movie_id: movieId,
+      branch_id: branch,
+      kind: 'showtime',
+      title: movie.title,
+      message: `${movie.title} is bookable at ${branchRow.name}!`,
+      url: bookingUrl,
+    });
+    if (claimError) return false;
 
     // Email and push are independent, best-effort channels: one failing
     // must never block the other or abort the rest of the watchers being
@@ -285,9 +329,9 @@ async function notifyWatchers(
     // uncaught send error killed every notification after it in the same
     // poll run).
     try {
-      await notifyBookableByEmail(profile.email, payload);
+      await notifyBookableByEmail(recipient.email, payload);
       await supabase.from('notification_deliveries').insert({
-        user_id: watcher.user_id,
+        user_id: userId,
         movie_id: movieId,
         branch_id: branch,
         channel: 'email',
@@ -295,7 +339,7 @@ async function notifyWatchers(
       });
     } catch (err) {
       await supabase.from('notification_deliveries').insert({
-        user_id: watcher.user_id,
+        user_id: userId,
         movie_id: movieId,
         branch_id: branch,
         channel: 'email',
@@ -305,9 +349,9 @@ async function notifyWatchers(
     }
 
     try {
-      await notifyBookablePush(supabase, watcher.user_id, payload);
+      await notifyBookablePush(supabase, userId, payload);
       await supabase.from('notification_deliveries').insert({
-        user_id: watcher.user_id,
+        user_id: userId,
         movie_id: movieId,
         branch_id: branch,
         channel: 'push',
@@ -315,7 +359,7 @@ async function notifyWatchers(
       });
     } catch (err) {
       await supabase.from('notification_deliveries').insert({
-        user_id: watcher.user_id,
+        user_id: userId,
         movie_id: movieId,
         branch_id: branch,
         channel: 'push',
@@ -324,30 +368,16 @@ async function notifyWatchers(
       });
     }
 
-    // Logged once an email attempt was made, regardless of outcome: this
-    // job has no retry mechanism for either channel, so a transient send
-    // failure here permanently skips this watcher for this bookable
-    // episode rather than resending on every subsequent poll. title/
-    // message/url are a display snapshot for the /notifications-history
-    // feed -- kept even though this row's only other job is dedupe,
-    // since re-deriving "what did we actually tell this person" later
-    // from movies/branches state would give the wrong answer once either
-    // changes.
-    try {
-      await supabase.from('notification_log').insert({
-        user_id: watcher.user_id,
-        movie_id: movieId,
-        branch_id: branch,
-        kind: 'showtime',
-        title: movie.title,
-        message: `${movie.title} is bookable at ${branchRow.name}!`,
-        url: bookingUrl,
-      });
-      return true;
-    } catch {
-      // best-effort, swallow and continue
-      return false;
-    }
+    // Starts this movie's daily reminder clock (see /api/send-reminders):
+    // the first reminder can't go out until 24h after this alert.
+    const { error: stampError } = await supabase
+      .from('watchlist')
+      .update({ last_bookable_alert_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('movie_id', movieId);
+    if (stampError) logError('poll', stampError, { movieId, branchId: branch, step: 'reminder-clock' });
+
+    return true;
   }
 
   // Bounded concurrency, not fully sequential: a popular movie/branch with
@@ -358,20 +388,21 @@ async function notifyWatchers(
   // comment, for the same pattern already causing a real production
   // incident once). Same concurrency cap sync-movies uses for TMDB calls.
   const fanoutStartedAt = Date.now();
-  const results = await mapWithConcurrency(watchers, NOTIFY_CONCURRENCY, notifyOneWatcher);
+  const results = await mapWithConcurrency(recipients, NOTIFY_CONCURRENCY, notifyOneWatcher);
   const notified = results.filter(Boolean).length;
 
-  // One event per (movie, branch) pair that actually had watchers -- rare
-  // by nature (only when a movie transitions to bookable), so this is
-  // real signal, not per-poll-cycle noise. Lets /admin track the
-  // concurrency fix's real effect directly (recipientCount vs.
-  // duration_ms) instead of inferring it from poll_run's own aggregate
-  // duration, which also includes the bookability-check network calls.
+  // One event per (movie, branch) pair that actually had someone to
+  // notify. Rare by nature (only when a movie becomes bookable for its
+  // watchers), so this is real signal, not per-poll-cycle noise. Lets
+  // /admin track the concurrency fix's real effect directly
+  // (recipientCount vs. duration_ms) instead of inferring it from
+  // poll_run's own aggregate duration, which also includes the
+  // bookability-check network calls.
   logEvent({
     type: 'fanout_run',
     payload: {
       kind: 'showtime',
-      recipientCount: watchers.length,
+      recipientCount: recipients.length,
       notified,
       duration_ms: Date.now() - fanoutStartedAt,
     },

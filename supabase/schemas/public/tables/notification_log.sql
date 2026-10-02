@@ -11,7 +11,7 @@ create table "public"."notification_log" (
   "sent_at"     timestamp with time zone not null default now(),
   "read_at"     timestamp with time zone,
   constraint "notification_log_branch_id_fkey" foreign key (branch_id) references public.branches(id) on delete cascade,
-  constraint "notification_log_kind_check" check ((kind = ANY (ARRAY['showtime'::text, 'new_release'::text, 'lineup_added'::text, 'lineup_removed'::text]))),
+  constraint "notification_log_kind_check" check ((kind = ANY (ARRAY['showtime'::text, 'new_release'::text, 'lineup_added'::text, 'lineup_removed'::text, 'showtime_reminder'::text]))),
   constraint "notification_log_movie_id_fkey" foreign key (movie_id) references public.movies(id) on delete cascade,
   constraint "notification_log_pkey" primary key (id),
   constraint "notification_log_user_id_fkey" foreign key (user_id) references auth.users(id) on delete cascade

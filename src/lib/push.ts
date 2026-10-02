@@ -5,8 +5,11 @@ import type {
   NewReleaseNotification,
   LineupAddedNotification,
   LineupRemovedNotification,
+  RadarRemoveAction,
+  ShowtimeReminderNotification,
 } from '@/lib/notifications';
 import { formatCheckedTimestamp } from '@/lib/notifications';
+import { radarRemoveUrl } from '@/lib/radar-link';
 import { isAllowedPushEndpoint } from '@/lib/push-endpoint';
 
 let configured = false;
@@ -24,6 +27,39 @@ interface PushPayload {
   title: string;
   body: string;
   url: string;
+  // Everything below is optional and only read by the current public/sw.js.
+  // An older service worker still installed on a device ignores it and
+  // shows a plain notification that opens url, same as before.
+  tag?: string;
+  actions?: { action: string; title: string }[];
+  movieId?: string;
+  movieTitle?: string;
+  // Sent in the background by the service worker's "remove" action.
+  removeToken?: string;
+  // Confirm page opened instead if that background request fails.
+  removeUrl?: string;
+}
+
+// Adds the "Remove from radar" button next to the main action. Left off
+// entirely when there's no token, so the banner never shows a button that
+// can't work.
+function withRadarRemove(
+  payload: PushPayload,
+  primaryActionTitle: string,
+  notification: RadarRemoveAction & { movieTitle: string },
+): PushPayload {
+  if (!notification.removeToken) return payload;
+  return {
+    ...payload,
+    actions: [
+      { action: 'open', title: primaryActionTitle },
+      { action: 'remove', title: 'Remove from radar' },
+    ],
+    movieId: notification.movieId,
+    movieTitle: notification.movieTitle,
+    removeToken: notification.removeToken,
+    removeUrl: radarRemoveUrl(notification.removeToken),
+  };
 }
 
 // Every other external call in this codebase (Scene, elCinema, TMDB,
@@ -88,11 +124,19 @@ export async function notifyBookablePush(
   notification: BookableNotification,
 ): Promise<number> {
   const timestamp = formatCheckedTimestamp();
-  return sendToUser(supabase, userId, {
-    title: `${notification.movieTitle} tickets available!`,
-    body: `Bookable at ${notification.branchName} now. Checked: ${timestamp}`,
-    url: notification.bookingUrl,
-  });
+  return sendToUser(
+    supabase,
+    userId,
+    withRadarRemove(
+      {
+        title: `${notification.movieTitle} tickets available!`,
+        body: `Bookable at ${notification.branchName} now. Checked: ${timestamp}`,
+        url: notification.bookingUrl,
+      },
+      'Book now',
+      notification,
+    ),
+  );
 }
 
 export async function notifyNewReleasePush(
@@ -100,11 +144,48 @@ export async function notifyNewReleasePush(
   userId: string,
   notification: NewReleaseNotification,
 ): Promise<number> {
-  return sendToUser(supabase, userId, {
-    title: `${notification.movieTitle} release date confirmed`,
-    body: `Coming to Egypt on ${notification.releaseDate}.`,
-    url: notification.movieUrl,
-  });
+  return sendToUser(
+    supabase,
+    userId,
+    withRadarRemove(
+      {
+        title: `${notification.movieTitle} release date confirmed`,
+        body: `Coming to Egypt on ${notification.releaseDate}.`,
+        url: notification.movieUrl,
+      },
+      'View movie',
+      notification,
+    ),
+  );
+}
+
+// One banner per (user, movie) a day. A single bookable branch opens that
+// branch's booking page directly; several open the movie's showtimes tab
+// here, since there's no one booking link that covers them all. The tag
+// makes a new reminder replace yesterday's if it's still on screen.
+export async function notifyShowtimeReminderPush(
+  supabase: SupabaseClient,
+  userId: string,
+  notification: ShowtimeReminderNotification,
+): Promise<number> {
+  const single = notification.branches.length === 1 ? notification.branches[0] : null;
+  const where = single
+    ? single.name
+    : `${notification.branches.length} cinemas`;
+  return sendToUser(
+    supabase,
+    userId,
+    withRadarRemove(
+      {
+        title: `Still on your radar: ${notification.movieTitle}`,
+        body: `Tickets are still available at ${where}.`,
+        url: single ? single.bookingUrl : notification.showtimesUrl,
+        tag: `reminder-${notification.movieId}`,
+      },
+      single ? 'Book now' : 'View showtimes',
+      notification,
+    ),
+  );
 }
 
 export async function notifyLineupAddedPush(

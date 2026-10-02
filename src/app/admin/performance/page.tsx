@@ -6,7 +6,7 @@ import { LineChart, type LinePoint } from '@/components/admin/LineChart';
 
 type DurationPayload = { duration_ms: number };
 type FanoutPayload = {
-  kind: 'showtime' | 'lineup_added' | 'lineup_removed' | 'new_release';
+  kind: 'showtime' | 'lineup_added' | 'lineup_removed' | 'new_release' | 'showtime_reminder';
   recipientCount: number;
   notified: number;
   duration_ms: number;
@@ -18,6 +18,7 @@ const FANOUT_KIND_LABELS: Record<FanoutPayload['kind'], string> = {
   lineup_added: 'Cinema lineup added',
   lineup_removed: 'Cinema lineup removed',
   new_release: 'New release',
+  showtime_reminder: 'Daily reminder',
 };
 
 // This page exists to answer "did the concurrency/pruning fixes from the

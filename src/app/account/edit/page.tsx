@@ -5,6 +5,7 @@ import {
   updateAlertPreferences,
   updateCinemaAlerts,
   updateLineupAlerts,
+  updateShowtimeReminders,
   updateWatchlistConfirmPreference,
   updateDisplayName,
   updateEmail,
@@ -15,6 +16,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { CinemaAlertsCard } from '@/components/CinemaAlertsCard';
 import { NewReleaseToggle } from '@/components/NewReleaseToggle';
 import { LineupAlertsToggle } from '@/components/LineupAlertsToggle';
+import { ShowtimeRemindersToggle } from '@/components/ShowtimeRemindersToggle';
 import { WatchlistConfirmPreference } from '@/components/WatchlistConfirmPreference';
 import { PushSubscribeButton } from '@/components/PushSubscribeButton';
 import { ThemeSettings } from '@/components/ThemeSettings';
@@ -40,7 +42,7 @@ export default async function SettingsPage({
     supabase
       .from('profiles')
       .select(
-        'display_name, avatar_url, notify_new_releases, notify_cinema_showtimes, subscribed_branch_ids, notify_cinema_lineup, watchlist_booking_click_action',
+        'display_name, avatar_url, notify_new_releases, notify_cinema_showtimes, subscribed_branch_ids, notify_cinema_lineup, notify_showtime_reminders, watchlist_booking_click_action',
       )
       .eq('id', user.id)
       .single(),
@@ -230,6 +232,17 @@ export default async function SettingsPage({
             initialEnabled={profile?.notify_cinema_showtimes ?? true}
             initialBranchIds={profile?.subscribed_branch_ids ?? null}
             updateCinemaAlerts={updateCinemaAlerts}
+          />
+        </SettingsCard>
+
+        <SettingsCard
+          title="Daily reminders"
+          description="One reminder a day while a movie on your radar is bookable"
+          icon={<BellIcon size={20} />}
+        >
+          <ShowtimeRemindersToggle
+            initialValue={profile?.notify_showtime_reminders ?? true}
+            updateShowtimeReminders={updateShowtimeReminders}
           />
         </SettingsCard>
 

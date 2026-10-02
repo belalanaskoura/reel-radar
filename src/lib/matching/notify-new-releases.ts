@@ -3,6 +3,7 @@ import { notifyNewReleasePush } from '@/lib/push';
 import { notifyNewReleaseByEmail } from '@/lib/email';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { logEvent } from '@/lib/analytics';
+import { radarRemoveToken } from '@/lib/radar-link';
 
 const NOTIFY_CONCURRENCY = 10;
 
@@ -74,9 +75,11 @@ export async function notifyNewReleases(
       if (!profile.email) return false; // nothing to notify with, skip entirely
 
       const payload = {
+        movieId: movieId as string,
         movieTitle: movie.title as string,
         releaseDate: movie.release_date as string,
         movieUrl: `${siteUrl}/movies/${movieId}`,
+        removeToken: radarRemoveToken(userId as string, movieId as string),
       };
 
       // Email and push are independent, best-effort channels: one failing
