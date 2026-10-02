@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { logError } from '@/lib/logger';
 import type { MovieCardData } from '@/components/MovieCard';
 
 // Word-start matching, kept byte-identical to BrowseGrid.tsx's own
@@ -34,7 +35,7 @@ export async function getFullCatalogSearchResults(query: string): Promise<MovieC
   const firstWord = trimmed.toLowerCase().split(/\s+/)[0];
   const supabase = await createClient();
 
-  const { data: movies } = await supabase
+  const { data: movies, error } = await supabase
     .from('movies')
     .select(
       'id, title, release_date, release_date_confirmed_eg, poster_path, showtimes_cache(branch_id, bookable, raw_showtimes, formats, branches(name))',
@@ -42,6 +43,15 @@ export async function getFullCatalogSearchResults(query: string): Promise<MovieC
     .in('match_status', ['matched', 'unmatched', 'ambiguous'])
     .ilike('title', `%${firstWord}%`)
     .limit(200);
+
+  // Logged, not thrown: BrowseGrid's fallback effect only clears its
+  // loading state when this resolves, so a throw would leave the search
+  // spinning forever. Empty results are an acceptable degrade for this
+  // rare path -- the point is that the failure is no longer invisible.
+  if (error) {
+    logError('render', error.message, { route: '/browse', query: 'full-catalog-search', code: error.code });
+    return [];
+  }
 
   return (movies ?? [])
     .filter((m) => matchesSearch(m.title, trimmed))

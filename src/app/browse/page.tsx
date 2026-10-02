@@ -6,6 +6,7 @@ import { PushBanner } from '@/components/PushBanner';
 import type { MovieCardData } from '@/components/MovieCard';
 import { sortBranchesForDisplay } from '@/lib/branches';
 import { logPageView } from '@/lib/analytics';
+import { logError } from '@/lib/logger';
 import { hidePosterlessMovies } from '@/lib/movie-visibility';
 import { hasEmbeddedRow } from '@/lib/matching/has-embedded-row';
 
@@ -34,7 +35,10 @@ const BROWSE_FETCH_LIMIT = 300;
 const getCachedCatalog = unstable_cache(
   async () => {
     const supabase = createServiceRoleClient();
-    const [{ data: movies, count: totalBrowsableCount }, { data: branches }] = await Promise.all([
+    const [
+      { data: movies, count: totalBrowsableCount, error: moviesError },
+      { data: branches, error: branchesError },
+    ] = await Promise.all([
       supabase
         .from('movies')
         .select(
@@ -46,6 +50,20 @@ const getCachedCatalog = unstable_cache(
         .limit(BROWSE_FETCH_LIMIT),
       supabase.from('branches').select('id, name').order('id', { ascending: true }),
     ]);
+    // Throw rather than fall through to `?? []`: a failed query (e.g. the
+    // select naming a column a pending migration hasn't added yet) used to
+    // render as an empty catalog AND get cached as one for the full
+    // revalidate window. A throw is never cached by unstable_cache, so the
+    // next request retries, and error.tsx shows a real error with a retry
+    // button instead of a silently empty page.
+    if (moviesError) {
+      logError('render', moviesError.message, { route: '/browse', query: 'movies', code: moviesError.code });
+      throw new Error(`browse catalog query failed: ${moviesError.message}`);
+    }
+    if (branchesError) {
+      logError('render', branchesError.message, { route: '/browse', query: 'branches', code: branchesError.code });
+      throw new Error(`browse branches query failed: ${branchesError.message}`);
+    }
     return { movies: movies ?? [], totalBrowsableCount: totalBrowsableCount ?? 0, branches: branches ?? [] };
   },
   ['browse-catalog'],
