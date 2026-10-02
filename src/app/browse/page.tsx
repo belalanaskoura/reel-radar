@@ -38,7 +38,7 @@ const getCachedCatalog = unstable_cache(
       supabase
         .from('movies')
         .select(
-          'id, title, release_date, release_date_confirmed_eg, poster_path, match_status, showtimes_cache(branch_id, bookable, was_ever_bookable, raw_showtimes, formats, branches(name)), rns_listings(movie_id)',
+          'id, title, release_date, release_date_confirmed_eg, poster_path, match_status, showtimes_cache(branch_id, bookable, was_ever_bookable, raw_showtimes, branches(name)), rns_listings(movie_id)',
           { count: 'exact' },
         )
         .in('match_status', ['matched', 'unmatched', 'ambiguous'])
@@ -167,7 +167,6 @@ export default async function BrowsePage() {
       branch_name: (s.branches as unknown as { name: string } | null)?.name ?? '',
       bookable: s.bookable,
       bookableDayCount: Array.isArray(s.raw_showtimes) ? s.raw_showtimes.length : 0,
-      formats: s.formats ?? [],
     })),
   }));
 

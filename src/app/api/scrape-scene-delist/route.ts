@@ -117,7 +117,6 @@ export async function POST(request: Request) {
             .update({
               bookable: false,
               raw_showtimes: [],
-              formats: [],
               pending_removal_since: null,
               last_checked_at: new Date().toISOString(),
             })

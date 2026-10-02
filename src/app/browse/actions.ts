@@ -37,7 +37,7 @@ export async function getFullCatalogSearchResults(query: string): Promise<MovieC
   const { data: movies } = await supabase
     .from('movies')
     .select(
-      'id, title, release_date, release_date_confirmed_eg, poster_path, showtimes_cache(branch_id, bookable, raw_showtimes, formats, branches(name))',
+      'id, title, release_date, release_date_confirmed_eg, poster_path, showtimes_cache(branch_id, bookable, raw_showtimes, branches(name))',
     )
     .in('match_status', ['matched', 'unmatched', 'ambiguous'])
     .ilike('title', `%${firstWord}%`)
@@ -56,7 +56,6 @@ export async function getFullCatalogSearchResults(query: string): Promise<MovieC
         branch_name: (s.branches as unknown as { name: string } | null)?.name ?? '',
         bookable: s.bookable,
         bookableDayCount: Array.isArray(s.raw_showtimes) ? s.raw_showtimes.length : 0,
-        formats: s.formats ?? [],
       })),
     }));
 }

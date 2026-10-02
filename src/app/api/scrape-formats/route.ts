@@ -9,10 +9,8 @@ import { logError } from '@/lib/logger';
 const BRANCHES = Object.keys(BRANCH_BASE_URLS) as BranchId[];
 
 // Records which showtime formats (Standard, Premiere/VIP, IMAX, ...) are
-// currently available at each branch, for display on /cinemas, AND which
-// formats each individual bookable movie has at that branch, written to
-// showtimes_cache.formats for the browse page's experience filter. This
-// data doesn't exist anywhere else: fetchDayShowtimes returns per-showtime
+// currently available at each branch, for display on /cinemas. This data
+// doesn't exist anywhere else: fetchDayShowtimes returns per-showtime
 // format strings, but nothing persists them -- /api/scrape-scene only
 // ever stores bookable dates (showtimes_cache.raw_showtimes), not
 // per-showtime detail, and fetchDayShowtimes itself is normally called
@@ -83,21 +81,9 @@ export async function POST(request: Request) {
           const dayShowtimes = await fetchDayShowtimes(movieDetailsUrl, firstDate);
           checked += 1;
 
-          const movieFormats = new Set<string>();
           for (const showtime of dayShowtimes.showtimes) {
             formatsSeen.add(showtime.format);
-            movieFormats.add(showtime.format);
           }
-
-          // Per-movie breakdown, not just the branch-wide union below --
-          // this is what lets the browse page's experience filter say
-          // "this movie has an IMAX showing," not just "this branch has
-          // an IMAX screen somewhere."
-          await supabase
-            .from('showtimes_cache')
-            .update({ formats: [...movieFormats].sort() })
-            .eq('movie_id', row.movie_id)
-            .eq('branch_id', branch);
         } catch (err) {
           logError('scrape-formats', err, { branch, movieId: row.movie_id });
         }
