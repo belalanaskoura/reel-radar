@@ -35,6 +35,11 @@ export interface BookabilityResult {
   // and elCinema have no image for. Null if the page's markup didn't
   // have the expected element.
   posterUrl: string | null;
+  // True when the calendar lists days but the earliest day's showtimes
+  // couldn't be confirmed (fetch failed, or came back empty). bookable is
+  // false in that case, but it's an inconclusive result rather than proof
+  // the movie stopped being bookable -- see resolveBookable.
+  unconfirmed: boolean;
 }
 
 export interface SceneCastAndCrew {

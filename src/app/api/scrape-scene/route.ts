@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { fetchAllListings, checkBookability, sleep, REQUEST_DELAY_MS } from '@/lib/scene/fetcher';
+import { fetchAllListings, checkBookability, resolveBookable, sleep, REQUEST_DELAY_MS } from '@/lib/scene/fetcher';
 import { BRANCH_BASE_URLS, type BranchId } from '@/lib/scene/types';
 import { logEvent } from '@/lib/analytics';
 import { logError } from '@/lib/logger';
@@ -243,7 +243,8 @@ export async function POST(request: Request) {
 
         await sleep(REQUEST_DELAY_MS);
         const bookability = await checkBookability(listing.url);
-        if (bookability.bookable) bookableCount += 1;
+        const bookable = resolveBookable(bookability, wasBookable);
+        if (bookable) bookableCount += 1;
 
         // Scene is the last-resort poster fallback (TMDB, then elCinema,
         // then this): only fill it in, never overwrite an existing one.
@@ -258,7 +259,7 @@ export async function POST(request: Request) {
           {
             movie_id: movieId,
             branch_id: branch,
-            bookable: bookability.bookable,
+            bookable,
             last_checked_at: new Date().toISOString(),
             raw_showtimes: bookability.availableDates,
           },
@@ -273,7 +274,7 @@ export async function POST(request: Request) {
         // Only the actual not-bookable -> bookable transition qualifies,
         // same "wasBookable" pattern /api/poll already uses for the
         // per-watchlist notification.
-        if (bookability.bookable && !wasBookable) {
+        if (bookable && !wasBookable) {
           justBecameBookableMovieIds.push(movieId);
         }
       }
