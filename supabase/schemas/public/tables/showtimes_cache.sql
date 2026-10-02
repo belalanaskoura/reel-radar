@@ -4,6 +4,7 @@ create table "public"."showtimes_cache" (
   "bookable"               boolean                  not null default false,
   "last_checked_at"        timestamp with time zone,
   "raw_showtimes"          jsonb,
+  "formats"                text[]                   not null default '{}'::text[],
   "was_ever_bookable"      boolean                  not null default false,
   "pending_removal_since"  timestamp with time zone,
   constraint "showtimes_cache_branch_id_fkey" foreign key (branch_id) references public.branches(id) on delete cascade,
