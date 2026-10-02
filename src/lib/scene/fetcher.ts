@@ -125,7 +125,7 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
 
   const dayItems = $('.glxDaysList li.calanderdays');
   if (dayItems.length === 0) {
-    return { bookable: false, availableDates: [], posterUrl };
+    return { bookable: false, availableDates: [], posterUrl, unconfirmed: false };
   }
 
   // The markup wraps each <li class="calanderdays"> in a parent <a
@@ -139,7 +139,7 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
   });
 
   if (availableDates.length === 0) {
-    return { bookable: false, availableDates: [], posterUrl };
+    return { bookable: false, availableDates: [], posterUrl, unconfirmed: false };
   }
 
   // Verify the earliest listed day actually has real showtime rows.
@@ -156,7 +156,23 @@ export async function checkBookability(movieDetailsUrl: string): Promise<Bookabi
     hasRealShowtimes = false;
   }
 
-  return { bookable: hasRealShowtimes, availableDates, posterUrl };
+  return { bookable: hasRealShowtimes, availableDates, posterUrl, unconfirmed: !hasRealShowtimes };
+}
+
+// The bookable state a caller should actually store, given the previous
+// one. A movie that was already bookable stays bookable on an
+// unconfirmed check (calendar still lists days, only the earliest day's
+// confirmation missed). Treating that as "no longer bookable" flipped
+// long-running movies to false for one poll, which made /api/poll clear
+// their notification_log rows, so the next successful poll re-sent
+// "tickets available!" for movies that had been showing for weeks
+// (seen 2026-10-02 for several District 5 movies at once). Only an empty calendar counts as a real
+// bookable -> not-bookable transition. A not-yet-bookable movie still
+// needs a confirmed check, so the premature-notification guard above
+// is unaffected.
+export function resolveBookable(result: BookabilityResult, wasBookable: boolean): boolean {
+  if (result.bookable) return true;
+  return wasBookable && result.unconfirmed;
 }
 
 // Last-resort cast/crew fallback (TMDB, then elCinema, then this) for

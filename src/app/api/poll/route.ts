@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifySyncSecret } from '@/lib/verify-sync-secret';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { checkBookability } from '@/lib/scene/fetcher';
+import { checkBookability, resolveBookable } from '@/lib/scene/fetcher';
 import { notifyBookablePush } from '@/lib/push';
 import { notifyBookableByEmail } from '@/lib/email';
 import type { BranchId as SceneBranchId } from '@/lib/scene/types';
@@ -149,7 +149,7 @@ export async function POST(request: Request) {
         const sceneBranch = branch as SceneBranchId;
         const movieDetailsUrl = `${BRANCH_BASE_URLS[sceneBranch]}/movie-details/${row.slug}.html`;
         const bookability = await checkBookability(movieDetailsUrl);
-        bookable = bookability.bookable;
+        bookable = resolveBookable(bookability, wasBookable);
         bookingUrl = movieDetailsUrl;
 
         await supabase.from('showtimes_cache').upsert(
